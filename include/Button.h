@@ -1,5 +1,5 @@
 #pragma once
-#include <Bounce2.h>
+#include <Arduino.h>
 
 class IButtonDelegate
 {
@@ -8,7 +8,30 @@ class IButtonDelegate
     virtual void buttonLongPressed(const byte number) = 0;
 };
 
-enum ButtonState {IS_OPEN, IS_RISING, IS_CLOSED, IS_FALLING};
+class ButtonManager
+{
+  public:
+    static ButtonManager& instance();
+    void registerButton(class Button* button);
+
+  private:
+    ButtonManager() = default;
+
+    static constexpr int kMaxInterrupts = 8;
+    void handleInterrupt(int interruptNum);
+
+    static void isr0();
+    static void isr1();
+    static void isr2();
+    static void isr3();
+    static void isr4();
+    static void isr5();
+    static void isr6();
+    static void isr7();
+
+    static Button* s_instances[kMaxInterrupts];
+    static void (* const s_isr[kMaxInterrupts])();
+};
 
 class Button
 {
@@ -23,12 +46,20 @@ class Button
     void updateState();
 
   private:
-    Bounce2::Button _debouncer;
+    void handleInterrupt();
+
+    // Only ButtonManager should call the interrupt handler.
+    friend class ButtonManager;
+
+  private:
     const byte _number;
     const byte _pin;
     IButtonDelegate& _delegate;
-    ButtonState _state;
     long _chrono;
-    bool _longPressing;
+    bool _buttonDown;
     bool _longPressed;
+
+    // Debounce state (prevents bounce-triggered repeats)
+    bool _debouncing;
+    uint32_t _debounceStart;
 };
