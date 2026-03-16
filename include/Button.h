@@ -16,6 +16,7 @@ class ButtonManager
 
   private:
     ButtonManager() = default;
+    ButtonManager(const ButtonManager& rhs) = default;
 
     static constexpr int kMaxInterrupts = 8;
     void handleInterrupt(int interruptNum);
