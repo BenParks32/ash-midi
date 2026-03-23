@@ -1,10 +1,7 @@
 #include "Lights.h"
 
-RingLight::RingLight(Adafruit_NeoPixel& strip, const byte number, const byte count) :
-    _strip(strip),
-    _number(number),
-    _count(count),
-    _currentColour(0)
+RingLight::RingLight(Adafruit_NeoPixel& strip, const byte number, const byte count)
+    : _strip(strip), _number(number), _count(count), _currentColour(0)
 {
 }
 
