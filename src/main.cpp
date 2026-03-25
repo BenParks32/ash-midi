@@ -1,23 +1,26 @@
 #include <Adafruit_NeoPixel.h>
 #include <Arduino.h>
+#include <SD.h>
 #include <TFT_eSPI.h>
 
 #include "Button.h"
 #include "Do.h"
 #include "Gfx.h"
 #include "Lights.h"
+#include "Resources.h"
 #include "TouchButton.h"
 
 #include "fonts/Lobster-Regular40.h"
 #include "fonts/Oswald-SemiBold30.h"
-
-#include "icons/footswitch.h"
 
 #define LED_PIN PA0
 #define RING_LED_COUNT 8
 #define BUTTON_COUNT 8
 
 #define LED_COUNT RING_LED_COUNT* BUTTON_COUNT
+
+#define SD_CS PA4
+
 const Size screenSize = {480, 320};
 const byte DimBrightness = 50;
 const byte FullBrightness = 255;
@@ -80,6 +83,8 @@ class ButtonHandler : public IButtonDelegate, public ITouchButtonDelegate
     }
 };
 
+Resources resources(SD_CS);
+
 ButtonHandler buttonHandler;
 
 Button btn1(0, PB12, buttonHandler);
@@ -102,8 +107,8 @@ const int32_t lineWidth = 2;
 const Size boxSize = {boxWidth, boxHeight};
 const int32_t bottomRowY = boxHeight * 3;
 
-FootSwitchTouchButton touchBtnBottom1(0, {0, bottomRowY}, boxSize, icon_footswitch, buttonHandler);
-FootSwitchTouchButton touchBtnBottom2(1, {boxWidth, bottomRowY}, boxSize, icon_footswitch, buttonHandler);
+FootSwitchTouchButton touchBtnBottom1(0, {0, bottomRowY}, boxSize, resources, buttonHandler);
+FootSwitchTouchButton touchBtnBottom2(1, {boxWidth, bottomRowY}, boxSize, resources, buttonHandler);
 FootSwitchTouchButton* touchButtons[BUTTON_COUNT]{&touchBtnBottom1, &touchBtnBottom2};
 
 void drawBoxLine(const int x1, const int y1, const int x2, const int y2)
@@ -135,9 +140,33 @@ void drawBorder()
     }
 }
 
+void initResourcesSD()
+{
+    Serial.println("Initializing SD card...");
+    tft.fillCircle(20, boxHeight + 20, 10, TFT_YELLOW);
+    if (!resources.init())
+    {
+        Serial.println("SD card initialization failed!");
+        tft.fillCircle(20, boxHeight + 20, 10, TFT_RED);
+        return;
+    }
+
+    if (!resources.loadAll())
+    {
+        Serial.println("Failed to load resources!");
+        tft.fillCircle(20, boxHeight + 20, 10, TFT_RED);
+        return;
+    }
+
+    Serial.println("SD card initialized and resources loaded successfully.");
+    tft.fillCircle(20, boxHeight + 20, 10, TFT_GREEN);
+}
+
 void setup()
 {
-    pinMode(PB2, INPUT);
+    pinMode(SD_CS, OUTPUT);
+    digitalWrite(SD_CS, HIGH);
+
     Serial.begin(115200);
 
     strip.begin();
@@ -150,8 +179,8 @@ void setup()
 
     drawBorder();
 
-    show(Lobster_Regular40, "ASH", 70, 140);
-    show(Oswald_SemiBold30, "guitars", 150, 140);
+    show(Lobster_Regular40, "ASH", 150, 140);
+    show(Oswald_SemiBold30, "guitars", 230, 140);
     strip.clear();
 
     ring1.setBrightness(FullBrightness);
@@ -179,6 +208,8 @@ void setup()
     ring8.setColour(strip.Color(255, 255, 255));
 
     strip.show();
+
+    initResourcesSD();
 
     touchBtnBottom1.draw(tft);
     touchBtnBottom2.draw(tft);

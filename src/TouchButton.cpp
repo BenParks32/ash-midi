@@ -16,15 +16,16 @@ bool TouchButton::handleTouch(const uint16_t x, const uint16_t y)
 }
 
 FootSwitchTouchButton::FootSwitchTouchButton(const byte number, const Point location, const Size size,
-                                             const uint16_t* icon, ITouchButtonDelegate& delegate)
-    : TouchButton(number, location, size, delegate), icon(icon)
+                                             const Resources& resources, ITouchButtonDelegate& delegate)
+    : TouchButton(number, location, size, delegate), _resources(resources)
 {
 }
 
 void FootSwitchTouchButton::draw(TFT_eSPI& tft)
 {
-    const Size iconSize = {48, 48};
+    const Icon& icon = _resources.footSwitchIcon();
+    const Size& iconSize = icon.iconSize();
     const int32_t x = location.x + (size.width - iconSize.width) / 2;
     const int32_t y = location.y + (size.height - iconSize.height) / 2;
-    tft.pushImage(x, y, iconSize.width, iconSize.height, icon);
+    tft.pushImage(x, y, iconSize.width, iconSize.height, icon.data());
 }

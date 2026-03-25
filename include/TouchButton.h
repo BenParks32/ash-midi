@@ -1,5 +1,6 @@
 #pragma once
 #include "Gfx.h"
+#include "Resources.h"
 #include <Arduino.h>
 #include <TFT_eSPI.h>
 
@@ -33,7 +34,7 @@ class TouchButton
 class FootSwitchTouchButton : public TouchButton
 {
   public:
-    FootSwitchTouchButton(const byte number, const Point location, const Size size, const uint16_t* icon,
+    FootSwitchTouchButton(const byte number, const Point location, const Size size, const Resources& resources,
                           ITouchButtonDelegate& delegate);
 
     void draw(TFT_eSPI& tft);
@@ -44,5 +45,5 @@ class FootSwitchTouchButton : public TouchButton
     FootSwitchTouchButton& operator=(const FootSwitchTouchButton&) = default;
 
   private:
-    const uint16_t* icon;
+    const Resources& _resources;
 };
