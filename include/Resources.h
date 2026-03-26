@@ -53,17 +53,6 @@ class Icon : public Resource
     const Size _iconSize;
 };
 
-class Font : public Resource
-{
-  public:
-    Font(const size_t size, const uint16_t* data, const bool ownsData = true) : Resource(size, data, ownsData) {}
-
-  private:
-    Font() = delete;
-    Font(const Font&) = delete;
-    Font& operator=(const Font&) = delete;
-};
-
 class Resources
 {
   public:
@@ -78,18 +67,13 @@ class Resources
   private:
     const uint16_t* readFile(const char* path, const size_t expectedSizeBytes) const;
     const Icon* const loadIcon(const char* path, const Size& size) const;
-    const Font* const loadFont(const char* path, const size_t size) const;
 
   private:
     const byte _sdPin;
     const Icon* FootSwitchIcon;
-    const Font* DefaultFont;
-    const Font* LogoFont;
 
   public:
     bool init();
     bool loadAll();
     const Icon& footSwitchIcon() const { return *FootSwitchIcon; }
-    const Font& defaultFont() const { return *DefaultFont; }
-    const Font& logoFont() const { return *LogoFont; }
 };

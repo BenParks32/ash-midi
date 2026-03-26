@@ -1,8 +1,6 @@
 #include "Resources.h"
 
-Resources::Resources(const byte sdPin) : _sdPin(sdPin), FootSwitchIcon(nullptr), DefaultFont(nullptr), LogoFont(nullptr)
-{
-}
+Resources::Resources(const byte sdPin) : _sdPin(sdPin), FootSwitchIcon(nullptr) {}
 
 bool Resources::init() { return SD.begin(_sdPin); }
 
@@ -81,18 +79,6 @@ const Icon* const Resources::loadIcon(const char* path, const Size& size) const
     return new Icon(size, data);
 }
 
-const Font* const Resources::loadFont(const char* path, const size_t size) const
-{
-    const size_t expectedSizeBytes = size * sizeof(uint16_t);
-    const uint16_t* data = readFile(path, expectedSizeBytes);
-    if (data == nullptr)
-    {
-        Serial.printf("Failed to load font from path: %s\n", path);
-        return nullptr;
-    }
-    return new Font(size, data);
-}
-
 bool Resources::loadAll()
 {
     Serial.println("Loading all resources...");
@@ -103,16 +89,7 @@ bool Resources::loadAll()
         return false;
     }
 
-    // Smooth fonts are intentionally not loaded on this target to save flash and RAM.
-    DefaultFont = nullptr;
-    LogoFont = nullptr;
-
     return true;
 }
 
-Resources::~Resources()
-{
-    delete FootSwitchIcon;
-    delete DefaultFont;
-    delete LogoFont;
-}
+Resources::~Resources() { delete FootSwitchIcon; }
