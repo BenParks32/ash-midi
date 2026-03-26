@@ -24,8 +24,15 @@ const byte DimBrightness = 50;
 const byte FullBrightness = 255;
 uint16_t calData[5] = {254, 3649, 281, 3563, 7};
 const int32_t titleCenterX = screenSize.width / 2;
-const int32_t titleY = 132;
-const int32_t subtitleY = 166;
+const int32_t logoSectionTop = screenSize.height / 4;
+const int32_t logoSectionBottom = (screenSize.height * 3) / 4;
+const int32_t logoFrameWidth = (232 * 7) / 10;
+const int32_t logoFrameHeight = 98;
+const int32_t logoFrameRadius = 14;
+const int32_t logoFrameLeft = titleCenterX - (logoFrameWidth / 2);
+const int32_t logoFrameTop = logoSectionTop + ((logoSectionBottom - logoSectionTop - logoFrameHeight) / 2);
+const int32_t logoTextLineSpacing = 34;
+const int32_t logoTextVerticalOffset = logoFrameHeight / 10;
 
 const int RingLEDCount = LED_COUNT / BUTTON_COUNT;
 
@@ -116,6 +123,8 @@ Button btn8(7, PA15, buttonHandler);
 Button* buttons[BUTTON_COUNT]{&btn1, &btn2, &btn3, &btn4, &btn5, &btn6, &btn7, &btn8};
 
 const uint16_t borderColour = tft.color565(175, 179, 186);
+const uint16_t logoFrameOuterColour = tft.color565(146, 158, 176);
+const uint16_t logoFrameInnerColour = tft.color565(84, 97, 116);
 
 const int32_t boxHeight = screenSize.height / 4;
 const int32_t boxWidth = screenSize.width / 4;
@@ -157,6 +166,25 @@ void fillScreenFast(const uint16_t color)
     // Direct full-window block fill is faster than generic fillRect clipping path.
     tft.setAddrWindow(0, 0, screenSize.width, screenSize.height);
     tft.pushBlock(color, (uint32_t)screenSize.width * (uint32_t)screenSize.height);
+}
+
+void drawLogoFrame()
+{
+    tft.drawRoundRect(logoFrameLeft, logoFrameTop, logoFrameWidth, logoFrameHeight, logoFrameRadius,
+                      logoFrameOuterColour);
+    tft.drawRoundRect(logoFrameLeft + 2, logoFrameTop + 2, logoFrameWidth - 4, logoFrameHeight - 4, logoFrameRadius - 2,
+                      logoFrameInnerColour);
+}
+
+void drawLogoText()
+{
+    // Keep legacy visual spacing, but center the two-line pair vertically in the frame.
+    const int32_t logoFrameCenterY = logoFrameTop + (logoFrameHeight / 2);
+    const int32_t titleY = logoFrameCenterY - (logoTextLineSpacing / 2) - logoTextVerticalOffset;
+    const int32_t subtitleY = titleY + logoTextLineSpacing;
+
+    showCentered(LogoUiFont, LogoUiScale, "ASH", titleCenterX, titleY);
+    showCentered(DefaultUiFont, DefaultUiScale, "guitars", titleCenterX, subtitleY);
 }
 
 void drawBackgroundAndBorder()
@@ -239,8 +267,8 @@ void setup()
 
     strip.show();
 
-    showCentered(LogoUiFont, LogoUiScale, "ASH", titleCenterX, titleY);
-    showCentered(DefaultUiFont, DefaultUiScale, "guitars", titleCenterX, subtitleY);
+    drawLogoFrame();
+    drawLogoText();
 
     const bool resourcesLoaded = initResourcesSD();
     if (resourcesLoaded)
