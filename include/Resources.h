@@ -2,14 +2,24 @@
 #include "Gfx.h"
 #include <Arduino.h>
 #include <SD.h>
+#include <stddef.h>
 
 const uint SZ_ICON_FOOTSWITCH = 48;
 
 class Resource
 {
   public:
-    Resource(const uint16_t size, const uint16_t* data) : _size(size), _data(data) {}
-    ~Resource() { delete[] _data; }
+    Resource(const size_t size, const uint16_t* data, const bool ownsData = true)
+        : _size(size), _data(data), _ownsData(ownsData)
+    {
+    }
+    ~Resource()
+    {
+        if (_ownsData)
+        {
+            delete[] _data;
+        }
+    }
 
   private:
     Resource() = delete;
@@ -17,12 +27,13 @@ class Resource
     Resource& operator=(const Resource&) = delete;
 
   public:
-    const uint16_t size() const { return _size; }
+    const size_t size() const { return _size; }
     const uint16_t* data() const { return _data; }
 
   private:
-    const uint16_t _size;
+    const size_t _size;
     const uint16_t* _data;
+    const bool _ownsData;
 };
 
 class Icon : public Resource
@@ -42,6 +53,17 @@ class Icon : public Resource
     const Size _iconSize;
 };
 
+class Font : public Resource
+{
+  public:
+    Font(const size_t size, const uint16_t* data, const bool ownsData = true) : Resource(size, data, ownsData) {}
+
+  private:
+    Font() = delete;
+    Font(const Font&) = delete;
+    Font& operator=(const Font&) = delete;
+};
+
 class Resources
 {
   public:
@@ -54,15 +76,20 @@ class Resources
     Resources& operator=(const Resources&) = delete;
 
   private:
-    const uint16_t* readFile(const char* path, const uint16_t expectedSize) const;
+    const uint16_t* readFile(const char* path, const size_t expectedSizeBytes) const;
     const Icon* const loadIcon(const char* path, const Size& size) const;
+    const Font* const loadFont(const char* path, const size_t size) const;
 
   private:
     const byte _sdPin;
     const Icon* FootSwitchIcon;
+    const Font* DefaultFont;
+    const Font* LogoFont;
 
   public:
     bool init();
     bool loadAll();
     const Icon& footSwitchIcon() const { return *FootSwitchIcon; }
+    const Font& defaultFont() const { return *DefaultFont; }
+    const Font& logoFont() const { return *LogoFont; }
 };

@@ -10,12 +10,10 @@
 #include "Resources.h"
 #include "TouchButton.h"
 
-#include "fonts/Lobster-Regular40.h"
-#include "fonts/Oswald-SemiBold30.h"
-
 #define LED_PIN PA0
 #define RING_LED_COUNT 8
 #define BUTTON_COUNT 8
+#define TOUCH_BUTTON_COUNT 2
 
 #define LED_COUNT RING_LED_COUNT* BUTTON_COUNT
 
@@ -25,6 +23,9 @@ const Size screenSize = {480, 320};
 const byte DimBrightness = 50;
 const byte FullBrightness = 255;
 uint16_t calData[5] = {254, 3649, 281, 3563, 7};
+const int32_t titleCenterX = screenSize.width / 2;
+const int32_t titleY = 132;
+const int32_t subtitleY = 166;
 
 const int RingLEDCount = LED_COUNT / BUTTON_COUNT;
 
@@ -41,19 +42,37 @@ RingLight ring7(strip, RingLEDCount * 6, RingLEDCount);
 RingLight ring8(strip, RingLEDCount * 7, RingLEDCount);
 RingLight* rings[BUTTON_COUNT]{&ring1, &ring2, &ring3, &ring4, &ring5, &ring6, &ring7, &ring8};
 
-void clear(const uint8_t* f, const char* label, const int x, const int y)
+const GFXfont* DefaultUiFont = FF22;
+const GFXfont* LogoUiFont = FF32;
+const uint8_t DefaultUiScale = 1;
+const uint8_t LogoUiScale = 1;
+
+void clear(const GFXfont* font, const uint8_t scale, const char* label, const int x, const int y)
 {
-    tft.loadFont(f);
+    tft.setFreeFont(font);
+    tft.setTextSize(scale);
     tft.setTextColor(TFT_BLACK, TFT_BLACK);
-    tft.drawString(label, x, y);
+    tft.drawString(label, x, y, GFXFF);
 }
 
-void show(const uint8_t* f, const char* label, const int x, const int y)
+void show(const GFXfont* font, const uint8_t scale, const char* label, const int x, const int y)
 {
-    tft.loadFont(f);
+    tft.setFreeFont(font);
+    tft.setTextSize(scale);
     tft.setTextColor(TFT_WHITE, TFT_BLACK);
-    tft.drawString(label, x, y);
+    tft.drawString(label, x, y, GFXFF);
 }
+
+void showCentered(const GFXfont* font, const uint8_t scale, const char* label, const int centerX, const int y)
+{
+    tft.setFreeFont(font);
+    tft.setTextSize(scale);
+    tft.setTextColor(TFT_WHITE, TFT_BLACK);
+    const int x = centerX - (tft.textWidth(label, GFXFF) / 2);
+    tft.drawString(label, x, y, GFXFF);
+}
+
+Resources resources(SD_CS);
 
 RingLight* selectedRing = &ring1;
 char pressed[10];
@@ -69,21 +88,20 @@ class ButtonHandler : public IButtonDelegate, public ITouchButtonDelegate
         selectedRing->setBrightness(FullBrightness);
         strip.show();
 
-        clear(Oswald_SemiBold30, pressed, 15, 200);
+        Serial.printf("Drawing text for button %d\n", number);
+        clear(DefaultUiFont, DefaultUiScale, pressed, 15, 200);
         snprintf(pressed, sizeof(pressed), "Pressed %d", (int)number + 1);
-        show(Oswald_SemiBold30, pressed, 15, 200);
+        show(DefaultUiFont, DefaultUiScale, pressed, 15, 200);
     }
 
     void buttonLongPressed(const byte number) override
     {
         Serial.printf("Button %d long pressed\n", number);
-        clear(Oswald_SemiBold30, longPressed, 240, 200);
+        clear(DefaultUiFont, DefaultUiScale, longPressed, 240, 200);
         snprintf(longPressed, sizeof(longPressed), "Long Pressed %d", (int)number + 1);
-        show(Oswald_SemiBold30, longPressed, 240, 200);
+        show(DefaultUiFont, DefaultUiScale, longPressed, 240, 200);
     }
 };
-
-Resources resources(SD_CS);
 
 ButtonHandler buttonHandler;
 
@@ -109,7 +127,7 @@ const int32_t bottomRowY = boxHeight * 3;
 
 FootSwitchTouchButton touchBtnBottom1(0, {0, bottomRowY}, boxSize, resources, buttonHandler);
 FootSwitchTouchButton touchBtnBottom2(1, {boxWidth, bottomRowY}, boxSize, resources, buttonHandler);
-FootSwitchTouchButton* touchButtons[BUTTON_COUNT]{&touchBtnBottom1, &touchBtnBottom2};
+FootSwitchTouchButton* touchButtons[TOUCH_BUTTON_COUNT]{&touchBtnBottom1, &touchBtnBottom2};
 
 void drawBoxLine(const int x1, const int y1, const int x2, const int y2)
 {
@@ -140,7 +158,7 @@ void drawBorder()
     }
 }
 
-void initResourcesSD()
+bool initResourcesSD()
 {
     Serial.println("Initializing SD card...");
     tft.fillCircle(20, boxHeight + 20, 10, TFT_YELLOW);
@@ -148,18 +166,19 @@ void initResourcesSD()
     {
         Serial.println("SD card initialization failed!");
         tft.fillCircle(20, boxHeight + 20, 10, TFT_RED);
-        return;
+        return false;
     }
 
     if (!resources.loadAll())
     {
         Serial.println("Failed to load resources!");
         tft.fillCircle(20, boxHeight + 20, 10, TFT_RED);
-        return;
+        return false;
     }
 
     Serial.println("SD card initialized and resources loaded successfully.");
     tft.fillCircle(20, boxHeight + 20, 10, TFT_GREEN);
+    return true;
 }
 
 void setup()
@@ -179,8 +198,6 @@ void setup()
 
     drawBorder();
 
-    show(Lobster_Regular40, "ASH", 150, 140);
-    show(Oswald_SemiBold30, "guitars", 230, 140);
     strip.clear();
 
     ring1.setBrightness(FullBrightness);
@@ -209,10 +226,15 @@ void setup()
 
     strip.show();
 
-    initResourcesSD();
+    showCentered(LogoUiFont, LogoUiScale, "ASH", titleCenterX, titleY);
+    showCentered(DefaultUiFont, DefaultUiScale, "guitars", titleCenterX, subtitleY);
 
-    touchBtnBottom1.draw(tft);
-    touchBtnBottom2.draw(tft);
+    const bool resourcesLoaded = initResourcesSD();
+    if (resourcesLoaded)
+    {
+        touchBtnBottom1.draw(tft);
+        touchBtnBottom2.draw(tft);
+    }
 }
 
 /*
@@ -247,7 +269,7 @@ void HandleTouch()
     uint16_t x, y;
     if (tft.getTouch(&x, &y))
     {
-        for (int i = 0; i < BUTTON_COUNT; ++i)
+        for (int i = 0; i < TOUCH_BUTTON_COUNT; ++i)
         {
             if (touchButtons[i]->handleTouch(x, y))
             {
