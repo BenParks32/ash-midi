@@ -26,7 +26,7 @@
 #define TOUCH_IRQ PB2
 
 // SPI frequency
-#define SPI_FREQUENCY 20000000
+#define SPI_FREQUENCY 40000000
 #define SPI_TOUCH_FREQUENCY 2000000
 
 #define GFXFF 1

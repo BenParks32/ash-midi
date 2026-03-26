@@ -117,8 +117,6 @@ Button* buttons[BUTTON_COUNT]{&btn1, &btn2, &btn3, &btn4, &btn5, &btn6, &btn7, &
 
 const uint16_t borderColour = tft.color565(175, 179, 186);
 
-const int32_t rightBorderX = screenSize.width - 2;
-const int32_t bottomBorderY = screenSize.height - 2;
 const int32_t boxHeight = screenSize.height / 4;
 const int32_t boxWidth = screenSize.width / 4;
 const int32_t lineWidth = 2;
@@ -129,33 +127,50 @@ FootSwitchTouchButton touchBtnBottom1(0, {0, bottomRowY}, boxSize, resources, bu
 FootSwitchTouchButton touchBtnBottom2(1, {boxWidth, bottomRowY}, boxSize, resources, buttonHandler);
 FootSwitchTouchButton* touchButtons[TOUCH_BUTTON_COUNT]{&touchBtnBottom1, &touchBtnBottom2};
 
-void drawBoxLine(const int x1, const int y1, const int x2, const int y2)
-{
-    const int lineWidth = 2;
-    tft.drawWideLine(x1, y1, x2, y2, lineWidth, borderColour);
-}
-
 void drawBorder()
 {
-    drawBoxLine(0, 0, screenSize.width, 0);
-    drawBoxLine(0, boxHeight, screenSize.width, boxHeight);
-    drawBoxLine(0, boxHeight * 3, screenSize.width, boxHeight * 3);
-    drawBoxLine(0, screenSize.height - 2, screenSize.width, screenSize.height - 2);
-    drawBoxLine(0, 0, 0, screenSize.height);
-    drawBoxLine(screenSize.width - 2, 0, screenSize.width - 2, screenSize.height);
+    // Fast border pass: axis-aligned filled rectangles are much faster than drawWideLine.
+    tft.fillRect(0, 0, screenSize.width, lineWidth, borderColour);
+    tft.fillRect(0, boxHeight, screenSize.width, lineWidth, borderColour);
+    tft.fillRect(0, boxHeight * 3, screenSize.width, lineWidth, borderColour);
+    tft.fillRect(0, screenSize.height - lineWidth, screenSize.width, lineWidth, borderColour);
+
+    tft.fillRect(0, 0, lineWidth, screenSize.height, borderColour);
+    tft.fillRect(screenSize.width - lineWidth, 0, lineWidth, screenSize.height, borderColour);
 
     for (int i = 1; i < 4; ++i)
     {
         const int left = boxWidth * i;
-        drawBoxLine(left, 0, left, boxHeight);
+        tft.fillRect(left, 0, lineWidth, boxHeight, borderColour);
     }
 
     for (int i = 1; i < 4; ++i)
     {
         const int left = boxWidth * i;
         const int top = boxHeight * 3;
-        drawBoxLine(left, top, left, screenSize.height);
+        tft.fillRect(left, top, lineWidth, screenSize.height - top, borderColour);
     }
+}
+
+void fillScreenFast(const uint16_t color)
+{
+    // Direct full-window block fill is faster than generic fillRect clipping path.
+    tft.setAddrWindow(0, 0, screenSize.width, screenSize.height);
+    tft.pushBlock(color, (uint32_t)screenSize.width * (uint32_t)screenSize.height);
+}
+
+void drawBackgroundAndBorder()
+{
+    // At high SPI rates this is often bandwidth-limited; hide the sweep by disabling panel output while drawing.
+    tft.writecommand(TFT_DISPOFF);
+
+    // Keep one SPI transaction open to reduce command overhead during startup draw.
+    tft.startWrite();
+    fillScreenFast(TFT_BLACK);
+    drawBorder();
+    tft.endWrite();
+
+    tft.writecommand(TFT_DISPON);
 }
 
 bool initResourcesSD()
@@ -194,9 +209,7 @@ void setup()
     tft.setTouch(calData);
     tft.init();
     tft.setRotation(1);
-    tft.fillScreen(TFT_BLACK);
-
-    drawBorder();
+    drawBackgroundAndBorder();
 
     strip.clear();
 
@@ -237,23 +250,10 @@ void setup()
     }
 }
 
-/*
-int currentRing = 0;
-void testRing()
-{
-    rings[currentRing]->setBrightness(DimBrightness);
-    currentRing = (currentRing + 1) % BUTTON_COUNT;
-    rings[currentRing]->setBrightness(FullBrightness);
-    strip.show();
-}
-Every every500ms(500, testRing);
-*/
-
 void loop()
 {
     HandleButtons();
     HandleTouch();
-    // every500ms.tick();
 }
 
 void HandleButtons()
