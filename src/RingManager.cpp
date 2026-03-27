@@ -35,7 +35,20 @@ void RingManager::selectRing(uint8_t ringIndex)
 
     _selectedRing = ringIndex;
     applyBrightness();
+    show();
 }
+
+void RingManager::begin()
+{
+    _strip.begin();
+    _strip.setBrightness(255);
+    _strip.clear();
+
+    setDefaultRingColours();
+    show();
+}
+
+void RingManager::show() { _strip.show(); }
 
 bool RingManager::adjustMasterBrightness(int16_t steps, uint8_t stepSize)
 {
@@ -63,6 +76,7 @@ bool RingManager::adjustMasterBrightness(int16_t steps, uint8_t stepSize)
 
     _masterBrightness = nextBrightness;
     applyBrightness();
+    show();
     return true;
 }
 
@@ -84,6 +98,18 @@ void RingManager::setMasterBrightness(uint8_t brightness)
 }
 
 uint8_t RingManager::masterBrightness() const { return _masterBrightness; }
+
+void RingManager::setDefaultRingColours()
+{
+    setRingColour(0, _strip.Color(0, 255, 0));
+    setRingColour(1, _strip.Color(0, 0, 255));
+    setRingColour(2, _strip.Color(255, 0, 0));
+    setRingColour(3, _strip.Color(255, 0, 0));
+    setRingColour(4, _strip.Color(220, 165, 0));
+    setRingColour(5, _strip.Color(0, 128, 128));
+    setRingColour(6, _strip.Color(255, 128, 255));
+    setRingColour(7, _strip.Color(255, 255, 255));
+}
 
 void RingManager::applyBrightness()
 {

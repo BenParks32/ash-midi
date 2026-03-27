@@ -28,6 +28,8 @@ class RingManager
   public:
     void setRingColour(uint8_t ringIndex, uint32_t colour);
     void selectRing(uint8_t ringIndex);
+    void begin();
+    void show();
 
     bool adjustMasterBrightness(int16_t steps, uint8_t stepSize);
     void setMasterBrightness(uint8_t brightness);
@@ -35,6 +37,7 @@ class RingManager
 
   private:
     void applyBrightness();
+    void setDefaultRingColours();
 
   private:
     Adafruit_NeoPixel& _strip;
