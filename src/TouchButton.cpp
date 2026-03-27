@@ -21,11 +21,4 @@ FootSwitchTouchButton::FootSwitchTouchButton(const byte number, const Point loca
 {
 }
 
-void FootSwitchTouchButton::draw(TFT_eSPI& tft)
-{
-    const Icon& icon = _resources.footSwitchIcon();
-    const Size& iconSize = icon.iconSize();
-    const int32_t x = location.x + (size.width - iconSize.width) / 2;
-    const int32_t y = location.y + (size.height - iconSize.height) / 2;
-    tft.pushImage(x, y, iconSize.width, iconSize.height, icon.data());
-}
+void FootSwitchTouchButton::draw(ScreenUi& ui) { ui.drawIconCentered(_resources.footSwitchIcon(), location, size); }

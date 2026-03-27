@@ -1,8 +1,8 @@
 #pragma once
 #include "Gfx.h"
 #include "Resources.h"
+#include "ScreenUi.h"
 #include <Arduino.h>
-#include <TFT_eSPI.h>
 
 class ITouchButtonDelegate
 {
@@ -17,7 +17,7 @@ class TouchButton
 
   public:
     bool handleTouch(const uint16_t x, const uint16_t y);
-    virtual void draw(TFT_eSPI& tft) = 0;
+    virtual void draw(ScreenUi& ui) = 0;
 
   private:
     TouchButton() = default;
@@ -37,7 +37,7 @@ class FootSwitchTouchButton : public TouchButton
     FootSwitchTouchButton(const byte number, const Point location, const Size size, const Resources& resources,
                           ITouchButtonDelegate& delegate);
 
-    void draw(TFT_eSPI& tft);
+    void draw(ScreenUi& ui);
 
   private:
     FootSwitchTouchButton() = default;
