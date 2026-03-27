@@ -93,23 +93,24 @@ FootSwitchTouchButton* touchButtons[TOUCH_BUTTON_COUNT]{&touchBtnBottom1, &touch
 bool initResourcesSD()
 {
     Serial.println("Initializing SD card...");
-    tft.fillCircle(20, screenUi.boxHeight() + 20, 10, TFT_YELLOW);
+    screenUi.drawSdStatusInitializing();
+
     if (!resources.init())
     {
         Serial.println("SD card initialization failed!");
-        tft.fillCircle(20, screenUi.boxHeight() + 20, 10, TFT_RED);
+        screenUi.drawSdStatusFailed();
         return false;
     }
 
     if (!resources.loadAll())
     {
         Serial.println("Failed to load resources!");
-        tft.fillCircle(20, screenUi.boxHeight() + 20, 10, TFT_RED);
+        screenUi.drawSdStatusFailed();
         return false;
     }
 
     Serial.println("SD card initialized and resources loaded successfully.");
-    tft.fillCircle(20, screenUi.boxHeight() + 20, 10, TFT_GREEN);
+    screenUi.drawSdStatusReady();
     return true;
 }
 

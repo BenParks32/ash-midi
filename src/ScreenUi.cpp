@@ -39,6 +39,14 @@ void ScreenUi::drawText(const GFXfont* font, uint8_t scale, const char* label, i
     _tft.drawString(label, x, y, GFXFF);
 }
 
+void ScreenUi::drawSmallText(const char* label, int32_t x, int32_t y, uint16_t textColour, uint16_t backgroundColour)
+{
+    _tft.setTextFont(1);
+    _tft.setTextSize(2);
+    _tft.setTextColor(textColour, backgroundColour);
+    _tft.drawString(label, x, y);
+}
+
 void ScreenUi::clearText(const GFXfont* font, uint8_t scale, const char* label, int32_t x, int32_t y)
 {
     drawText(font, scale, label, x, y, TFT_BLACK, TFT_BLACK);
@@ -73,6 +81,32 @@ void ScreenUi::drawIconCentered(const Icon& icon, const Point& areaLocation, con
     const int32_t x = areaLocation.x + (areaSize.width - iconSize.width) / 2;
     const int32_t y = areaLocation.y + (areaSize.height - iconSize.height) / 2;
     drawIcon(icon, x, y);
+}
+
+void ScreenUi::drawStatusIndicator(int32_t circleX, int32_t circleY, int32_t radius, const char* label, int32_t textX,
+                                   int32_t textY, uint16_t colour)
+{
+    _tft.fillCircle(circleX, circleY, radius, colour);
+    _tft.fillRect(textX, textY, _sdStatusTextClearWidth, _sdStatusTextClearHeight, TFT_BLACK);
+    drawSmallText(label, textX, textY, TFT_WHITE, TFT_BLACK);
+}
+
+void ScreenUi::drawSdStatusInitializing()
+{
+    drawStatusIndicator(_sdStatusCircleX, _sdStatusCircleY, _sdStatusRadius, "SD init...", _sdStatusTextX,
+                        _sdStatusTextY, TFT_YELLOW);
+}
+
+void ScreenUi::drawSdStatusFailed()
+{
+    drawStatusIndicator(_sdStatusCircleX, _sdStatusCircleY, _sdStatusRadius, "SD failed", _sdStatusTextX,
+                        _sdStatusTextY, TFT_RED);
+}
+
+void ScreenUi::drawSdStatusReady()
+{
+    drawStatusIndicator(_sdStatusCircleX, _sdStatusCircleY, _sdStatusRadius, "SD ready", _sdStatusTextX, _sdStatusTextY,
+                        TFT_GREEN);
 }
 
 int32_t ScreenUi::boxWidth() const { return _boxWidth; }

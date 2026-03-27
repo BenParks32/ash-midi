@@ -29,6 +29,8 @@ class ScreenUi
 
     void drawText(const GFXfont* font, uint8_t scale, const char* label, int32_t x, int32_t y,
                   uint16_t textColour = TFT_WHITE, uint16_t backgroundColour = TFT_BLACK);
+    void drawSmallText(const char* label, int32_t x, int32_t y, uint16_t textColour = TFT_WHITE,
+                       uint16_t backgroundColour = TFT_BLACK);
     void clearText(const GFXfont* font, uint8_t scale, const char* label, int32_t x, int32_t y);
     void updateText(const GFXfont* font, uint8_t scale, const char* previousLabel, const char* newLabel, int32_t x,
                     int32_t y);
@@ -37,6 +39,11 @@ class ScreenUi
 
     void drawIcon(const Icon& icon, int32_t x, int32_t y);
     void drawIconCentered(const Icon& icon, const Point& areaLocation, const Size& areaSize);
+    void drawStatusIndicator(int32_t circleX, int32_t circleY, int32_t radius, const char* label, int32_t textX,
+                             int32_t textY, uint16_t colour);
+    void drawSdStatusInitializing();
+    void drawSdStatusFailed();
+    void drawSdStatusReady();
 
     int32_t boxWidth() const;
     int32_t boxHeight() const;
@@ -67,6 +74,14 @@ class ScreenUi
     const int32_t _logoFrameTop = _logoSectionTop + ((_logoSectionBottom - _logoSectionTop - _logoFrameHeight) / 2);
     const int32_t _logoTextLineSpacing = 34;
     const int32_t _logoTextVerticalOffset = _logoFrameHeight / 10;
+
+    const int32_t _sdStatusCircleX = 20;
+    const int32_t _sdStatusCircleY = _boxHeight + 20;
+    const int32_t _sdStatusRadius = 10;
+    const int32_t _sdStatusTextX = 40;
+    const int32_t _sdStatusTextY = _boxHeight + 14;
+    const int32_t _sdStatusTextClearWidth = 120;
+    const int32_t _sdStatusTextClearHeight = 16;
 
     const uint16_t _borderColour = to565(175, 179, 186);
     const uint16_t _logoFrameOuterColour = to565(146, 158, 176);
