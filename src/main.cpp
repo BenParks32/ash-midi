@@ -7,25 +7,21 @@
 #include "Do.h"
 #include "Encoder.h"
 #include "Gfx.h"
-#include "Lights.h"
 #include "Resources.h"
+#include "RingManager.h"
 #include "TouchButton.h"
 
 #define LED_PIN PA0
-#define RING_LED_COUNT 8
-#define BUTTON_COUNT 8
+#define BUTTON_COUNT RingManager::RingCount
 #define TOUCH_BUTTON_COUNT 2
 
-#define LED_COUNT RING_LED_COUNT* BUTTON_COUNT
+#define LED_COUNT RingManager::LedCount
 
 #define SD_CS PA4
 #define ENCODER_PIN_A PB0
 #define ENCODER_PIN_B PB1
 
 const Size screenSize = {480, 320};
-const byte DimBrightness = 5;
-const byte FullBrightness = 200;
-const uint8_t DefaultBrightness = 200;
 const uint8_t BrightnessStep = 8;
 uint16_t calData[5] = {254, 3649, 281, 3563, 7};
 const int32_t titleCenterX = screenSize.width / 2;
@@ -39,27 +35,14 @@ const int32_t logoFrameTop = logoSectionTop + ((logoSectionBottom - logoSectionT
 const int32_t logoTextLineSpacing = 34;
 const int32_t logoTextVerticalOffset = logoFrameHeight / 10;
 
-const int RingLEDCount = LED_COUNT / BUTTON_COUNT;
-uint8_t masterBrightness = DefaultBrightness;
-
 void HandleButtons();
 void HandleTouch();
 void HandleEncoder();
-void ApplyRingBrightness();
 
 Adafruit_NeoPixel strip(LED_COUNT, LED_PIN, NEO_GRB + NEO_KHZ800);
 TFT_eSPI tft = TFT_eSPI();
 RotaryEncoder encoder(ENCODER_PIN_A, ENCODER_PIN_B);
-
-RingLight ring1(strip, 0, RingLEDCount);
-RingLight ring2(strip, RingLEDCount, RingLEDCount);
-RingLight ring3(strip, RingLEDCount * 2, RingLEDCount);
-RingLight ring4(strip, RingLEDCount * 3, RingLEDCount);
-RingLight ring5(strip, RingLEDCount * 4, RingLEDCount);
-RingLight ring6(strip, RingLEDCount * 5, RingLEDCount);
-RingLight ring7(strip, RingLEDCount * 6, RingLEDCount);
-RingLight ring8(strip, RingLEDCount * 7, RingLEDCount);
-RingLight* rings[BUTTON_COUNT]{&ring1, &ring2, &ring3, &ring4, &ring5, &ring6, &ring7, &ring8};
+RingManager ringManager(strip);
 
 const GFXfont* DefaultUiFont = FF22;
 const GFXfont* LogoUiFont = FF32;
@@ -93,7 +76,6 @@ void showCentered(const GFXfont* font, const uint8_t scale, const char* label, c
 
 Resources resources(SD_CS);
 
-RingLight* selectedRing = &ring1;
 char pressed[10];
 char longPressed[15];
 class ButtonHandler : public IButtonDelegate, public ITouchButtonDelegate
@@ -102,8 +84,7 @@ class ButtonHandler : public IButtonDelegate, public ITouchButtonDelegate
     void buttonPressed(const byte number) override
     {
         Serial.printf("Button %d pressed\n", number);
-        selectedRing = rings[number];
-        ApplyRingBrightness();
+        ringManager.selectRing(number);
         strip.show();
 
         Serial.printf("Drawing text for button %d\n", number);
@@ -256,31 +237,15 @@ void setup()
 
     strip.clear();
 
-    ring1.setBrightness(FullBrightness);
-    ring1.setColour(strip.Color(0, 255, 0));
+    ringManager.setRingColour(0, strip.Color(0, 255, 0));
+    ringManager.setRingColour(1, strip.Color(0, 0, 255));
+    ringManager.setRingColour(2, strip.Color(255, 0, 0));
+    ringManager.setRingColour(3, strip.Color(255, 0, 0));
+    ringManager.setRingColour(4, strip.Color(220, 165, 0));
+    ringManager.setRingColour(5, strip.Color(0, 128, 128));
+    ringManager.setRingColour(6, strip.Color(255, 128, 255));
+    ringManager.setRingColour(7, strip.Color(255, 255, 255));
 
-    ring2.setBrightness(DimBrightness);
-    ring2.setColour(strip.Color(0, 0, 255));
-
-    ring3.setBrightness(DimBrightness);
-    ring3.setColour(strip.Color(255, 0, 0));
-
-    ring4.setBrightness(DimBrightness);
-    ring4.setColour(strip.Color(255, 0, 0));
-
-    ring5.setBrightness(DimBrightness);
-    ring5.setColour(strip.Color(220, 165, 0));
-
-    ring6.setBrightness(DimBrightness);
-    ring6.setColour(strip.Color(0, 128, 128));
-
-    ring7.setBrightness(DimBrightness);
-    ring7.setColour(strip.Color(255, 128, 255));
-
-    ring8.setBrightness(DimBrightness);
-    ring8.setColour(strip.Color(255, 255, 255));
-
-    ApplyRingBrightness();
     strip.show();
 
     drawLogoFrame();
@@ -305,31 +270,13 @@ void HandleEncoder()
 {
     const int16_t steps = encoder.consumeSteps();
 
-    if (steps == 0)
+    if (!ringManager.adjustMasterBrightness(steps, BrightnessStep))
     {
         return;
     }
 
-    const int nextBrightness = constrain((int)masterBrightness + ((int)steps * (int)BrightnessStep), 0, 220);
-    if (nextBrightness == masterBrightness)
-    {
-        return;
-    }
-
-    masterBrightness = (uint8_t)nextBrightness;
-    ApplyRingBrightness();
     strip.show();
-    Serial.printf("Master ring brightness: %u\n", masterBrightness);
-}
-
-void ApplyRingBrightness()
-{
-    for (int i = 0; i < BUTTON_COUNT; ++i)
-    {
-        const uint8_t baseBrightness = (rings[i] == selectedRing) ? FullBrightness : DimBrightness;
-        const uint8_t scaledBrightness = (uint8_t)(((uint16_t)baseBrightness * (uint16_t)masterBrightness) / 255U);
-        rings[i]->setBrightness(scaledBrightness);
-    }
+    Serial.printf("Master ring brightness: %u\n", ringManager.masterBrightness());
 }
 
 void HandleButtons()
