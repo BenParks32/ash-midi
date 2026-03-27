@@ -29,31 +29,10 @@ void RingLight::floodFill()
     const uint8_t sourceG = (uint8_t)(_currentColour >> 8);
     const uint8_t sourceB = (uint8_t)(_currentColour);
 
-    uint8_t r = (uint8_t)(((uint16_t)sourceR * (uint16_t)_brightness) / 255U);
-    uint8_t g = (uint8_t)(((uint16_t)sourceG * (uint16_t)_brightness) / 255U);
-    uint8_t b = (uint8_t)(((uint16_t)sourceB * (uint16_t)_brightness) / 255U);
-
-    // Keep very dim nonzero channels alive after gamma so colored rings do not disappear abruptly.
-    r = _strip.gamma8(r);
-    g = _strip.gamma8(g);
-    b = _strip.gamma8(b);
-    if (_brightness > 0)
-    {
-        if (sourceR > 0 && r == 0)
-        {
-            r = 1;
-        }
-
-        if (sourceG > 0 && g == 0)
-        {
-            g = 1;
-        }
-
-        if (sourceB > 0 && b == 0)
-        {
-            b = 1;
-        }
-    }
+    // Linear channel scaling preserves color ratios while dimming.
+    const uint8_t r = (uint8_t)((((uint16_t)sourceR * (uint16_t)_brightness) + 127U) / 255U);
+    const uint8_t g = (uint8_t)((((uint16_t)sourceG * (uint16_t)_brightness) + 127U) / 255U);
+    const uint8_t b = (uint8_t)((((uint16_t)sourceB * (uint16_t)_brightness) + 127U) / 255U);
 
     const uint32_t gammaColour = _strip.Color(r, g, b);
     for (int led = _number; led < _number + _count; led++)

@@ -5,6 +5,7 @@
 
 #include "Button.h"
 #include "Do.h"
+#include "Encoder.h"
 #include "Gfx.h"
 #include "Lights.h"
 #include "Resources.h"
@@ -22,8 +23,9 @@
 #define ENCODER_PIN_B PB1
 
 const Size screenSize = {480, 320};
-const byte DimBrightness = 50;
+const byte DimBrightness = 5;
 const byte FullBrightness = 200;
+const uint8_t DefaultBrightness = 200;
 const uint8_t BrightnessStep = 8;
 uint16_t calData[5] = {254, 3649, 281, 3563, 7};
 const int32_t titleCenterX = screenSize.width / 2;
@@ -38,21 +40,16 @@ const int32_t logoTextLineSpacing = 34;
 const int32_t logoTextVerticalOffset = logoFrameHeight / 10;
 
 const int RingLEDCount = LED_COUNT / BUTTON_COUNT;
-uint8_t masterBrightness = 255;
-volatile uint8_t encoderPreviousState = 0;
-volatile int8_t encoderPulseAccumulator = 0;
-volatile int16_t encoderPendingSteps = 0;
+uint8_t masterBrightness = DefaultBrightness;
 
 void HandleButtons();
 void HandleTouch();
 void HandleEncoder();
 void ApplyRingBrightness();
-void HandleEncoderInterrupt();
-void EncoderInterruptA();
-void EncoderInterruptB();
 
 Adafruit_NeoPixel strip(LED_COUNT, LED_PIN, NEO_GRB + NEO_KHZ800);
 TFT_eSPI tft = TFT_eSPI();
+RotaryEncoder encoder(ENCODER_PIN_A, ENCODER_PIN_B);
 
 RingLight ring1(strip, 0, RingLEDCount);
 RingLight ring2(strip, RingLEDCount, RingLEDCount);
@@ -243,13 +240,11 @@ void setup()
     pinMode(SD_CS, OUTPUT);
     digitalWrite(SD_CS, HIGH);
 
-    pinMode(ENCODER_PIN_A, INPUT_PULLUP);
-    pinMode(ENCODER_PIN_B, INPUT_PULLUP);
-    encoderPreviousState = ((digitalRead(ENCODER_PIN_A) & 0x01) << 1) | (digitalRead(ENCODER_PIN_B) & 0x01);
-    attachInterrupt(digitalPinToInterrupt(ENCODER_PIN_A), EncoderInterruptA, CHANGE);
-    attachInterrupt(digitalPinToInterrupt(ENCODER_PIN_B), EncoderInterruptB, CHANGE);
-
     Serial.begin(115200);
+    if (!encoder.begin())
+    {
+        Serial.println("Encoder initialization failed.");
+    }
 
     strip.begin();
     strip.setBrightness(255);
@@ -308,18 +303,14 @@ void loop()
 
 void HandleEncoder()
 {
-    int16_t steps = 0;
-    noInterrupts();
-    steps = encoderPendingSteps;
-    encoderPendingSteps = 0;
-    interrupts();
+    const int16_t steps = encoder.consumeSteps();
 
     if (steps == 0)
     {
         return;
     }
 
-    const int nextBrightness = constrain((int)masterBrightness + ((int)steps * (int)BrightnessStep), 0, 255);
+    const int nextBrightness = constrain((int)masterBrightness + ((int)steps * (int)BrightnessStep), 0, 220);
     if (nextBrightness == masterBrightness)
     {
         return;
@@ -340,60 +331,6 @@ void ApplyRingBrightness()
         rings[i]->setBrightness(scaledBrightness);
     }
 }
-
-void HandleEncoderInterrupt()
-{
-    const uint8_t currentState = ((digitalRead(ENCODER_PIN_A) & 0x01) << 1) | (digitalRead(ENCODER_PIN_B) & 0x01);
-    const uint8_t previousState = encoderPreviousState;
-    if (currentState == previousState)
-    {
-        return;
-    }
-
-    const uint8_t transition = (previousState << 2) | currentState;
-    encoderPreviousState = currentState;
-
-    int8_t delta = 0;
-    switch (transition)
-    {
-    case 0b0001:
-    case 0b0111:
-    case 0b1110:
-    case 0b1000:
-        delta = 1;
-        break;
-
-    case 0b0010:
-    case 0b1011:
-    case 0b1101:
-    case 0b0100:
-        delta = -1;
-        break;
-
-    default:
-        // Invalid jump (contact bounce or missed edge), restart detent accumulation.
-        encoderPulseAccumulator = 0;
-        return;
-    }
-
-    encoderPulseAccumulator += delta;
-    if (encoderPulseAccumulator >= 4)
-    {
-        encoderPulseAccumulator = 0;
-        encoderPendingSteps++;
-        return;
-    }
-
-    if (encoderPulseAccumulator <= -4)
-    {
-        encoderPulseAccumulator = 0;
-        encoderPendingSteps--;
-        return;
-    }
-}
-
-void EncoderInterruptA() { HandleEncoderInterrupt(); }
-void EncoderInterruptB() { HandleEncoderInterrupt(); }
 
 void HandleButtons()
 {
