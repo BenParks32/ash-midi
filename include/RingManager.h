@@ -26,6 +26,9 @@ class RingManager
     RingManager& operator=(const RingManager&) = delete;
 
   public:
+    static uint32_t defaultRingColour(uint8_t ringIndex);
+
+  public:
     void setRingColour(uint8_t ringIndex, uint32_t colour);
     void selectRing(uint8_t ringIndex);
     void begin();

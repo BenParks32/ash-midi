@@ -1,6 +1,5 @@
 #pragma once
 #include "Gfx.h"
-#include "Resources.h"
 #include "ScreenUi.h"
 #include <Arduino.h>
 
@@ -17,6 +16,7 @@ class TouchButton
 
   public:
     bool handleTouch(const uint16_t x, const uint16_t y);
+    byte buttonNumber() const;
     virtual void draw(ScreenUi& ui) = 0;
 
   private:
@@ -34,10 +34,18 @@ class TouchButton
 class FootSwitchTouchButton : public TouchButton
 {
   public:
-    FootSwitchTouchButton(const byte number, const Point location, const Size size, const Resources& resources,
-                          ITouchButtonDelegate& delegate);
+    FootSwitchTouchButton(const byte number, const Point location, const Size size, const char* label,
+                          uint16_t pillColour, ITouchButtonDelegate& delegate);
 
     void draw(ScreenUi& ui);
+    void setLabel(const char* label);
+    const char* label() const;
+
+    void setPillColour(uint16_t pillColour);
+    uint16_t pillColour() const;
+
+    void setSelected(bool selected);
+    bool isSelected() const;
 
   private:
     FootSwitchTouchButton() = default;
@@ -45,5 +53,8 @@ class FootSwitchTouchButton : public TouchButton
     FootSwitchTouchButton& operator=(const FootSwitchTouchButton&) = default;
 
   private:
-    const Resources& _resources;
+    static constexpr size_t LabelCapacity = 16;
+    char _label[LabelCapacity];
+    uint16_t _pillColour;
+    bool _isSelected;
 };

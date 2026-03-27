@@ -26,9 +26,18 @@ const Size screenSize = {480, 320};
 const uint8_t BrightnessStep = 8;
 uint16_t calData[5] = {254, 3649, 281, 3563, 7};
 
+static constexpr uint16_t rgb888To565(uint32_t rgb)
+{
+    const uint8_t r = (uint8_t)((rgb >> 16) & 0xFFU);
+    const uint8_t g = (uint8_t)((rgb >> 8) & 0xFFU);
+    const uint8_t b = (uint8_t)(rgb & 0xFFU);
+    return (uint16_t)(((uint16_t)(r & 0xF8U) << 8) | ((uint16_t)(g & 0xFCU) << 3) | ((uint16_t)b >> 3));
+}
+
 void HandleButtons();
 void HandleTouch();
 void HandleEncoder();
+void SelectTouchButton(const byte number);
 
 Adafruit_NeoPixel strip(LED_COUNT, LED_PIN, NEO_GRB + NEO_KHZ800);
 TFT_eSPI tft = TFT_eSPI();
@@ -50,6 +59,7 @@ class ButtonHandler : public IButtonDelegate, public ITouchButtonDelegate
     {
         Serial.printf("Button %d pressed\n", number);
         ringManager.selectRing(number);
+        SelectTouchButton(number);
     }
 
     void buttonLongPressed(const byte number) override { Serial.printf("Button %d long pressed\n", number); }
@@ -71,17 +81,54 @@ const Size boxSize = screenUi.boxSize();
 const int32_t boxWidth = screenUi.boxWidth();
 const int32_t bottomRowY = screenUi.bottomRowY();
 
-FootSwitchTouchButton touchBtnTop1(4, {0, 0}, boxSize, resources, buttonHandler);
-FootSwitchTouchButton touchBtnTop2(5, {boxWidth, 0}, boxSize, resources, buttonHandler);
-FootSwitchTouchButton touchBtnTop3(6, {boxWidth * 2, 0}, boxSize, resources, buttonHandler);
-FootSwitchTouchButton touchBtnTop4(7, {boxWidth * 3, 0}, boxSize, resources, buttonHandler);
-FootSwitchTouchButton touchBtnBottom1(0, {0, bottomRowY}, boxSize, resources, buttonHandler);
-FootSwitchTouchButton touchBtnBottom2(1, {boxWidth, bottomRowY}, boxSize, resources, buttonHandler);
-FootSwitchTouchButton touchBtnBottom3(2, {boxWidth * 2, bottomRowY}, boxSize, resources, buttonHandler);
-FootSwitchTouchButton touchBtnBottom4(3, {boxWidth * 3, bottomRowY}, boxSize, resources, buttonHandler);
+FootSwitchTouchButton touchBtnTop1(4, {0, 0}, boxSize, "5", rgb888To565(RingManager::defaultRingColour(4)),
+                                   buttonHandler);
+FootSwitchTouchButton touchBtnTop2(5, {boxWidth, 0}, boxSize, "6", rgb888To565(RingManager::defaultRingColour(5)),
+                                   buttonHandler);
+FootSwitchTouchButton touchBtnTop3(6, {boxWidth * 2, 0}, boxSize, "7", rgb888To565(RingManager::defaultRingColour(6)),
+                                   buttonHandler);
+FootSwitchTouchButton touchBtnTop4(7, {boxWidth * 3, 0}, boxSize, "8", rgb888To565(RingManager::defaultRingColour(7)),
+                                   buttonHandler);
+FootSwitchTouchButton touchBtnBottom1(0, {0, bottomRowY}, boxSize, "1", rgb888To565(RingManager::defaultRingColour(0)),
+                                      buttonHandler);
+FootSwitchTouchButton touchBtnBottom2(1, {boxWidth, bottomRowY}, boxSize, "2",
+                                      rgb888To565(RingManager::defaultRingColour(1)), buttonHandler);
+FootSwitchTouchButton touchBtnBottom3(2, {boxWidth * 2, bottomRowY}, boxSize, "3",
+                                      rgb888To565(RingManager::defaultRingColour(2)), buttonHandler);
+FootSwitchTouchButton touchBtnBottom4(3, {boxWidth * 3, bottomRowY}, boxSize, "4",
+                                      rgb888To565(RingManager::defaultRingColour(3)), buttonHandler);
 FootSwitchTouchButton* touchButtons[TOUCH_BUTTON_COUNT]{&touchBtnTop1,    &touchBtnTop2,    &touchBtnTop3,
                                                         &touchBtnTop4,    &touchBtnBottom1, &touchBtnBottom2,
                                                         &touchBtnBottom3, &touchBtnBottom4};
+FootSwitchTouchButton* selectedTouchButton = nullptr;
+
+void SelectTouchButton(const byte number)
+{
+    FootSwitchTouchButton* nextSelectedButton = nullptr;
+    for (int i = 0; i < TOUCH_BUTTON_COUNT; ++i)
+    {
+        if (touchButtons[i]->buttonNumber() == number)
+        {
+            nextSelectedButton = touchButtons[i];
+            break;
+        }
+    }
+
+    if (nextSelectedButton == nullptr || nextSelectedButton == selectedTouchButton)
+    {
+        return;
+    }
+
+    if (selectedTouchButton != nullptr)
+    {
+        selectedTouchButton->setSelected(false);
+        selectedTouchButton->draw(screenUi);
+    }
+
+    nextSelectedButton->setSelected(true);
+    nextSelectedButton->draw(screenUi);
+    selectedTouchButton = nextSelectedButton;
+}
 
 bool initResourcesSD()
 {
@@ -121,20 +168,20 @@ void setup()
     tft.setTouch(calData);
     tft.init();
     tft.setRotation(1);
-    screenUi.drawBackgroundAndBorder();
-
     ringManager.begin();
 
+    screenUi.drawBackgroundAndBorder();
     screenUi.drawLogo(LogoUiFont, LogoUiScale, "ASH", DefaultUiFont, DefaultUiScale, "guitars");
+    screenUi.setTouchButtonLabelStyle(DefaultUiFont, DefaultUiScale);
 
-    const bool resourcesLoaded = initResourcesSD();
-    if (resourcesLoaded)
+    initResourcesSD();
+    for (int i = 0; i < TOUCH_BUTTON_COUNT; ++i)
     {
-        for (int i = 0; i < TOUCH_BUTTON_COUNT; ++i)
-        {
-            touchButtons[i]->draw(screenUi);
-        }
+        touchButtons[i]->setSelected(false);
+        touchButtons[i]->draw(screenUi);
     }
+    selectedTouchButton = nullptr;
+    SelectTouchButton(0);
 }
 
 void loop()

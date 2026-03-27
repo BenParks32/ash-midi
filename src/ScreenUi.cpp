@@ -83,6 +83,76 @@ void ScreenUi::drawIconCentered(const Icon& icon, const Point& areaLocation, con
     drawIcon(icon, x, y);
 }
 
+void ScreenUi::setTouchButtonLabelStyle(const GFXfont* font, uint8_t scale)
+{
+    _touchButtonLabelFont = font;
+    _touchButtonLabelScale = (scale == 0U) ? 1U : scale;
+}
+
+void ScreenUi::drawTouchButtonLabelAndPill(const char* label, const Point& areaLocation, const Size& areaSize,
+                                           uint16_t pillColour, bool selected, uint16_t selectedBorderColour,
+                                           uint16_t textColour)
+{
+    const int32_t innerX = areaLocation.x + _lineWidth;
+    const int32_t innerY = areaLocation.y + _lineWidth;
+    const int32_t innerWidth = areaSize.width - (_lineWidth * 2);
+    const int32_t innerHeight = areaSize.height - (_lineWidth * 2);
+    if (innerWidth <= 0 || innerHeight <= 0)
+    {
+        return;
+    }
+
+    _tft.fillRect(innerX, innerY, innerWidth, innerHeight, TFT_BLACK);
+
+    if (selected)
+    {
+        const int32_t selectionThickness = 4;
+        for (int32_t i = 0; i < selectionThickness; ++i)
+        {
+            const int32_t x = innerX + i;
+            const int32_t y = innerY + i;
+            const int32_t width = innerWidth - (i * 2);
+            const int32_t height = innerHeight - (i * 2);
+            if (width <= 0 || height <= 0)
+            {
+                break;
+            }
+            _tft.drawRect(x, y, width, height, selectedBorderColour);
+        }
+    }
+
+    const int32_t centerX = areaLocation.x + (areaSize.width / 2);
+    const int32_t labelY = areaLocation.y + (areaSize.height / 2) - 22;
+
+    if (_touchButtonLabelFont != nullptr)
+    {
+        _tft.setFreeFont(_touchButtonLabelFont);
+        _tft.setTextSize(_touchButtonLabelScale);
+        _tft.setTextColor(textColour, TFT_BLACK);
+
+        const int32_t labelX = centerX - (_tft.textWidth(label, GFXFF) / 2);
+        _tft.drawString(label, labelX, labelY, GFXFF);
+    }
+    else
+    {
+        _tft.setTextFont(1);
+        _tft.setTextSize(3);
+        _tft.setTextColor(textColour, TFT_BLACK);
+
+        const int32_t labelX = centerX - (_tft.textWidth(label) / 2);
+        _tft.drawString(label, labelX, labelY);
+    }
+
+    const int32_t pillWidth = areaSize.width * 3 / 5;
+    const int32_t pillHeight = 12;
+    const int32_t pillRadius = pillHeight / 2;
+    const int32_t pillX = centerX - (pillWidth / 2);
+    const int32_t pillY = labelY + 28;
+
+    _tft.fillRoundRect(pillX, pillY, pillWidth, pillHeight, pillRadius, pillColour);
+    _tft.drawRoundRect(pillX, pillY, pillWidth, pillHeight, pillRadius, _borderColour);
+}
+
 void ScreenUi::drawStatusIndicator(int32_t circleX, int32_t circleY, int32_t radius, const char* label, int32_t textX,
                                    int32_t textY, uint16_t colour)
 {

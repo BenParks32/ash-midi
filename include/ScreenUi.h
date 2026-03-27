@@ -39,6 +39,10 @@ class ScreenUi
 
     void drawIcon(const Icon& icon, int32_t x, int32_t y);
     void drawIconCentered(const Icon& icon, const Point& areaLocation, const Size& areaSize);
+    void setTouchButtonLabelStyle(const GFXfont* font, uint8_t scale);
+    void drawTouchButtonLabelAndPill(const char* label, const Point& areaLocation, const Size& areaSize,
+                                     uint16_t pillColour, bool selected = false,
+                                     uint16_t selectedBorderColour = TFT_WHITE, uint16_t textColour = TFT_WHITE);
     void drawStatusIndicator(int32_t circleX, int32_t circleY, int32_t radius, const char* label, int32_t textX,
                              int32_t textY, uint16_t colour);
     void drawSdStatusInitializing();
@@ -86,4 +90,7 @@ class ScreenUi
     const uint16_t _borderColour = to565(175, 179, 186);
     const uint16_t _logoFrameOuterColour = to565(146, 158, 176);
     const uint16_t _logoFrameInnerColour = to565(84, 97, 116);
+
+    const GFXfont* _touchButtonLabelFont = nullptr;
+    uint8_t _touchButtonLabelScale = 1;
 };
