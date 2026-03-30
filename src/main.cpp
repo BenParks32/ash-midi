@@ -4,9 +4,12 @@
 #include <TFT_eSPI.h>
 
 #include "Button.h"
+#include "ButtonHandler.h"
 #include "Do.h"
 #include "Encoder.h"
 #include "Gfx.h"
+#include "Modes/HomeMode.h"
+#include "Modes/Mode.h"
 #include "Resources.h"
 #include "RingManager.h"
 #include "ScreenUi.h"
@@ -51,21 +54,9 @@ const uint8_t DefaultUiScale = 1;
 const uint8_t LogoUiScale = 1;
 
 Resources resources(SD_CS);
+IMode* activeMode = nullptr;
 
-class ButtonHandler : public IButtonDelegate, public ITouchButtonDelegate
-{
-  public:
-    void buttonPressed(const byte number) override
-    {
-        Serial.printf("Button %d pressed\n", number);
-        ringManager.selectRing(number);
-        SelectTouchButton(number);
-    }
-
-    void buttonLongPressed(const byte number) override { Serial.printf("Button %d long pressed\n", number); }
-};
-
-ButtonHandler buttonHandler;
+ButtonHandler buttonHandler(activeMode, ringManager, SelectTouchButton);
 
 Button btn1(0, PB12, buttonHandler);
 Button btn2(1, PB13, buttonHandler);
@@ -101,6 +92,7 @@ FootSwitchTouchButton* touchButtons[TOUCH_BUTTON_COUNT]{&touchBtnTop1,    &touch
                                                         &touchBtnTop4,    &touchBtnBottom1, &touchBtnBottom2,
                                                         &touchBtnBottom3, &touchBtnBottom4};
 FootSwitchTouchButton* selectedTouchButton = nullptr;
+HomeMode homeMode(touchButtons, TOUCH_BUTTON_COUNT, ringManager, screenUi, SelectTouchButton);
 
 void SelectTouchButton(const byte number)
 {
@@ -175,13 +167,10 @@ void setup()
     screenUi.setTouchButtonLabelStyle(DefaultUiFont, DefaultUiScale);
 
     initResourcesSD();
-    for (int i = 0; i < TOUCH_BUTTON_COUNT; ++i)
-    {
-        touchButtons[i]->setSelected(false);
-        touchButtons[i]->draw(screenUi);
-    }
     selectedTouchButton = nullptr;
-    SelectTouchButton(0);
+
+    activeMode = &homeMode;
+    activeMode->activate();
 }
 
 void loop()
@@ -189,6 +178,11 @@ void loop()
     HandleEncoder();
     HandleButtons();
     HandleTouch();
+
+    if (activeMode != nullptr)
+    {
+        activeMode->frameTick();
+    }
 }
 
 void HandleEncoder()
