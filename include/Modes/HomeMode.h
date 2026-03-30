@@ -9,8 +9,7 @@
 class HomeMode : public IMode
 {
   public:
-    HomeMode(FootSwitchTouchButton** touchButtons, byte touchButtonCount, RingManager& ringManager, ScreenUi& screenUi,
-             void (*selectTouchButton)(byte));
+    HomeMode(FootSwitchTouchButton** touchButtons, byte touchButtonCount, RingManager& ringManager, ScreenUi& screenUi);
 
     void activate() override;
     void buttonPressed(byte number) override;
@@ -19,6 +18,7 @@ class HomeMode : public IMode
 
   private:
     const char* functionLabel(byte number) const;
+    bool isButtonEnabled(byte number) const;
     static bool isEmptyLabel(const char* label);
 
   private:
@@ -26,5 +26,4 @@ class HomeMode : public IMode
     byte _touchButtonCount;
     RingManager& _ringManager;
     ScreenUi& _screenUi;
-    void (*_selectTouchButton)(byte);
 };

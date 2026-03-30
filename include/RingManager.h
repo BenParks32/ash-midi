@@ -30,6 +30,7 @@ class RingManager
 
   public:
     void setRingColour(uint8_t ringIndex, uint32_t colour);
+    void setRingBrightness(uint8_t ringIndex, uint8_t brightness);
     void selectRing(uint8_t ringIndex);
     void begin();
     void show();
@@ -47,6 +48,7 @@ class RingManager
 
     uint8_t _masterBrightness;
     uint8_t _selectedRing;
+    uint8_t _ringBaseBrightness[RingCount];
 
     RingLight _ring1;
     RingLight _ring2;

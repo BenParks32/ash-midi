@@ -92,7 +92,7 @@ FootSwitchTouchButton* touchButtons[TOUCH_BUTTON_COUNT]{&touchBtnTop1,    &touch
                                                         &touchBtnTop4,    &touchBtnBottom1, &touchBtnBottom2,
                                                         &touchBtnBottom3, &touchBtnBottom4};
 FootSwitchTouchButton* selectedTouchButton = nullptr;
-HomeMode homeMode(touchButtons, TOUCH_BUTTON_COUNT, ringManager, screenUi, SelectTouchButton);
+HomeMode homeMode(touchButtons, TOUCH_BUTTON_COUNT, ringManager, screenUi);
 
 void SelectTouchButton(const byte number)
 {

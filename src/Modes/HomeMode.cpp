@@ -4,12 +4,19 @@ namespace
 {
 constexpr byte HomeFunctionCount = RingManager::RingCount;
 const char* HomeFunctionLabels[HomeFunctionCount] = {"Amp", "Ampless", "CodeRed", " ", " ", " ", " ", " "};
+
+static uint16_t rgb888To565(uint32_t rgb)
+{
+    const uint8_t r = (uint8_t)((rgb >> 16) & 0xFFU);
+    const uint8_t g = (uint8_t)((rgb >> 8) & 0xFFU);
+    const uint8_t b = (uint8_t)(rgb & 0xFFU);
+    return (uint16_t)(((uint16_t)(r & 0xF8U) << 8) | ((uint16_t)(g & 0xFCU) << 3) | ((uint16_t)b >> 3));
+}
 } // namespace
 
 HomeMode::HomeMode(FootSwitchTouchButton** touchButtons, byte touchButtonCount, RingManager& ringManager,
-                   ScreenUi& screenUi, void (*selectTouchButton)(byte))
-    : _touchButtons(touchButtons), _touchButtonCount(touchButtonCount), _ringManager(ringManager), _screenUi(screenUi),
-      _selectTouchButton(selectTouchButton)
+                   ScreenUi& screenUi)
+    : _touchButtons(touchButtons), _touchButtonCount(touchButtonCount), _ringManager(ringManager), _screenUi(screenUi)
 {
 }
 
@@ -18,14 +25,17 @@ void HomeMode::activate()
     for (byte i = 0; i < _touchButtonCount; ++i)
     {
         FootSwitchTouchButton* button = _touchButtons[i];
-        button->setSelected(false);
-        button->setLabel(functionLabel(button->buttonNumber()));
-        button->draw(_screenUi);
-    }
+        const byte number = button->buttonNumber();
+        const bool enabled = isButtonEnabled(number);
 
-    if (_selectTouchButton != nullptr)
-    {
-        _selectTouchButton(0);
+        button->setSelected(false);
+        button->setLabel(functionLabel(number));
+        button->setPillColour(enabled ? rgb888To565(RingManager::defaultRingColour(number)) : TFT_BLACK);
+
+        _ringManager.setRingColour(number, enabled ? RingManager::defaultRingColour(number) : 0);
+        _ringManager.setRingBrightness(number, enabled ? RingManager::FullBrightness : 0);
+
+        button->draw(_screenUi);
     }
 }
 
@@ -36,11 +46,10 @@ void HomeMode::buttonPressed(byte number)
         return;
     }
 
-    _ringManager.selectRing(number);
-
-    if (_selectTouchButton != nullptr)
+    if (!isButtonEnabled(number))
     {
-        _selectTouchButton(number);
+        Serial.printf("Home mode: button %u is disabled\n", number + 1U);
+        return;
     }
 
     const char* label = functionLabel(number);
@@ -57,6 +66,12 @@ void HomeMode::buttonLongPressed(byte number)
 {
     if (number >= _touchButtonCount)
     {
+        return;
+    }
+
+    if (!isButtonEnabled(number))
+    {
+        Serial.printf("Home mode: button %u long press (disabled)\n", number + 1U);
         return;
     }
 
@@ -83,6 +98,8 @@ const char* HomeMode::functionLabel(byte number) const
     }
     return HomeFunctionLabels[number];
 }
+
+bool HomeMode::isButtonEnabled(byte number) const { return !isEmptyLabel(functionLabel(number)); }
 
 bool HomeMode::isEmptyLabel(const char* label)
 {

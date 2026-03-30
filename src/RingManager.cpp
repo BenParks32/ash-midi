@@ -5,13 +5,19 @@ RingManager::RingManager(Adafruit_NeoPixel& strip)
       _ring2(strip, LedsPerRing, LedsPerRing), _ring3(strip, LedsPerRing * 2, LedsPerRing),
       _ring4(strip, LedsPerRing * 3, LedsPerRing), _ring5(strip, LedsPerRing * 4, LedsPerRing),
       _ring6(strip, LedsPerRing * 5, LedsPerRing), _ring7(strip, LedsPerRing * 6, LedsPerRing),
-      _ring8(strip, LedsPerRing * 7, LedsPerRing),
+      _ring8(strip, LedsPerRing * 7, LedsPerRing), _ringBaseBrightness{0},
       _rings{&_ring1, &_ring2, &_ring3, &_ring4, &_ring5, &_ring6, &_ring7, &_ring8}
 {
     if (_masterBrightness > MaxBrightness)
     {
         _masterBrightness = MaxBrightness;
     }
+
+    for (uint8_t ringIndex = 0; ringIndex < RingCount; ++ringIndex)
+    {
+        _ringBaseBrightness[ringIndex] = DimBrightness;
+    }
+    _ringBaseBrightness[_selectedRing] = FullBrightness;
 
     applyBrightness();
 }
@@ -50,6 +56,18 @@ void RingManager::setRingColour(uint8_t ringIndex, uint32_t colour)
     _rings[ringIndex]->setColour(colour);
 }
 
+void RingManager::setRingBrightness(uint8_t ringIndex, uint8_t brightness)
+{
+    if (ringIndex >= RingCount)
+    {
+        return;
+    }
+
+    _ringBaseBrightness[ringIndex] = brightness;
+    applyBrightness();
+    show();
+}
+
 void RingManager::selectRing(uint8_t ringIndex)
 {
     if (ringIndex >= RingCount)
@@ -58,6 +76,12 @@ void RingManager::selectRing(uint8_t ringIndex)
     }
 
     _selectedRing = ringIndex;
+
+    for (uint8_t i = 0; i < RingCount; ++i)
+    {
+        _ringBaseBrightness[i] = (i == _selectedRing) ? FullBrightness : DimBrightness;
+    }
+
     applyBrightness();
     show();
 }
@@ -135,7 +159,7 @@ void RingManager::applyBrightness()
 {
     for (int i = 0; i < RingCount; ++i)
     {
-        const uint8_t baseBrightness = (i == _selectedRing) ? FullBrightness : DimBrightness;
+        const uint8_t baseBrightness = _ringBaseBrightness[i];
         const uint8_t scaledBrightness = (uint8_t)(((uint16_t)baseBrightness * (uint16_t)_masterBrightness) / 255U);
         _rings[i]->setBrightness(scaledBrightness);
     }

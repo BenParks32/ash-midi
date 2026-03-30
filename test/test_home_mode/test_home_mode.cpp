@@ -15,8 +15,6 @@ namespace
 {
 static byte g_lastSelected = 0xFF;
 
-void recordSelection(const byte number) { g_lastSelected = number; }
-
 class NullTouchDelegate : public ITouchButtonDelegate
 {
   public:
@@ -26,8 +24,9 @@ class NullTouchDelegate : public ITouchButtonDelegate
 class TestTouchButton : public FootSwitchTouchButton
 {
   public:
-    TestTouchButton(const byte number, const Point location, const Size size, ITouchButtonDelegate& delegate)
-        : FootSwitchTouchButton(number, location, size, "", 0, delegate), drawCalls(0)
+    TestTouchButton(const byte number, const Point location, const Size size, uint16_t pillColour,
+                    ITouchButtonDelegate& delegate)
+        : FootSwitchTouchButton(number, location, size, "", pillColour, delegate), drawCalls(0)
     {
     }
 
@@ -45,12 +44,13 @@ class HomeModeFixture
   public:
     HomeModeFixture()
         : screenSize{480, 320}, ui(tft, screenSize), strip(RingManager::LedCount, 0, NEO_GRB + NEO_KHZ800),
-          ringManager(strip), button0(0, {0, 0}, {10, 10}, touchDelegate), button1(1, {0, 0}, {10, 10}, touchDelegate),
-          button2(2, {0, 0}, {10, 10}, touchDelegate), button3(3, {0, 0}, {10, 10}, touchDelegate),
-          button4(4, {0, 0}, {10, 10}, touchDelegate), button5(5, {0, 0}, {10, 10}, touchDelegate),
-          button6(6, {0, 0}, {10, 10}, touchDelegate), button7(7, {0, 0}, {10, 10}, touchDelegate),
+          ringManager(strip), button0(0, {0, 0}, {10, 10}, 0xFFFF, touchDelegate),
+          button1(1, {0, 0}, {10, 10}, 0xFFFF, touchDelegate), button2(2, {0, 0}, {10, 10}, 0xFFFF, touchDelegate),
+          button3(3, {0, 0}, {10, 10}, 0xFFFF, touchDelegate), button4(4, {0, 0}, {10, 10}, 0xFFFF, touchDelegate),
+          button5(5, {0, 0}, {10, 10}, 0xFFFF, touchDelegate), button6(6, {0, 0}, {10, 10}, 0xFFFF, touchDelegate),
+          button7(7, {0, 0}, {10, 10}, 0xFFFF, touchDelegate),
           buttons{&button0, &button1, &button2, &button3, &button4, &button5, &button6, &button7},
-          mode(buttons, RingManager::RingCount, ringManager, ui, recordSelection)
+          mode(buttons, RingManager::RingCount, ringManager, ui)
     {
     }
 
@@ -81,12 +81,14 @@ void test_activate_sets_home_labels_and_selects_first_button()
 
     fixture.mode.activate();
 
-    TEST_ASSERT_EQUAL_UINT8(0, g_lastSelected);
+    TEST_ASSERT_EQUAL_UINT8(0xFF, g_lastSelected);
     TEST_ASSERT_EQUAL_STRING("Amp", fixture.button0.label());
     TEST_ASSERT_EQUAL_STRING("Ampless", fixture.button1.label());
     TEST_ASSERT_EQUAL_STRING("CodeRed", fixture.button2.label());
     TEST_ASSERT_EQUAL_STRING(" ", fixture.button3.label());
     TEST_ASSERT_EQUAL_STRING(" ", fixture.button4.label());
+    TEST_ASSERT_NOT_EQUAL_UINT16(TFT_BLACK, fixture.button0.pillColour());
+    TEST_ASSERT_EQUAL_UINT16(TFT_BLACK, fixture.button3.pillColour());
     TEST_ASSERT_EQUAL_INT(1, fixture.button0.drawCalls);
     TEST_ASSERT_EQUAL_INT(1, fixture.button7.drawCalls);
 }
@@ -96,9 +98,19 @@ void test_button_pressed_selects_requested_button_when_valid()
     HomeModeFixture fixture;
     g_lastSelected = 0xFF;
 
+    fixture.mode.buttonPressed(1);
+
+    TEST_ASSERT_EQUAL_UINT8(0xFF, g_lastSelected);
+}
+
+void test_button_pressed_ignores_disabled_button()
+{
+    HomeModeFixture fixture;
+    g_lastSelected = 0xFF;
+
     fixture.mode.buttonPressed(5);
 
-    TEST_ASSERT_EQUAL_UINT8(5, g_lastSelected);
+    TEST_ASSERT_EQUAL_UINT8(0xFF, g_lastSelected);
 }
 
 void test_button_pressed_ignores_out_of_range_button()
@@ -148,6 +160,7 @@ void setup()
     UNITY_BEGIN();
     RUN_TEST(test_activate_sets_home_labels_and_selects_first_button);
     RUN_TEST(test_button_pressed_selects_requested_button_when_valid);
+    RUN_TEST(test_button_pressed_ignores_disabled_button);
     RUN_TEST(test_button_pressed_ignores_out_of_range_button);
     RUN_TEST(test_button_long_pressed_ignores_out_of_range_button);
     RUN_TEST(test_frame_tick_noop);
