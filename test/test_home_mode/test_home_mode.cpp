@@ -91,6 +91,8 @@ void test_activate_sets_home_labels_and_selects_first_button()
     TEST_ASSERT_EQUAL_UINT16(TFT_BLACK, fixture.button3.pillColour());
     TEST_ASSERT_EQUAL_INT(1, fixture.button0.drawCalls);
     TEST_ASSERT_EQUAL_INT(1, fixture.button7.drawCalls);
+    TEST_ASSERT_NOT_EQUAL_UINT32(0, fixture.strip.getPixelColor(RingManager::LedsPerRing * 0));
+    TEST_ASSERT_EQUAL_UINT32(0, fixture.strip.getPixelColor(RingManager::LedsPerRing * 5));
 }
 
 void test_button_pressed_selects_requested_button_when_valid()
@@ -138,9 +140,13 @@ void test_frame_tick_noop()
     HomeModeFixture fixture;
     g_lastSelected = 0xFF;
 
+    fixture.mode.activate();
+    const uint32_t before = fixture.strip.getPixelColor(RingManager::LedsPerRing * 5);
+
     fixture.mode.frameTick();
 
     TEST_ASSERT_EQUAL_UINT8(0xFF, g_lastSelected);
+    TEST_ASSERT_EQUAL_UINT32(before, fixture.strip.getPixelColor(RingManager::LedsPerRing * 5));
 }
 } // namespace
 

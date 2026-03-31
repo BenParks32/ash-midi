@@ -32,8 +32,16 @@ void HomeMode::activate()
         button->setLabel(functionLabel(number));
         button->setPillColour(enabled ? rgb888To565(RingManager::defaultRingColour(number)) : TFT_BLACK);
 
-        _ringManager.setRingColour(number, enabled ? RingManager::defaultRingColour(number) : 0);
-        _ringManager.setRingBrightness(number, enabled ? RingManager::FullBrightness : 0);
+        if (enabled)
+        {
+            _ringManager.setRingColour(number, RingManager::defaultRingColour(number));
+            _ringManager.setRingBrightness(number, RingManager::FullBrightness);
+        }
+        else
+        {
+            _ringManager.setRingColour(number, 0);
+            _ringManager.setRingBrightness(number, 0);
+        }
 
         button->draw(_screenUi);
     }
