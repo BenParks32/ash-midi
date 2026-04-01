@@ -11,7 +11,13 @@ class RingManager;
 class ButtonHandler : public IButtonDelegate, public ITouchButtonDelegate
 {
   public:
+    static constexpr byte ButtonCount = 8;
+
     ButtonHandler(IMode*& activeMode, RingManager& ringManager, void (*selectTouchButton)(byte));
+    ~ButtonHandler();
+
+    void begin();
+    void updateButtons();
 
     void buttonPressed(const byte number) override;
     void buttonLongPressed(const byte number) override;
@@ -20,4 +26,5 @@ class ButtonHandler : public IButtonDelegate, public ITouchButtonDelegate
     IMode*& _activeMode;
     RingManager& _ringManager;
     void (*_selectTouchButton)(byte);
+    Button* _buttons[ButtonCount];
 };

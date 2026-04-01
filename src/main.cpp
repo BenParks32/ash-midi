@@ -3,7 +3,6 @@
 #include <SD.h>
 #include <TFT_eSPI.h>
 
-#include "Button.h"
 #include "ButtonHandler.h"
 #include "Do.h"
 #include "Encoder.h"
@@ -16,8 +15,7 @@
 #include "TouchButton.h"
 
 #define LED_PIN PA0
-#define BUTTON_COUNT RingManager::RingCount
-#define TOUCH_BUTTON_COUNT BUTTON_COUNT
+#define TOUCH_BUTTON_COUNT RingManager::RingCount
 
 #define LED_COUNT RingManager::LedCount
 
@@ -57,16 +55,6 @@ Resources resources(SD_CS);
 IMode* activeMode = nullptr;
 
 ButtonHandler buttonHandler(activeMode, ringManager, SelectTouchButton);
-
-Button btn1(0, PB12, buttonHandler);
-Button btn2(1, PB13, buttonHandler);
-Button btn3(2, PB14, buttonHandler);
-Button btn4(3, PB15, buttonHandler);
-Button btn5(4, PA8, buttonHandler);
-Button btn6(5, PA9, buttonHandler);
-Button btn7(6, PA10, buttonHandler);
-Button btn8(7, PA15, buttonHandler);
-Button* buttons[BUTTON_COUNT]{&btn1, &btn2, &btn3, &btn4, &btn5, &btn6, &btn7, &btn8};
 
 const Size boxSize = screenUi.boxSize();
 const int32_t boxWidth = screenUi.boxWidth();
@@ -156,6 +144,7 @@ void setup()
     {
         Serial.println("Encoder initialization failed.");
     }
+    buttonHandler.begin();
 
     tft.setTouch(calData);
     tft.init();
@@ -176,7 +165,7 @@ void setup()
 void loop()
 {
     HandleEncoder();
-    HandleButtons();
+    buttonHandler.updateButtons();
     HandleTouch();
 
     if (activeMode != nullptr)
@@ -195,14 +184,6 @@ void HandleEncoder()
     }
 
     Serial.printf("Master ring brightness: %u\n", ringManager.masterBrightness());
-}
-
-void HandleButtons()
-{
-    for (int i = 0; i < BUTTON_COUNT; ++i)
-    {
-        buttons[i]->updateState();
-    }
 }
 
 void HandleTouch()

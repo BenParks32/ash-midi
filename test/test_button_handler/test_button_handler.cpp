@@ -6,6 +6,7 @@
 #include "RingManager.h"
 
 // Pull in implementation units required by ButtonHandler without linking app main.cpp.
+#include "../../src/Button.cpp"
 #include "../../src/ButtonHandler.cpp"
 #include "../../src/Lights.cpp"
 #include "../../src/RingManager.cpp"
