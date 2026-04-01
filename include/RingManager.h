@@ -3,9 +3,10 @@
 #include <Adafruit_NeoPixel.h>
 #include <Arduino.h>
 
+#include "IRingColourProvider.h"
 #include "Lights.h"
 
-class RingManager
+class RingManager : public IRingColourProvider
 {
   public:
     static constexpr uint8_t RingCount = 8;
@@ -26,7 +27,8 @@ class RingManager
     RingManager& operator=(const RingManager&) = delete;
 
   public:
-    static uint32_t defaultRingColour(uint8_t ringIndex);
+    static uint32_t defaultRingColourFor(uint8_t ringIndex);
+    uint32_t defaultRingColour(uint8_t ringIndex) const override;
 
   public:
     void setRingColour(uint8_t ringIndex, uint32_t colour);

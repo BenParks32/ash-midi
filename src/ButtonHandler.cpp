@@ -56,12 +56,7 @@ void ButtonHandler::buttonPressed(const byte number)
         return;
     }
 
-    // Fallback path if no mode is currently active.
-    _ringManager.selectRing(number);
-    if (_touchDelegate != nullptr)
-    {
-        _touchDelegate->buttonPressed(number);
-    }
+    Serial.printf("Button %d pressed\n", number + 1);
 }
 
 void ButtonHandler::buttonLongPressed(const byte number)

@@ -27,7 +27,7 @@ FootSwitchTouchButton::FootSwitchTouchButton(const byte number, const Point loca
     setLabel(label);
 }
 
-void FootSwitchTouchButton::draw(ScreenUi& ui)
+void FootSwitchTouchButton::draw(ITouchButtonCanvas& ui)
 {
     ui.drawTouchButtonLabelAndPill(_label, location, size, _pillColour, _isSelected, _pillColour);
 }

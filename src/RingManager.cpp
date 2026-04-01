@@ -22,7 +22,7 @@ RingManager::RingManager(Adafruit_NeoPixel& strip)
     applyBrightness();
 }
 
-uint32_t RingManager::defaultRingColour(uint8_t ringIndex)
+uint32_t RingManager::defaultRingColourFor(uint8_t ringIndex)
 {
     switch (ringIndex)
     {
@@ -44,6 +44,11 @@ uint32_t RingManager::defaultRingColour(uint8_t ringIndex)
     default:
         return 0;
     }
+}
+
+uint32_t RingManager::defaultRingColour(uint8_t ringIndex) const
+{
+    return RingManager::defaultRingColourFor(ringIndex);
 }
 
 void RingManager::setRingColour(uint8_t ringIndex, uint32_t colour)

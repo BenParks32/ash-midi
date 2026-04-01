@@ -1,14 +1,14 @@
 #pragma once
-#include "RingManager.h"
-#include "ScreenUi.h"
+#include "IRingColourProvider.h"
 #include "TouchButton.h"
+#include "TouchButtonUi.h"
 
 class TouchButtonManager : public ITouchButtonDelegate
 {
   public:
-    static constexpr uint8_t BUTTON_COUNT = RingManager::RingCount;
+    static constexpr uint8_t BUTTON_COUNT = 8;
 
-    TouchButtonManager(ScreenUi& screenUi, RingManager& ringManager);
+    TouchButtonManager(ITouchButtonLayout& screenUi, const IRingColourProvider& ringColourProvider);
     ~TouchButtonManager();
 
     void initialize();
@@ -21,11 +21,12 @@ class TouchButtonManager : public ITouchButtonDelegate
     void buttonPressed(const byte number) override;
 
   private:
-    void selectButton(uint8_t buttonNumber);
+    TouchButtonManager() = delete;
+    TouchButtonManager(const TouchButtonManager&) = delete;
+    TouchButtonManager& operator=(const TouchButtonManager&) = delete;
 
-  private:
-    ScreenUi& screenUi;
-    RingManager& ringManager;
+    ITouchButtonLayout& screenUi;
+    const IRingColourProvider& ringColourProvider;
 
     FootSwitchTouchButton* buttons[BUTTON_COUNT];
     FootSwitchTouchButton* selectedButton;

@@ -88,7 +88,7 @@ void test_button_long_pressed_routes_to_active_mode()
     TEST_ASSERT_EQUAL_UINT8(5, fixture.modeSpy.lastLongPressed);
 }
 
-void test_button_pressed_fallback_uses_selection_callback_when_no_mode()
+void test_button_pressed_does_nothing_when_no_active_mode()
 {
     ButtonHandlerFixture fixture;
     fixture.activeMode = nullptr;
@@ -97,18 +97,7 @@ void test_button_pressed_fallback_uses_selection_callback_when_no_mode()
     fixture.handler.buttonPressed(4);
 
     TEST_ASSERT_EQUAL_INT(0, fixture.modeSpy.pressedCalls);
-    TEST_ASSERT_EQUAL_UINT8(4, g_lastSelected);
-}
-
-void test_button_pressed_fallback_handles_null_callback()
-{
-    ButtonHandlerFixture fixture;
-    fixture.activeMode = nullptr;
-    ButtonHandler handlerWithoutCallback(fixture.activeMode, fixture.ringManager, nullptr);
-
-    handlerWithoutCallback.buttonPressed(2);
-
-    TEST_ASSERT_EQUAL_INT(0, fixture.modeSpy.pressedCalls);
+    TEST_ASSERT_EQUAL_UINT8(0xFF, g_lastSelected);
 }
 
 void test_button_long_pressed_no_mode_does_not_select_touch_button()
@@ -129,14 +118,14 @@ void test_button_handler_reads_active_mode_pointer_by_reference()
     g_lastSelected = 0xFF;
 
     fixture.handler.buttonPressed(1);
-    TEST_ASSERT_EQUAL_UINT8(1, g_lastSelected);
+    TEST_ASSERT_EQUAL_UINT8(0xFF, g_lastSelected);
 
     fixture.activeMode = &fixture.modeSpy;
     fixture.handler.buttonPressed(6);
 
     TEST_ASSERT_EQUAL_INT(1, fixture.modeSpy.pressedCalls);
     TEST_ASSERT_EQUAL_UINT8(6, fixture.modeSpy.lastPressed);
-    TEST_ASSERT_EQUAL_UINT8(1, g_lastSelected);
+    TEST_ASSERT_EQUAL_UINT8(0xFF, g_lastSelected);
 }
 } // namespace
 
@@ -156,8 +145,7 @@ void setup()
     UNITY_BEGIN();
     RUN_TEST(test_button_pressed_routes_to_active_mode);
     RUN_TEST(test_button_long_pressed_routes_to_active_mode);
-    RUN_TEST(test_button_pressed_fallback_uses_selection_callback_when_no_mode);
-    RUN_TEST(test_button_pressed_fallback_handles_null_callback);
+    RUN_TEST(test_button_pressed_does_nothing_when_no_active_mode);
     RUN_TEST(test_button_long_pressed_no_mode_does_not_select_touch_button);
     RUN_TEST(test_button_handler_reads_active_mode_pointer_by_reference);
     UNITY_END();

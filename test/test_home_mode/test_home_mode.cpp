@@ -30,7 +30,7 @@ class TestTouchButton : public FootSwitchTouchButton
     {
     }
 
-    void draw(ScreenUi& ui) override
+    void draw(ITouchButtonCanvas& ui) override
     {
         (void)ui;
         ++drawCalls;

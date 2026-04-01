@@ -5,8 +5,9 @@
 
 #include "Gfx.h"
 #include "Resources.h"
+#include "TouchButtonUi.h"
 
-class ScreenUi
+class ScreenUi : public ITouchButtonLayout
 {
   public:
     ScreenUi(TFT_eSPI& tft, const Size& screenSize);
@@ -42,17 +43,18 @@ class ScreenUi
     void setTouchButtonLabelStyle(const GFXfont* font, uint8_t scale);
     void drawTouchButtonLabelAndPill(const char* label, const Point& areaLocation, const Size& areaSize,
                                      uint16_t pillColour, bool selected = false,
-                                     uint16_t selectedBorderColour = TFT_WHITE, uint16_t textColour = TFT_WHITE);
+                                     uint16_t selectedBorderColour = TFT_WHITE,
+                                     uint16_t textColour = TFT_WHITE) override;
     void drawStatusIndicator(int32_t circleX, int32_t circleY, int32_t radius, const char* label, int32_t textX,
                              int32_t textY, uint16_t colour);
     void drawSdStatusInitializing();
     void drawSdStatusFailed();
     void drawSdStatusReady();
 
-    int32_t boxWidth() const;
+    int32_t boxWidth() const override;
     int32_t boxHeight() const;
-    int32_t bottomRowY() const;
-    Size boxSize() const;
+    int32_t bottomRowY() const override;
+    Size boxSize() const override;
 
   private:
     void fillScreenFast(uint16_t color);
