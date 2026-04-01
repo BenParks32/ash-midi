@@ -1,6 +1,6 @@
 #pragma once
 #include "Gfx.h"
-#include "TouchButtonUi.h"
+#include "Touch/TouchButtonUi.h"
 #include <Arduino.h>
 
 class ITouchButtonDelegate

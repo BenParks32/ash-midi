@@ -26,7 +26,6 @@ const Size screenSize = {480, 320};
 const uint8_t BrightnessStep = 8;
 uint16_t calData[5] = {254, 3649, 281, 3563, 7};
 
-void HandleButtons();
 void HandleTouch();
 void HandleEncoder();
 
@@ -46,7 +45,7 @@ IMode* activeMode = nullptr;
 
 TouchButtonManager touchButtonManager(screenUi, ringManager);
 ButtonHandler buttonHandler(activeMode, ringManager, &touchButtonManager);
-HomeMode homeMode(nullptr, 0, ringManager, screenUi);
+HomeMode homeMode(touchButtonManager, ringManager, screenUi);
 
 bool initResourcesSD()
 {

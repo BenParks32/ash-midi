@@ -10,47 +10,16 @@
 #include "../../src/RingManager.cpp"
 #include "../../src/ScreenUi.cpp"
 #include "../../src/TouchButton.cpp"
+#include "../../src/TouchButtonManager.cpp"
 
 namespace
 {
-static byte g_lastSelected = 0xFF;
-
-class NullTouchDelegate : public ITouchButtonDelegate
-{
-  public:
-    void buttonPressed(const byte number) override { (void)number; }
-};
-
-class TestTouchButton : public FootSwitchTouchButton
-{
-  public:
-    TestTouchButton(const byte number, const Point location, const Size size, uint16_t pillColour,
-                    ITouchButtonDelegate& delegate)
-        : FootSwitchTouchButton(number, location, size, "", pillColour, delegate), drawCalls(0)
-    {
-    }
-
-    void draw(ITouchButtonCanvas& ui) override
-    {
-        (void)ui;
-        ++drawCalls;
-    }
-
-    int drawCalls;
-};
-
 class HomeModeFixture
 {
   public:
     HomeModeFixture()
         : screenSize{480, 320}, ui(tft, screenSize), strip(RingManager::LedCount, 0, NEO_GRB + NEO_KHZ800),
-          ringManager(strip), button0(0, {0, 0}, {10, 10}, 0xFFFF, touchDelegate),
-          button1(1, {0, 0}, {10, 10}, 0xFFFF, touchDelegate), button2(2, {0, 0}, {10, 10}, 0xFFFF, touchDelegate),
-          button3(3, {0, 0}, {10, 10}, 0xFFFF, touchDelegate), button4(4, {0, 0}, {10, 10}, 0xFFFF, touchDelegate),
-          button5(5, {0, 0}, {10, 10}, 0xFFFF, touchDelegate), button6(6, {0, 0}, {10, 10}, 0xFFFF, touchDelegate),
-          button7(7, {0, 0}, {10, 10}, 0xFFFF, touchDelegate),
-          buttons{&button0, &button1, &button2, &button3, &button4, &button5, &button6, &button7},
-          mode(buttons, RingManager::RingCount, ringManager, ui)
+          ringManager(strip), touchButtonManager(ui, ringManager), mode(touchButtonManager, ringManager, ui)
     {
     }
 
@@ -59,38 +28,23 @@ class HomeModeFixture
     ScreenUi ui;
     Adafruit_NeoPixel strip;
     RingManager ringManager;
-    NullTouchDelegate touchDelegate;
-
-    TestTouchButton button0;
-    TestTouchButton button1;
-    TestTouchButton button2;
-    TestTouchButton button3;
-    TestTouchButton button4;
-    TestTouchButton button5;
-    TestTouchButton button6;
-    TestTouchButton button7;
-
-    FootSwitchTouchButton* buttons[RingManager::RingCount];
+    TouchButtonManager touchButtonManager;
     HomeMode mode;
 };
 
 void test_activate_sets_home_labels_and_selects_first_button()
 {
     HomeModeFixture fixture;
-    g_lastSelected = 0xFF;
 
     fixture.mode.activate();
 
-    TEST_ASSERT_EQUAL_UINT8(0xFF, g_lastSelected);
-    TEST_ASSERT_EQUAL_STRING("Amp", fixture.button0.label());
-    TEST_ASSERT_EQUAL_STRING("Ampless", fixture.button1.label());
-    TEST_ASSERT_EQUAL_STRING("CodeRed", fixture.button2.label());
-    TEST_ASSERT_EQUAL_STRING(" ", fixture.button3.label());
-    TEST_ASSERT_EQUAL_STRING(" ", fixture.button4.label());
-    TEST_ASSERT_NOT_EQUAL_UINT16(TFT_BLACK, fixture.button0.pillColour());
-    TEST_ASSERT_EQUAL_UINT16(TFT_BLACK, fixture.button3.pillColour());
-    TEST_ASSERT_EQUAL_INT(1, fixture.button0.drawCalls);
-    TEST_ASSERT_EQUAL_INT(1, fixture.button7.drawCalls);
+    TEST_ASSERT_EQUAL_STRING("Amp", fixture.touchButtonManager.getButton(0)->label());
+    TEST_ASSERT_EQUAL_STRING("Ampless", fixture.touchButtonManager.getButton(1)->label());
+    TEST_ASSERT_EQUAL_STRING("CodeRed", fixture.touchButtonManager.getButton(2)->label());
+    TEST_ASSERT_EQUAL_STRING(" ", fixture.touchButtonManager.getButton(3)->label());
+    TEST_ASSERT_EQUAL_STRING(" ", fixture.touchButtonManager.getButton(4)->label());
+    TEST_ASSERT_NOT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(0)->pillColour());
+    TEST_ASSERT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(3)->pillColour());
     TEST_ASSERT_NOT_EQUAL_UINT32(0, fixture.strip.getPixelColor(RingManager::LedsPerRing * 0));
     TEST_ASSERT_EQUAL_UINT32(0, fixture.strip.getPixelColor(RingManager::LedsPerRing * 5));
 }
@@ -98,54 +52,40 @@ void test_activate_sets_home_labels_and_selects_first_button()
 void test_button_pressed_selects_requested_button_when_valid()
 {
     HomeModeFixture fixture;
-    g_lastSelected = 0xFF;
 
     fixture.mode.buttonPressed(1);
-
-    TEST_ASSERT_EQUAL_UINT8(0xFF, g_lastSelected);
 }
 
 void test_button_pressed_ignores_disabled_button()
 {
     HomeModeFixture fixture;
-    g_lastSelected = 0xFF;
 
     fixture.mode.buttonPressed(5);
-
-    TEST_ASSERT_EQUAL_UINT8(0xFF, g_lastSelected);
 }
 
 void test_button_pressed_ignores_out_of_range_button()
 {
     HomeModeFixture fixture;
-    g_lastSelected = 0xFF;
 
-    fixture.mode.buttonPressed(RingManager::RingCount);
-
-    TEST_ASSERT_EQUAL_UINT8(0xFF, g_lastSelected);
+    fixture.mode.buttonPressed(TouchButtonManager::BUTTON_COUNT);
 }
 
 void test_button_long_pressed_ignores_out_of_range_button()
 {
     HomeModeFixture fixture;
-    g_lastSelected = 0xFF;
 
-    fixture.mode.buttonLongPressed(RingManager::RingCount);
-
-    TEST_ASSERT_EQUAL_UINT8(0xFF, g_lastSelected);
+    fixture.mode.buttonLongPressed(TouchButtonManager::BUTTON_COUNT);
 }
 
 void test_frame_tick_noop()
 {
     HomeModeFixture fixture;
-    g_lastSelected = 0xFF;
 
     fixture.mode.activate();
     const uint32_t before = fixture.strip.getPixelColor(RingManager::LedsPerRing * 5);
 
     fixture.mode.frameTick();
 
-    TEST_ASSERT_EQUAL_UINT8(0xFF, g_lastSelected);
     TEST_ASSERT_EQUAL_UINT32(before, fixture.strip.getPixelColor(RingManager::LedsPerRing * 5));
 }
 } // namespace

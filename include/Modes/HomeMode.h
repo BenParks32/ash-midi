@@ -4,12 +4,12 @@
 
 #include "RingManager.h"
 #include "ScreenUi.h"
-#include "TouchButton.h"
+#include "TouchButtonManager.h"
 
 class HomeMode : public IMode
 {
   public:
-    HomeMode(FootSwitchTouchButton** touchButtons, byte touchButtonCount, RingManager& ringManager, ScreenUi& screenUi);
+    HomeMode(TouchButtonManager& touchButtonManager, RingManager& ringManager, ScreenUi& screenUi);
 
     void activate() override;
     void buttonPressed(byte number) override;
@@ -22,8 +22,7 @@ class HomeMode : public IMode
     static bool isEmptyLabel(const char* label);
 
   private:
-    FootSwitchTouchButton** _touchButtons;
-    byte _touchButtonCount;
+    TouchButtonManager& _touchButtonManager;
     RingManager& _ringManager;
     ScreenUi& _screenUi;
 };

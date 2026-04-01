@@ -5,7 +5,7 @@
 
 #include "Gfx.h"
 #include "Resources.h"
-#include "TouchButtonUi.h"
+#include "Touch/TouchButtonUi.h"
 
 class ScreenUi : public ITouchButtonLayout
 {

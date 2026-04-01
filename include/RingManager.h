@@ -3,8 +3,8 @@
 #include <Adafruit_NeoPixel.h>
 #include <Arduino.h>
 
-#include "IRingColourProvider.h"
 #include "Lights.h"
+#include "Touch/IRingColourProvider.h"
 
 class RingManager : public IRingColourProvider
 {

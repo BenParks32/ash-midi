@@ -14,17 +14,20 @@ static uint16_t rgb888To565(uint32_t rgb)
 }
 } // namespace
 
-HomeMode::HomeMode(FootSwitchTouchButton** touchButtons, byte touchButtonCount, RingManager& ringManager,
-                   ScreenUi& screenUi)
-    : _touchButtons(touchButtons), _touchButtonCount(touchButtonCount), _ringManager(ringManager), _screenUi(screenUi)
+HomeMode::HomeMode(TouchButtonManager& touchButtonManager, RingManager& ringManager, ScreenUi& screenUi)
+    : _touchButtonManager(touchButtonManager), _ringManager(ringManager), _screenUi(screenUi)
 {
 }
 
 void HomeMode::activate()
 {
-    for (byte i = 0; i < _touchButtonCount; ++i)
+    for (byte i = 0; i < TouchButtonManager::BUTTON_COUNT; ++i)
     {
-        FootSwitchTouchButton* button = _touchButtons[i];
+        FootSwitchTouchButton* button = _touchButtonManager.getButton(i);
+        if (button == nullptr)
+        {
+            continue;
+        }
         const byte number = button->buttonNumber();
         const bool enabled = isButtonEnabled(number);
 
@@ -49,7 +52,7 @@ void HomeMode::activate()
 
 void HomeMode::buttonPressed(byte number)
 {
-    if (number >= _touchButtonCount)
+    if (number >= TouchButtonManager::BUTTON_COUNT)
     {
         return;
     }
@@ -72,7 +75,7 @@ void HomeMode::buttonPressed(byte number)
 
 void HomeMode::buttonLongPressed(byte number)
 {
-    if (number >= _touchButtonCount)
+    if (number >= TouchButtonManager::BUTTON_COUNT)
     {
         return;
     }

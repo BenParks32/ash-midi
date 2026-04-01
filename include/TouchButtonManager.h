@@ -1,7 +1,7 @@
 #pragma once
-#include "IRingColourProvider.h"
+#include "Touch/IRingColourProvider.h"
+#include "Touch/TouchButtonUi.h"
 #include "TouchButton.h"
-#include "TouchButtonUi.h"
 
 class TouchButtonManager : public ITouchButtonDelegate
 {
