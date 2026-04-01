@@ -4,6 +4,7 @@
 #include "ButtonHandler.h"
 #include "Modes/Mode.h"
 #include "RingManager.h"
+#include "TouchButton.h"
 
 // Pull in implementation units required by ButtonHandler without linking app main.cpp.
 #include "../../src/Button.cpp"
@@ -15,7 +16,11 @@ namespace
 {
 static byte g_lastSelected = 0xFF;
 
-void recordSelection(const byte number) { g_lastSelected = number; }
+class MockTouchButtonDelegate : public ITouchButtonDelegate
+{
+  public:
+    void buttonPressed(const byte number) override { g_lastSelected = number; }
+};
 
 class ModeSpy : public IMode
 {
@@ -47,13 +52,14 @@ class ButtonHandlerFixture
   public:
     ButtonHandlerFixture()
         : strip(RingManager::LedCount, 0, NEO_GRB + NEO_KHZ800), ringManager(strip), activeMode(nullptr),
-          handler(activeMode, ringManager, recordSelection)
+          mockDelegate(), handler(activeMode, ringManager, &mockDelegate)
     {
     }
 
     Adafruit_NeoPixel strip;
     RingManager ringManager;
     IMode* activeMode;
+    MockTouchButtonDelegate mockDelegate;
     ButtonHandler handler;
     ModeSpy modeSpy;
 };
