@@ -104,6 +104,18 @@ void test_button_pressed_fallback_handles_null_callback()
     TEST_ASSERT_EQUAL_INT(0, fixture.modeSpy.pressedCalls);
 }
 
+void test_button_long_pressed_no_mode_does_not_select_touch_button()
+{
+    ButtonHandlerFixture fixture;
+    fixture.activeMode = nullptr;
+    g_lastSelected = 0xFF;
+
+    fixture.handler.buttonLongPressed(2);
+
+    TEST_ASSERT_EQUAL_INT(0, fixture.modeSpy.longPressedCalls);
+    TEST_ASSERT_EQUAL_UINT8(0xFF, g_lastSelected);
+}
+
 void test_button_handler_reads_active_mode_pointer_by_reference()
 {
     ButtonHandlerFixture fixture;
@@ -139,6 +151,7 @@ void setup()
     RUN_TEST(test_button_long_pressed_routes_to_active_mode);
     RUN_TEST(test_button_pressed_fallback_uses_selection_callback_when_no_mode);
     RUN_TEST(test_button_pressed_fallback_handles_null_callback);
+    RUN_TEST(test_button_long_pressed_no_mode_does_not_select_touch_button);
     RUN_TEST(test_button_handler_reads_active_mode_pointer_by_reference);
     UNITY_END();
 }
