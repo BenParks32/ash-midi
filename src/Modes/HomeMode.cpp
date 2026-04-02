@@ -40,7 +40,7 @@ void HomeMode::setupFunctions()
     _functions[1] = Function("Ampless", 0x0000FF, ActionType::SendMidiProgramChange, ActionType::SendMidiProgramChange);
 
     // Button 2: CodeRed (Red) - MIDI Program 20
-    _functions[2] = Function("CodeRed", 0x0000FF, ActionType::SendMidiProgramChange, ActionType::SendMidiProgramChange);
+    _functions[2] = Function("CodeRed", 0xFF0000, ActionType::SendMidiProgramChange, ActionType::SendMidiProgramChange);
 
     // Buttons 3-7: Additional preset slots (disabled for now)
     _functions[3] = Function(" ", 0x0000FF, ActionType::SendMidiProgramChange, ActionType::SendMidiProgramChange);
