@@ -16,12 +16,6 @@ namespace
 {
 static byte g_lastSelected = 0xFF;
 
-class MockTouchButtonDelegate : public ITouchButtonDelegate
-{
-  public:
-    void buttonPressed(const byte number) override { g_lastSelected = number; }
-};
-
 class ModeSpy : public IMode
 {
   public:
@@ -52,14 +46,13 @@ class ButtonHandlerFixture
   public:
     ButtonHandlerFixture()
         : strip(RingManager::LedCount, 0, NEO_GRB + NEO_KHZ800), ringManager(strip), activeMode(nullptr),
-          mockDelegate(), handler(activeMode, ringManager, &mockDelegate)
+          handler(activeMode, ringManager)
     {
     }
 
     Adafruit_NeoPixel strip;
     RingManager ringManager;
     IMode* activeMode;
-    MockTouchButtonDelegate mockDelegate;
     ButtonHandler handler;
     ModeSpy modeSpy;
 };

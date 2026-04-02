@@ -37,6 +37,7 @@ class FootSwitchTouchButton : public TouchButton
     FootSwitchTouchButton(const byte number, const Point location, const Size size, const char* label,
                           uint16_t pillColour, ITouchButtonDelegate& delegate);
 
+    bool handleTouch(const uint16_t x, const uint16_t y);
     void draw(ITouchButtonCanvas& ui);
     void setLabel(const char* label);
     const char* label() const;
@@ -44,8 +45,11 @@ class FootSwitchTouchButton : public TouchButton
     void setPillColour(uint16_t pillColour);
     uint16_t pillColour() const;
 
-    void setSelected(bool selected);
-    bool isSelected() const;
+    void setEnabled(bool enabled);
+    bool isEnabled() const;
+
+    void setBorderVisible(bool visible);
+    bool hasBorder() const;
 
   private:
     FootSwitchTouchButton() = default;
@@ -56,5 +60,6 @@ class FootSwitchTouchButton : public TouchButton
     static constexpr size_t LabelCapacity = 16;
     char _label[LabelCapacity];
     uint16_t _pillColour;
-    bool _isSelected;
+    bool _hasBorder;
+    bool _isEnabled;
 };

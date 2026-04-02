@@ -7,6 +7,7 @@
 #include "Do.h"
 #include "Encoder.h"
 #include "Gfx.h"
+#include "MidiManager.h"
 #include "Modes/HomeMode.h"
 #include "Modes/Mode.h"
 #include "Resources.h"
@@ -43,9 +44,10 @@ const uint8_t LogoUiScale = 1;
 Resources resources(SD_CS);
 IMode* activeMode = nullptr;
 
-TouchButtonManager touchButtonManager(screenUi, ringManager);
-ButtonHandler buttonHandler(activeMode, ringManager, &touchButtonManager);
-HomeMode homeMode(touchButtonManager, ringManager, screenUi);
+ButtonHandler buttonHandler(activeMode, ringManager);
+TouchButtonManager touchButtonManager(screenUi, &buttonHandler);
+MidiManager midiManager;
+HomeMode homeMode(touchButtonManager, ringManager, screenUi, midiManager);
 
 bool initResourcesSD()
 {

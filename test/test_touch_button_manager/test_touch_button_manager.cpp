@@ -24,71 +24,69 @@ class TestTouchButtonLayout : public ITouchButtonLayout
     }
 };
 
-class TestRingColourProvider : public IRingColourProvider
+class TestPressDelegate : public ITouchButtonDelegate
 {
   public:
-    uint32_t defaultRingColour(uint8_t ringIndex) const override { return 0x101010U * ((uint32_t)ringIndex + 1U); }
+    void buttonPressed(const byte number) override
+    {
+        ++pressCount;
+        lastPressed = number;
+    }
+
+    int pressCount = 0;
+    byte lastPressed = 0xFF;
 };
 
-void test_touch_button_manager_initially_no_selected_button()
+void test_touch_button_manager_buttons_start_disabled_and_blank()
 {
     TestTouchButtonLayout screenUi;
-    TestRingColourProvider ringColours;
-    TouchButtonManager manager(screenUi, ringColours);
+    TouchButtonManager manager(screenUi);
 
-    TEST_ASSERT_NULL(manager.getSelectedButton());
+    for (uint8_t i = 0; i < TouchButtonManager::BUTTON_COUNT; ++i)
+    {
+        FootSwitchTouchButton* button = manager.getButton(i);
+        TEST_ASSERT_NOT_NULL(button);
+        TEST_ASSERT_FALSE(button->isEnabled());
+        TEST_ASSERT_EQUAL_STRING("", button->label());
+        TEST_ASSERT_EQUAL_UINT16(0, button->pillColour());
+    }
 }
 
 void test_touch_button_manager_button_pressed_selects_button()
 {
     TestTouchButtonLayout screenUi;
-    TestRingColourProvider ringColours;
-    TouchButtonManager manager(screenUi, ringColours);
+    TestPressDelegate delegate;
+    TouchButtonManager manager(screenUi, &delegate);
 
-    // Simulate button press on button 0
+    manager.getButton(0)->setEnabled(true);
     manager.buttonPressed(0);
 
-    // Verify button 0 is now selected
-    FootSwitchTouchButton* selected = manager.getSelectedButton();
-    TEST_ASSERT_NOT_NULL(selected);
-    TEST_ASSERT_EQUAL(0, selected->buttonNumber());
+    TEST_ASSERT_EQUAL_INT(1, delegate.pressCount);
+    TEST_ASSERT_EQUAL_UINT8(0, delegate.lastPressed);
 }
 
-void test_touch_button_manager_button_pressed_deselects_previous_button()
+void test_touch_button_manager_button_pressed_ignores_disabled_button()
 {
     TestTouchButtonLayout screenUi;
-    TestRingColourProvider ringColours;
-    TouchButtonManager manager(screenUi, ringColours);
+    TestPressDelegate delegate;
+    TouchButtonManager manager(screenUi, &delegate);
 
-    // Select button 0
     manager.buttonPressed(0);
-    FootSwitchTouchButton* first = manager.getSelectedButton();
-    TEST_ASSERT_EQUAL(0, first->buttonNumber());
 
-    // Select button 1
-    manager.buttonPressed(1);
-    FootSwitchTouchButton* second = manager.getSelectedButton();
-    TEST_ASSERT_EQUAL(1, second->buttonNumber());
-
-    // Verify we got a different button
-    TEST_ASSERT_NOT_EQUAL(first->buttonNumber(), second->buttonNumber());
+    TEST_ASSERT_EQUAL_INT(0, delegate.pressCount);
 }
 
-void test_touch_button_manager_button_pressed_same_button_is_noop()
+void test_touch_button_manager_forwards_valid_press_to_delegate()
 {
     TestTouchButtonLayout screenUi;
-    TestRingColourProvider ringColours;
-    TouchButtonManager manager(screenUi, ringColours);
+    TestPressDelegate delegate;
+    TouchButtonManager manager(screenUi, &delegate);
 
-    // Select button 0
-    manager.buttonPressed(0);
-    FootSwitchTouchButton* first = manager.getSelectedButton();
+    manager.getButton(2)->setEnabled(true);
+    manager.buttonPressed(2);
 
-    // Select button 0 again (should be no-op, same pointer)
-    manager.buttonPressed(0);
-    FootSwitchTouchButton* second = manager.getSelectedButton();
-
-    TEST_ASSERT_EQUAL_PTR(first, second);
+    TEST_ASSERT_EQUAL_INT(1, delegate.pressCount);
+    TEST_ASSERT_EQUAL_UINT8(2, delegate.lastPressed);
 }
 
 void setUp() {}
@@ -105,10 +103,10 @@ void setup()
     }
 
     UNITY_BEGIN();
-    RUN_TEST(test_touch_button_manager_initially_no_selected_button);
+    RUN_TEST(test_touch_button_manager_buttons_start_disabled_and_blank);
     RUN_TEST(test_touch_button_manager_button_pressed_selects_button);
-    RUN_TEST(test_touch_button_manager_button_pressed_deselects_previous_button);
-    RUN_TEST(test_touch_button_manager_button_pressed_same_button_is_noop);
+    RUN_TEST(test_touch_button_manager_button_pressed_ignores_disabled_button);
+    RUN_TEST(test_touch_button_manager_forwards_valid_press_to_delegate);
     UNITY_END();
 }
 

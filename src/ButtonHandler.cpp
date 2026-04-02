@@ -9,8 +9,8 @@ namespace
 const byte kButtonPins[ButtonHandler::ButtonCount] = {PB12, PB13, PB14, PB15, PA8, PA9, PA10, PA15};
 }
 
-ButtonHandler::ButtonHandler(IMode*& activeMode, RingManager& ringManager, ITouchButtonDelegate* touchDelegate)
-    : _activeMode(activeMode), _ringManager(ringManager), _touchDelegate(touchDelegate), _buttons{nullptr}
+ButtonHandler::ButtonHandler(IMode*& activeMode, RingManager& ringManager)
+    : _activeMode(activeMode), _ringManager(ringManager), _buttons{nullptr}
 {
 }
 

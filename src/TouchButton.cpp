@@ -1,6 +1,5 @@
 #include "TouchButton.h"
 
-#include <cstdio>
 #include <cstring>
 
 TouchButton::TouchButton(const byte number, const Point location, const Size size, ITouchButtonDelegate& delegate)
@@ -22,21 +21,38 @@ byte TouchButton::buttonNumber() const { return number; }
 
 FootSwitchTouchButton::FootSwitchTouchButton(const byte number, const Point location, const Size size,
                                              const char* label, uint16_t pillColour, ITouchButtonDelegate& delegate)
-    : TouchButton(number, location, size, delegate), _label{0}, _pillColour(pillColour), _isSelected(false)
+    : TouchButton(number, location, size, delegate), _label{0}, _pillColour(pillColour), _hasBorder(false),
+      _isEnabled(false)
 {
     setLabel(label);
 }
 
+bool FootSwitchTouchButton::handleTouch(const uint16_t x, const uint16_t y)
+{
+    if (!_isEnabled)
+    {
+        return false;
+    }
+
+    return TouchButton::handleTouch(x, y);
+}
+
 void FootSwitchTouchButton::draw(ITouchButtonCanvas& ui)
 {
-    ui.drawTouchButtonLabelAndPill(_label, location, size, _pillColour, _isSelected, _pillColour);
+    if (!_isEnabled)
+    {
+        ui.drawTouchButtonLabelAndPill("", location, size, 0, false, 0, 0);
+        return;
+    }
+
+    ui.drawTouchButtonLabelAndPill(_label, location, size, _pillColour, _hasBorder, _pillColour);
 }
 
 void FootSwitchTouchButton::setLabel(const char* label)
 {
     if (label == nullptr || label[0] == '\0')
     {
-        snprintf(_label, LabelCapacity, "%u", (unsigned int)number + 1U);
+        _label[0] = '\0';
         return;
     }
 
@@ -50,6 +66,17 @@ void FootSwitchTouchButton::setPillColour(uint16_t pillColour) { _pillColour = p
 
 uint16_t FootSwitchTouchButton::pillColour() const { return _pillColour; }
 
-void FootSwitchTouchButton::setSelected(bool selected) { _isSelected = selected; }
+void FootSwitchTouchButton::setEnabled(bool enabled)
+{
+    _isEnabled = enabled;
+    if (!enabled)
+    {
+        _hasBorder = false;
+    }
+}
 
-bool FootSwitchTouchButton::isSelected() const { return _isSelected; }
+bool FootSwitchTouchButton::isEnabled() const { return _isEnabled; }
+
+void FootSwitchTouchButton::setBorderVisible(bool visible) { _hasBorder = visible; }
+
+bool FootSwitchTouchButton::hasBorder() const { return _hasBorder; }

@@ -15,40 +15,10 @@ RingManager::RingManager(Adafruit_NeoPixel& strip)
 
     for (uint8_t ringIndex = 0; ringIndex < RingCount; ++ringIndex)
     {
-        _ringBaseBrightness[ringIndex] = DimBrightness;
+        _ringBaseBrightness[ringIndex] = 0;
     }
-    _ringBaseBrightness[_selectedRing] = FullBrightness;
 
     applyBrightness();
-}
-
-uint32_t RingManager::defaultRingColourFor(uint8_t ringIndex)
-{
-    switch (ringIndex)
-    {
-    case 0:
-        return 0x00FF00;
-    case 1:
-        return 0x0000FF;
-    case 2:
-    case 3:
-        return 0xFF0000;
-    case 4:
-        return 0xDCA500;
-    case 5:
-        return 0x008080;
-    case 6:
-        return 0xFF80FF;
-    case 7:
-        return 0xFFFFFF;
-    default:
-        return 0;
-    }
-}
-
-uint32_t RingManager::defaultRingColour(uint8_t ringIndex) const
-{
-    return RingManager::defaultRingColourFor(ringIndex);
 }
 
 void RingManager::setRingColour(uint8_t ringIndex, uint32_t colour)
@@ -97,7 +67,11 @@ void RingManager::begin()
     _strip.setBrightness(255);
     _strip.clear();
 
-    setDefaultRingColours();
+    for (uint8_t ringIndex = 0; ringIndex < RingCount; ++ringIndex)
+    {
+        setRingColour(ringIndex, 0);
+    }
+
     show();
 }
 
@@ -151,14 +125,6 @@ void RingManager::setMasterBrightness(uint8_t brightness)
 }
 
 uint8_t RingManager::masterBrightness() const { return _masterBrightness; }
-
-void RingManager::setDefaultRingColours()
-{
-    for (uint8_t ringIndex = 0; ringIndex < RingCount; ++ringIndex)
-    {
-        setRingColour(ringIndex, defaultRingColour(ringIndex));
-    }
-}
 
 void RingManager::applyBrightness()
 {

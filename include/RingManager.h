@@ -4,9 +4,8 @@
 #include <Arduino.h>
 
 #include "Lights.h"
-#include "Touch/IRingColourProvider.h"
 
-class RingManager : public IRingColourProvider
+class RingManager
 {
   public:
     static constexpr uint8_t RingCount = 8;
@@ -27,10 +26,6 @@ class RingManager : public IRingColourProvider
     RingManager& operator=(const RingManager&) = delete;
 
   public:
-    static uint32_t defaultRingColourFor(uint8_t ringIndex);
-    uint32_t defaultRingColour(uint8_t ringIndex) const override;
-
-  public:
     void setRingColour(uint8_t ringIndex, uint32_t colour);
     void setRingBrightness(uint8_t ringIndex, uint8_t brightness);
     void selectRing(uint8_t ringIndex);
@@ -43,7 +38,6 @@ class RingManager : public IRingColourProvider
 
   private:
     void applyBrightness();
-    void setDefaultRingColours();
 
   private:
     Adafruit_NeoPixel& _strip;

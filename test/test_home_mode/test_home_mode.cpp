@@ -14,12 +14,26 @@
 
 namespace
 {
+class MockMidiManager : public IMidiManager
+{
+  public:
+    void sendProgramChange(byte programChangeValue) override
+    {
+        ++sendCalls;
+        lastProgramChangeValue = programChangeValue;
+    }
+
+    int sendCalls = 0;
+    byte lastProgramChangeValue = 0;
+};
+
 class HomeModeFixture
 {
   public:
     HomeModeFixture()
         : screenSize{480, 320}, ui(tft, screenSize), strip(RingManager::LedCount, 0, NEO_GRB + NEO_KHZ800),
-          ringManager(strip), touchButtonManager(ui, ringManager), mode(touchButtonManager, ringManager, ui)
+          ringManager(strip), touchButtonManager(ui), midiManager(),
+          mode(touchButtonManager, ringManager, ui, midiManager)
     {
     }
 
@@ -29,10 +43,11 @@ class HomeModeFixture
     Adafruit_NeoPixel strip;
     RingManager ringManager;
     TouchButtonManager touchButtonManager;
+    MockMidiManager midiManager;
     HomeMode mode;
 };
 
-void test_activate_sets_home_labels_and_selects_first_button()
+void test_activate_sets_home_labels_and_ring_matched_visuals()
 {
     HomeModeFixture fixture;
 
@@ -54,6 +69,29 @@ void test_button_pressed_selects_requested_button_when_valid()
     HomeModeFixture fixture;
 
     fixture.mode.buttonPressed(1);
+
+    TEST_ASSERT_EQUAL_INT(1, fixture.midiManager.sendCalls);
+    TEST_ASSERT_EQUAL_UINT8(6, fixture.midiManager.lastProgramChangeValue);
+}
+
+void test_button_pressed_sends_amp_program_change()
+{
+    HomeModeFixture fixture;
+
+    fixture.mode.buttonPressed(0);
+
+    TEST_ASSERT_EQUAL_INT(1, fixture.midiManager.sendCalls);
+    TEST_ASSERT_EQUAL_UINT8(1, fixture.midiManager.lastProgramChangeValue);
+}
+
+void test_button_pressed_sends_code_red_program_change()
+{
+    HomeModeFixture fixture;
+
+    fixture.mode.buttonPressed(2);
+
+    TEST_ASSERT_EQUAL_INT(1, fixture.midiManager.sendCalls);
+    TEST_ASSERT_EQUAL_UINT8(20, fixture.midiManager.lastProgramChangeValue);
 }
 
 void test_button_pressed_ignores_disabled_button()
@@ -61,6 +99,8 @@ void test_button_pressed_ignores_disabled_button()
     HomeModeFixture fixture;
 
     fixture.mode.buttonPressed(5);
+
+    TEST_ASSERT_EQUAL_INT(0, fixture.midiManager.sendCalls);
 }
 
 void test_button_pressed_ignores_out_of_range_button()
@@ -68,6 +108,8 @@ void test_button_pressed_ignores_out_of_range_button()
     HomeModeFixture fixture;
 
     fixture.mode.buttonPressed(TouchButtonManager::BUTTON_COUNT);
+
+    TEST_ASSERT_EQUAL_INT(0, fixture.midiManager.sendCalls);
 }
 
 void test_button_long_pressed_ignores_out_of_range_button()
@@ -104,8 +146,10 @@ void setup()
     }
 
     UNITY_BEGIN();
-    RUN_TEST(test_activate_sets_home_labels_and_selects_first_button);
+    RUN_TEST(test_activate_sets_home_labels_and_ring_matched_visuals);
     RUN_TEST(test_button_pressed_selects_requested_button_when_valid);
+    RUN_TEST(test_button_pressed_sends_amp_program_change);
+    RUN_TEST(test_button_pressed_sends_code_red_program_change);
     RUN_TEST(test_button_pressed_ignores_disabled_button);
     RUN_TEST(test_button_pressed_ignores_out_of_range_button);
     RUN_TEST(test_button_long_pressed_ignores_out_of_range_button);
