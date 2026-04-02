@@ -34,28 +34,20 @@ HomeMode::HomeMode(TouchButtonManager& touchButtonManager, RingManager& ringMana
 void HomeMode::setupFunctions()
 {
     // Button 0: Amp (Green) - MIDI Program 1
-    _functions[0] =
-        Function("Amp", rgb888To565(0x00FF00), ActionType::SendMidiProgramChange, ActionType::SendMidiProgramChange);
+    _functions[0] = Function("Amp", 0x00FF00, ActionType::SendMidiProgramChange, ActionType::SendMidiProgramChange);
 
     // Button 1: Ampless (Blue) - MIDI Program 6
-    _functions[1] = Function("Ampless", rgb888To565(0x0000FF), ActionType::SendMidiProgramChange,
-                             ActionType::SendMidiProgramChange);
+    _functions[1] = Function("Ampless", 0x0000FF, ActionType::SendMidiProgramChange, ActionType::SendMidiProgramChange);
 
     // Button 2: CodeRed (Red) - MIDI Program 20
-    _functions[2] = Function("CodeRed", rgb888To565(0xFF0000), ActionType::SendMidiProgramChange,
-                             ActionType::SendMidiProgramChange);
+    _functions[2] = Function("CodeRed", 0xFF0000, ActionType::SendMidiProgramChange, ActionType::SendMidiProgramChange);
 
     // Buttons 3-7: Additional preset slots (disabled for now)
-    _functions[3] =
-        Function(" ", rgb888To565(0xFF0000), ActionType::SendMidiProgramChange, ActionType::SendMidiProgramChange);
-    _functions[4] =
-        Function(" ", rgb888To565(0xDCA500), ActionType::SendMidiProgramChange, ActionType::SendMidiProgramChange);
-    _functions[5] =
-        Function(" ", rgb888To565(0x008080), ActionType::SendMidiProgramChange, ActionType::SendMidiProgramChange);
-    _functions[6] =
-        Function(" ", rgb888To565(0xFF80FF), ActionType::SendMidiProgramChange, ActionType::SendMidiProgramChange);
-    _functions[7] =
-        Function(" ", rgb888To565(0xFFFFFF), ActionType::SendMidiProgramChange, ActionType::SendMidiProgramChange);
+    _functions[3] = Function(" ", 0xFF0000, ActionType::SendMidiProgramChange, ActionType::SendMidiProgramChange);
+    _functions[4] = Function(" ", 0xDCA500, ActionType::SendMidiProgramChange, ActionType::SendMidiProgramChange);
+    _functions[5] = Function(" ", 0x008080, ActionType::SendMidiProgramChange, ActionType::SendMidiProgramChange);
+    _functions[6] = Function(" ", 0xFF80FF, ActionType::SendMidiProgramChange, ActionType::SendMidiProgramChange);
+    _functions[7] = Function(" ", 0xFFFFFF, ActionType::SendMidiProgramChange, ActionType::SendMidiProgramChange);
 }
 
 void HomeMode::activate()
@@ -78,7 +70,7 @@ void HomeMode::activate()
 
         if (enabled)
         {
-            _ringManager.setRingColour(i, 0x00FF00);
+            _ringManager.setRingColour(i, func.colour());
             _ringManager.setRingBrightness(i, ringBrightness);
         }
         else
