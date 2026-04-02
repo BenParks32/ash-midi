@@ -17,6 +17,8 @@ class TouchButton
   public:
     bool handleTouch(const uint16_t x, const uint16_t y);
     byte buttonNumber() const;
+    Point getLocation() const;
+    Size getSize() const;
     virtual void draw(ITouchButtonCanvas& ui) = 0;
 
   private:

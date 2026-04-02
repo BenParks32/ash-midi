@@ -19,6 +19,10 @@ bool TouchButton::handleTouch(const uint16_t x, const uint16_t y)
 
 byte TouchButton::buttonNumber() const { return number; }
 
+Point TouchButton::getLocation() const { return location; }
+
+Size TouchButton::getSize() const { return size; }
+
 FootSwitchTouchButton::FootSwitchTouchButton(const byte number, const Point location, const Size size,
                                              const char* label, uint16_t pillColour, ITouchButtonDelegate& delegate)
     : TouchButton(number, location, size, delegate), _label{0}, _pillColour(pillColour), _hasBorder(false),

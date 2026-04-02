@@ -1,8 +1,8 @@
 #include "TouchButtonManager.h"
 
 TouchButtonManager::TouchButtonManager(ITouchButtonLayout& screenUi, ITouchButtonDelegate* buttonPressDelegate)
-    : screenUi(screenUi), _buttonPressDelegate(buttonPressDelegate), boxSize(screenUi.boxSize()),
-      boxWidth(screenUi.boxWidth()), bottomRowY(screenUi.bottomRowY())
+    : screenUi(screenUi), _buttonPressDelegate(buttonPressDelegate), _lastPressedButton(-1),
+      boxSize(screenUi.boxSize()), boxWidth(screenUi.boxWidth()), bottomRowY(screenUi.bottomRowY())
 {
     createButtons();
 }
@@ -40,12 +40,35 @@ void TouchButtonManager::initialize()
 
 void TouchButtonManager::handleTouch(uint16_t x, uint16_t y)
 {
+    int8_t currentlyPressedButton = -1;
+
+    // Find which button (if any) is being touched
     for (int i = 0; i < BUTTON_COUNT; ++i)
     {
-        if (buttons[i]->handleTouch(x, y))
+        FootSwitchTouchButton* button = buttons[i];
+        if (!button->isEnabled())
         {
+            continue;
+        }
+
+        Point loc = button->getLocation();
+        Size sz = button->getSize();
+
+        if (x >= loc.x && x <= loc.x + sz.width && y >= loc.y && y <= loc.y + sz.height)
+        {
+            currentlyPressedButton = i;
             break;
         }
+    }
+
+    // Only trigger press event if the pressed button changed
+    if (currentlyPressedButton != _lastPressedButton)
+    {
+        if (currentlyPressedButton != -1 && _buttonPressDelegate != nullptr)
+        {
+            _buttonPressDelegate->buttonPressed(currentlyPressedButton);
+        }
+        _lastPressedButton = currentlyPressedButton;
     }
 }
 

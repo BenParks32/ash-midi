@@ -27,6 +27,7 @@ class TouchButtonManager : public ITouchButtonDelegate
 
     FootSwitchTouchButton* buttons[BUTTON_COUNT];
     ITouchButtonDelegate* _buttonPressDelegate;
+    int8_t _lastPressedButton;
 
     const Size boxSize;
     const int32_t boxWidth;
