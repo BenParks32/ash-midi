@@ -8,6 +8,7 @@
 // Pull in implementation units required by PlayMode without linking app main.cpp.
 #include "../../src/Function.cpp"
 #include "../../src/Lights.cpp"
+#include "../../src/Modes/FunctionModeBase.cpp"
 #include "../../src/Modes/PlayMode.cpp"
 #include "../../src/RingManager.cpp"
 #include "../../src/ScreenUi.cpp"
@@ -39,13 +40,28 @@ class MockMidiManager : public IMidiManager
     byte lastControlChangeValue = 0;
 };
 
+class MockTransitionDelegate : public IModeTransistionDelegate
+{
+  public:
+    void enterMode(Modes mode, byte transitionValue) override
+    {
+        ++calls;
+        lastMode = mode;
+        lastTransitionValue = transitionValue;
+    }
+
+    int calls = 0;
+    Modes lastMode = Modes::Play;
+    byte lastTransitionValue = 0xFF;
+};
+
 class PlayModeFixture
 {
   public:
     PlayModeFixture()
         : screenSize{480, 320}, ui(tft, screenSize), strip(RingManager::LedCount, 0, NEO_GRB + NEO_KHZ800),
-          ringManager(strip), touchButtonManager(ui), midiManager(),
-          mode(touchButtonManager, ringManager, ui, midiManager)
+          ringManager(strip), touchButtonManager(ui), midiManager(), transitionDelegate(),
+          mode(touchButtonManager, ringManager, ui, midiManager, transitionDelegate)
     {
     }
 
@@ -56,6 +72,7 @@ class PlayModeFixture
     RingManager ringManager;
     TouchButtonManager touchButtonManager;
     MockMidiManager midiManager;
+    MockTransitionDelegate transitionDelegate;
     PlayMode mode;
 };
 
@@ -69,6 +86,7 @@ void test_activate_sets_play_labels()
     TEST_ASSERT_EQUAL_STRING("Crunch", fixture.touchButtonManager.getButton(1)->label());
     TEST_ASSERT_EQUAL_STRING("Lead", fixture.touchButtonManager.getButton(2)->label());
     TEST_ASSERT_EQUAL_STRING(" ", fixture.touchButtonManager.getButton(3)->label());
+    TEST_ASSERT_EQUAL_STRING("Home", fixture.touchButtonManager.getButton(4)->label());
 }
 
 void test_activate_selects_single_button_and_dims_others()
@@ -164,6 +182,19 @@ void test_long_press_is_noop()
 
     TEST_ASSERT_EQUAL_INT(0, fixture.midiManager.controlChangeCalls);
 }
+
+void test_button_five_transitions_back_to_home_mode()
+{
+    PlayModeFixture fixture;
+
+    fixture.mode.activate();
+    fixture.mode.buttonPressed(4);
+
+    TEST_ASSERT_EQUAL_INT(1, fixture.transitionDelegate.calls);
+    TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(Modes::Home),
+                            static_cast<uint8_t>(fixture.transitionDelegate.lastMode));
+    TEST_ASSERT_EQUAL_UINT8(0, fixture.transitionDelegate.lastTransitionValue);
+}
 } // namespace
 
 void setUp() {}
@@ -189,6 +220,7 @@ void setup()
     RUN_TEST(test_button_press_changes_selection_to_single_button);
     RUN_TEST(test_button_pressed_ignores_disabled_button);
     RUN_TEST(test_long_press_is_noop);
+    RUN_TEST(test_button_five_transitions_back_to_home_mode);
     UNITY_END();
 }
 

@@ -49,9 +49,9 @@ IMode* activeMode = nullptr;
 ButtonHandler buttonHandler(activeMode, ringManager);
 TouchButtonManager touchButtonManager(screenUi, &buttonHandler);
 MidiManager midiManager;
-PlayMode playMode(touchButtonManager, ringManager, screenUi, midiManager);
 IMode* modeRegistry[ModeCount] = {nullptr};
 ModeManager modeManager(activeMode, modeRegistry);
+PlayMode playMode(touchButtonManager, ringManager, screenUi, midiManager, modeManager);
 HomeMode homeMode(touchButtonManager, ringManager, screenUi, midiManager, modeManager);
 
 bool initResourcesSD()

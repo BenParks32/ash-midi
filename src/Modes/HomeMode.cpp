@@ -1,26 +1,8 @@
 #include "Modes/HomeMode.h"
-#include "ColorUtils.h"
-
-namespace
-{
-void applyButtonVisualFromFunctionColour(FootSwitchTouchButton& button, uint16_t colour565, uint8_t ringBrightness)
-{
-    if (ringBrightness == 0)
-    {
-        button.setPillColour(TFT_BLACK);
-        button.setBorderVisible(false);
-        return;
-    }
-
-    button.setPillColour(colour565);
-    button.setBorderVisible(ringBrightness >= RingManager::FullBrightness);
-}
-} // namespace
 
 HomeMode::HomeMode(TouchButtonManager& touchButtonManager, RingManager& ringManager, ScreenUi& screenUi,
                    IMidiManager& midiManager, IModeTransistionDelegate& transitionDelegate)
-    : _touchButtonManager(touchButtonManager), _ringManager(ringManager), _screenUi(screenUi),
-      _midiManager(midiManager), _transitionDelegate(transitionDelegate)
+    : FunctionModeBase(touchButtonManager, ringManager, screenUi, midiManager, transitionDelegate)
 {
     setupFunctions();
 }
@@ -44,40 +26,7 @@ void HomeMode::setupFunctions()
     _functions[7] = Function();
 }
 
-void HomeMode::activate()
-{
-    for (byte i = 0; i < TouchButtonManager::BUTTON_COUNT; ++i)
-    {
-        FootSwitchTouchButton* button = _touchButtonManager.getButton(i);
-        if (button == nullptr)
-        {
-            continue;
-        }
-
-        const Function& func = getFunction(i);
-        const uint16_t colour565 = func.colour();
-        const uint32_t ringColour888 = ColorUtils::rgb565To888(colour565);
-        const bool enabled = isButtonEnabled(i);
-        const uint8_t ringBrightness = enabled ? RingManager::FullBrightness : 0;
-
-        button->setEnabled(enabled);
-        button->setLabel(func.label());
-        applyButtonVisualFromFunctionColour(*button, colour565, ringBrightness);
-
-        if (enabled)
-        {
-            _ringManager.setRingColour(i, ringColour888);
-            _ringManager.setRingBrightness(i, ringBrightness);
-        }
-        else
-        {
-            _ringManager.setRingColour(i, 0);
-            _ringManager.setRingBrightness(i, 0);
-        }
-
-        button->draw(_screenUi);
-    }
-}
+void HomeMode::activate() { renderAllButtons(); }
 
 void HomeMode::buttonPressed(byte number)
 {
@@ -132,16 +81,11 @@ void HomeMode::frameTick()
     // Home mode currently has no per-frame work.
 }
 
-const Function& HomeMode::getFunction(byte number) const
+uint8_t HomeMode::ringBrightnessForButton(byte number) const
 {
-    if (number >= TouchButtonManager::BUTTON_COUNT)
-    {
-        return _functions[0]; // Return first function as fallback
-    }
-    return _functions[number];
+    (void)number;
+    return RingManager::FullBrightness;
 }
-
-bool HomeMode::isButtonEnabled(byte number) const { return !isEmptyLabel(getFunction(number).label()); }
 
 void HomeMode::executeAction(ActionType action, byte actionValue)
 {
@@ -159,23 +103,4 @@ void HomeMode::executeAction(ActionType action, byte actionValue)
         _transitionDelegate.enterMode(Modes::Play, actionValue);
         break;
     }
-}
-
-bool HomeMode::isEmptyLabel(const char* label)
-{
-    if (label == nullptr)
-    {
-        return true;
-    }
-
-    while (*label != '\0')
-    {
-        if (*label != ' ')
-        {
-            return false;
-        }
-        ++label;
-    }
-
-    return true;
 }
