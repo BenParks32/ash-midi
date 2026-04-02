@@ -12,25 +12,13 @@ Function::Function(const char* label, uint16_t colour, ActionType pressAction, A
     setLabel(label);
 }
 
-const char* Function::label() const
-{
-    return _label;
-}
+const char* Function::label() const { return _label; }
 
-uint16_t Function::colour() const
-{
-    return _colour;
-}
+uint16_t Function::colour() const { return _colour; }
 
-ActionType Function::pressAction() const
-{
-    return _pressAction;
-}
+ActionType Function::pressAction() const { return _pressAction; }
 
-ActionType Function::longPressAction() const
-{
-    return _longPressAction;
-}
+ActionType Function::longPressAction() const { return _longPressAction; }
 
 void Function::setLabel(const char* label)
 {
@@ -44,17 +32,8 @@ void Function::setLabel(const char* label)
     _label[LabelCapacity - 1U] = '\0';
 }
 
-void Function::setColour(uint16_t colour)
-{
-    _colour = colour;
-}
+void Function::setColour(uint16_t colour) { _colour = colour; }
 
-void Function::setPressAction(ActionType action)
-{
-    _pressAction = action;
-}
+void Function::setPressAction(ActionType action) { _pressAction = action; }
 
-void Function::setLongPressAction(ActionType action)
-{
-    _longPressAction = action;
-}
+void Function::setLongPressAction(ActionType action) { _longPressAction = action; }

@@ -6,7 +6,8 @@ enum class ActionType : uint8_t
 {
     None = 0,
     SendMidiProgramChange = 1,
-    // Add more action types as needed
+    SendMidiControlChange = 2,
+    ChangeMode = 3
 };
 
 // Data-only class describing a button function

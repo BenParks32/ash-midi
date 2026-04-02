@@ -5,6 +5,7 @@
 #include "Modes/HomeMode.h"
 
 // Pull in implementation units required by HomeMode without linking app main.cpp.
+#include "../../src/Function.cpp"
 #include "../../src/Lights.cpp"
 #include "../../src/Modes/HomeMode.cpp"
 #include "../../src/RingManager.cpp"
