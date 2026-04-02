@@ -1,5 +1,6 @@
-#include "Modes/HomeMode.h"
+#include "Modes/PlayMode.h"
 #include "ColorUtils.h"
+#include "HxStompMidi.h"
 
 namespace
 {
@@ -17,26 +18,27 @@ void applyButtonVisualFromFunctionColour(FootSwitchTouchButton& button, uint16_t
 }
 } // namespace
 
-HomeMode::HomeMode(TouchButtonManager& touchButtonManager, RingManager& ringManager, ScreenUi& screenUi,
-                   IMidiManager& midiManager, IModeTransistionDelegate& transitionDelegate)
+PlayMode::PlayMode(TouchButtonManager& touchButtonManager, RingManager& ringManager, ScreenUi& screenUi,
+                   IMidiManager& midiManager)
     : _touchButtonManager(touchButtonManager), _ringManager(ringManager), _screenUi(screenUi),
-      _midiManager(midiManager), _transitionDelegate(transitionDelegate)
+      _midiManager(midiManager), _selectedHomeProgramChange(0), _selectedButton(0)
 {
     setupFunctions();
 }
 
-void HomeMode::setupFunctions()
+void PlayMode::setSelectedHomeProgramChange(byte selectedHomeProgramChange)
 {
-    // Button 0: Amp (Green) -> enter Play and select Home Program 0
-    _functions[0] = Function("Amp", 0x07E0, ActionType::ChangeMode, 0, ActionType::None, 0);
+    _selectedHomeProgramChange = selectedHomeProgramChange;
+}
 
-    // Button 1: Ampless (Blue) -> enter Play and select Home Program 6
-    _functions[1] = Function("Ampless", 0x001F, ActionType::ChangeMode, 6, ActionType::None, 0);
+void PlayMode::setTransitionValue(byte transitionValue) { _selectedHomeProgramChange = transitionValue; }
 
-    // Button 2: CodeRed (Red) -> enter Play and select Home Program 20
-    _functions[2] = Function("CodeRed", 0xF800, ActionType::ChangeMode, 20, ActionType::None, 0);
+void PlayMode::setupFunctions()
+{
+    _functions[0] = Function("Clean", 0x07E0, ActionType::SendMidiControlChange, 0, ActionType::None, 0);
+    _functions[1] = Function("Crunch", 0xFD20, ActionType::SendMidiControlChange, 1, ActionType::None, 0);
+    _functions[2] = Function("Lead", 0xF800, ActionType::SendMidiControlChange, 2, ActionType::None, 0);
 
-    // Buttons 3-7: Disabled slots use Function default constructor values.
     _functions[3] = Function();
     _functions[4] = Function();
     _functions[5] = Function();
@@ -44,8 +46,28 @@ void HomeMode::setupFunctions()
     _functions[7] = Function();
 }
 
-void HomeMode::activate()
+void PlayMode::activate()
 {
+    if (_selectedHomeProgramChange > 0)
+    {
+        _midiManager.sendProgramChange(_selectedHomeProgramChange);
+    }
+
+    if (!isButtonEnabled(_selectedButton))
+    {
+        _selectedButton = 0;
+    }
+
+    updateVisuals();
+}
+
+void PlayMode::updateVisuals()
+{
+    // In play mode, exactly one enabled button is selected (full brightness).
+    // Other enabled play buttons are dimmed.
+    static constexpr byte kFirstPlayButton = 0;
+    static constexpr byte kLastPlayButton = 2;
+
     for (byte i = 0; i < TouchButtonManager::BUTTON_COUNT; ++i)
     {
         FootSwitchTouchButton* button = _touchButtonManager.getButton(i);
@@ -58,7 +80,13 @@ void HomeMode::activate()
         const uint16_t colour565 = func.colour();
         const uint32_t ringColour888 = ColorUtils::rgb565To888(colour565);
         const bool enabled = isButtonEnabled(i);
-        const uint8_t ringBrightness = enabled ? RingManager::FullBrightness : 0;
+        uint8_t ringBrightness = 0;
+        if (enabled)
+        {
+            const bool isPlayFunctionButton = (i >= kFirstPlayButton && i <= kLastPlayButton);
+            ringBrightness = (isPlayFunctionButton && i == _selectedButton) ? RingManager::FullBrightness
+                                                                            : RingManager::DimBrightness;
+        }
 
         button->setEnabled(enabled);
         button->setLabel(func.label());
@@ -79,7 +107,7 @@ void HomeMode::activate()
     }
 }
 
-void HomeMode::buttonPressed(byte number)
+void PlayMode::buttonPressed(byte number)
 {
     if (number >= TouchButtonManager::BUTTON_COUNT)
     {
@@ -88,62 +116,39 @@ void HomeMode::buttonPressed(byte number)
 
     if (!isButtonEnabled(number))
     {
-        Serial.printf("Home mode: button %u is disabled\n", number + 1U);
         return;
     }
 
     const Function& func = getFunction(number);
-    if (isEmptyLabel(func.label()))
-    {
-        Serial.printf("Home mode: button %u is empty\n", number + 1U);
-        return;
-    }
-
     executeAction(func.pressAction(), func.pressActionValue());
-    Serial.printf("Home mode: button %u -> %s\n", number + 1U, func.label());
+
+    _selectedButton = number;
+    updateVisuals();
 }
 
-void HomeMode::buttonLongPressed(byte number)
+void PlayMode::buttonLongPressed(byte number)
+{
+    (void)number;
+    // Explicitly no action for Play mode long press.
+}
+
+void PlayMode::frameTick()
+{
+    // Play mode currently has no per-frame work.
+}
+
+const Function& PlayMode::getFunction(byte number) const
 {
     if (number >= TouchButtonManager::BUTTON_COUNT)
     {
-        return;
-    }
-
-    if (!isButtonEnabled(number))
-    {
-        Serial.printf("Home mode: button %u long press (disabled)\n", number + 1U);
-        return;
-    }
-
-    const Function& func = getFunction(number);
-    if (isEmptyLabel(func.label()))
-    {
-        Serial.printf("Home mode: button %u long press (empty)\n", number + 1U);
-        return;
-    }
-
-    executeAction(func.longPressAction(), func.longPressActionValue());
-    Serial.printf("Home mode: button %u long press -> %s\n", number + 1U, func.label());
-}
-
-void HomeMode::frameTick()
-{
-    // Home mode currently has no per-frame work.
-}
-
-const Function& HomeMode::getFunction(byte number) const
-{
-    if (number >= TouchButtonManager::BUTTON_COUNT)
-    {
-        return _functions[0]; // Return first function as fallback
+        return _functions[0];
     }
     return _functions[number];
 }
 
-bool HomeMode::isButtonEnabled(byte number) const { return !isEmptyLabel(getFunction(number).label()); }
+bool PlayMode::isButtonEnabled(byte number) const { return !isEmptyLabel(getFunction(number).label()); }
 
-void HomeMode::executeAction(ActionType action, byte actionValue)
+void PlayMode::executeAction(ActionType action, byte actionValue)
 {
     switch (action)
     {
@@ -153,15 +158,14 @@ void HomeMode::executeAction(ActionType action, byte actionValue)
         _midiManager.sendProgramChange(actionValue);
         break;
     case ActionType::SendMidiControlChange:
-        _midiManager.sendControlChange(actionValue, 127);
+        _midiManager.sendControlChange(STOMP_SNAPSHOT_CC, actionValue);
         break;
     case ActionType::ChangeMode:
-        _transitionDelegate.enterMode(Modes::Play, actionValue);
         break;
     }
 }
 
-bool HomeMode::isEmptyLabel(const char* label)
+bool PlayMode::isEmptyLabel(const char* label)
 {
     if (label == nullptr)
     {

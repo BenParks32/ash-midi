@@ -42,8 +42,8 @@ void ButtonManager::isr7() { instance().handleInterrupt(7); }
 static constexpr uint16_t DEBOUNCE_MS = 20;
 
 Button::Button(const byte number, const byte pin, IButtonDelegate& delegate)
-    : _number(number), _pin(pin), _delegate(delegate), _chrono(0), _buttonDown(false), _debouncing(false),
-      _debounceStart(0)
+    : _number(number), _pin(pin), _delegate(delegate), _chrono(0), _buttonDown(false), _longPressed(false),
+      _debouncing(false), _debounceStart(0)
 {
     pinMode(_pin, INPUT_PULLUP);
     ButtonManager::instance().registerButton(this);

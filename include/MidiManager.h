@@ -8,6 +8,7 @@ class IMidiManager
     virtual ~IMidiManager() = default;
 
     virtual void sendProgramChange(byte programChangeValue) = 0;
+    virtual void sendControlChange(byte controlChangeNumber, byte controlChangeValue) = 0;
 };
 
 class MidiManager : public IMidiManager
@@ -16,6 +17,7 @@ class MidiManager : public IMidiManager
     MidiManager();
 
     void sendProgramChange(byte programChangeValue) override;
+    void sendControlChange(byte controlChangeNumber, byte controlChangeValue) override;
 
   private:
     MidiManager(const MidiManager&) = delete;

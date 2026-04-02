@@ -10,6 +10,8 @@
 #include "MidiManager.h"
 #include "Modes/HomeMode.h"
 #include "Modes/Mode.h"
+#include "Modes/ModeManager.h"
+#include "Modes/PlayMode.h"
 #include "Resources.h"
 #include "RingManager.h"
 #include "ScreenUi.h"
@@ -47,7 +49,10 @@ IMode* activeMode = nullptr;
 ButtonHandler buttonHandler(activeMode, ringManager);
 TouchButtonManager touchButtonManager(screenUi, &buttonHandler);
 MidiManager midiManager;
-HomeMode homeMode(touchButtonManager, ringManager, screenUi, midiManager);
+PlayMode playMode(touchButtonManager, ringManager, screenUi, midiManager);
+IMode* modeRegistry[ModeCount] = {nullptr};
+ModeManager modeManager(activeMode, modeRegistry);
+HomeMode homeMode(touchButtonManager, ringManager, screenUi, midiManager, modeManager);
 
 bool initResourcesSD()
 {
@@ -97,6 +102,9 @@ void setup()
     touchButtonManager.initialize();
 
     initResourcesSD();
+
+    modeRegistry[static_cast<uint8_t>(Modes::Home)] = &homeMode;
+    modeRegistry[static_cast<uint8_t>(Modes::Play)] = &playMode;
 
     activeMode = &homeMode;
     activeMode->activate();

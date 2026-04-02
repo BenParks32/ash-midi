@@ -102,7 +102,7 @@ void ScreenUi::drawTouchButtonLabelAndPill(const char* label, const Point& areaL
         return;
     }
 
-    _tft.fillRect(innerX, innerY, innerWidth, innerHeight, TFT_BLACK);
+    _tft.fillRect(innerX, innerY, innerWidth + 1, innerHeight, TFT_BLACK);
 
     if (selected)
     {

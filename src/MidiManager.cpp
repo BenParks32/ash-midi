@@ -29,3 +29,11 @@ void MidiManager::sendProgramChange(byte programChangeValue)
     MidiOut.sendProgramChange(programChangeValue, kMidiChannel);
     Serial.printf("MIDI: sent program change %u on channel %u\n", programChangeValue, kMidiChannel);
 }
+
+void MidiManager::sendControlChange(byte controlChangeNumber, byte controlChangeValue)
+{
+    ensureInitialized();
+    MidiOut.sendControlChange(controlChangeNumber, controlChangeValue, kMidiChannel);
+    Serial.printf("MIDI: sent control change %u value %u on channel %u\n", controlChangeNumber, controlChangeValue,
+                  kMidiChannel);
+}
