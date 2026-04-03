@@ -4,7 +4,7 @@
 PlayMode::PlayMode(TouchButtonManager& touchButtonManager, RingManager& ringManager, ScreenUi& screenUi,
                    IMidiManager& midiManager, IModeTransistionDelegate& transitionDelegate)
     : FunctionModeBase(touchButtonManager, ringManager, screenUi, midiManager, transitionDelegate),
-      _selectedHomeProgramChange(0), _selectedButton(0)
+      _selectedHomeProgramChange(0), _hasSelectedHomeProgramChange(false), _selectedButton(0)
 {
     setupFunctions();
 }
@@ -12,9 +12,10 @@ PlayMode::PlayMode(TouchButtonManager& touchButtonManager, RingManager& ringMana
 void PlayMode::setSelectedHomeProgramChange(byte selectedHomeProgramChange)
 {
     _selectedHomeProgramChange = selectedHomeProgramChange;
+    _hasSelectedHomeProgramChange = true;
 }
 
-void PlayMode::setTransitionValue(byte transitionValue) { _selectedHomeProgramChange = transitionValue; }
+void PlayMode::setTransitionValue(byte transitionValue) { setSelectedHomeProgramChange(transitionValue); }
 
 void PlayMode::setupFunctions()
 {
@@ -31,7 +32,7 @@ void PlayMode::setupFunctions()
 
 void PlayMode::activate()
 {
-    if (_selectedHomeProgramChange > 0)
+    if (_hasSelectedHomeProgramChange)
     {
         _midiManager.sendProgramChange(_selectedHomeProgramChange);
     }

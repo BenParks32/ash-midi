@@ -115,6 +115,17 @@ void test_activate_sends_selected_home_program_change()
     TEST_ASSERT_EQUAL_UINT8(6, fixture.midiManager.lastProgramChangeValue);
 }
 
+void test_activate_sends_selected_home_program_change_zero()
+{
+    PlayModeFixture fixture;
+
+    fixture.mode.setSelectedHomeProgramChange(0);
+    fixture.mode.activate();
+
+    TEST_ASSERT_EQUAL_INT(1, fixture.midiManager.programChangeCalls);
+    TEST_ASSERT_EQUAL_UINT8(0, fixture.midiManager.lastProgramChangeValue);
+}
+
 void test_clean_sends_control_change_zero()
 {
     PlayModeFixture fixture;
@@ -214,6 +225,7 @@ void setup()
     RUN_TEST(test_activate_sets_play_labels);
     RUN_TEST(test_activate_selects_single_button_and_dims_others);
     RUN_TEST(test_activate_sends_selected_home_program_change);
+    RUN_TEST(test_activate_sends_selected_home_program_change_zero);
     RUN_TEST(test_clean_sends_control_change_zero);
     RUN_TEST(test_crunch_sends_control_change_one);
     RUN_TEST(test_lead_sends_control_change_two);

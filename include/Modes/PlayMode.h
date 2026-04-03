@@ -24,5 +24,6 @@ class PlayMode : public FunctionModeBase
 
   private:
     byte _selectedHomeProgramChange;
+    bool _hasSelectedHomeProgramChange;
     byte _selectedButton;
 };
