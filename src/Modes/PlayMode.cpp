@@ -1,4 +1,5 @@
 #include "Modes/PlayMode.h"
+#include "ColorUtils.h"
 #include "HxStompMidi.h"
 
 PlayMode::PlayMode(TouchButtonManager& touchButtonManager, RingManager& ringManager, ScreenUi& screenUi,
@@ -15,7 +16,23 @@ void PlayMode::setSelectedHomeProgramChange(byte selectedHomeProgramChange)
     _hasSelectedHomeProgramChange = true;
 }
 
-void PlayMode::setTransitionValue(byte transitionValue) { setSelectedHomeProgramChange(transitionValue); }
+void PlayMode::setTransitionValue(byte transitionValue)
+{
+    if (transitionValue == ModeTransitionNone)
+    {
+        _hasSelectedHomeProgramChange = false;
+        return;
+    }
+
+    if ((transitionValue & ModeTransitionPatchReturnFlag) != 0)
+    {
+        _selectedHomeProgramChange = static_cast<byte>(transitionValue & ModeTransitionPatchValueMask);
+        _hasSelectedHomeProgramChange = false;
+        return;
+    }
+
+    setSelectedHomeProgramChange(transitionValue);
+}
 
 void PlayMode::setupFunctions()
 {
@@ -24,9 +41,11 @@ void PlayMode::setupFunctions()
     _functions[2] = Function("Lead", 0xF800, ActionType::SendMidiControlChange, 2, ActionType::None, 0);
 
     _functions[3] = Function();
-    _functions[4] = Function("Home", 0xFFFF, ActionType::ChangeMode, 0, ActionType::None, 0);
+    _functions[4] =
+        Function("Home", 0xFFFF, ActionType::ChangeMode, static_cast<byte>(Modes::Home), ActionType::None, 0);
     _functions[5] = Function();
-    _functions[6] = Function();
+    _functions[6] =
+        Function("Patch", 0xFFE0, ActionType::ChangeMode, static_cast<byte>(Modes::Patch), ActionType::None, 0);
     _functions[7] = Function();
 }
 
@@ -47,12 +66,75 @@ void PlayMode::activate()
 
 void PlayMode::updateVisuals() { renderAllButtons(); }
 
-uint8_t PlayMode::ringBrightnessForButton(byte number) const
+void PlayMode::renderButton(byte number)
 {
-    // In play mode, exactly one enabled play button is selected (full brightness).
-    // Other enabled buttons are dimmed.
+    if (number >= TouchButtonManager::BUTTON_COUNT)
+    {
+        return;
+    }
+
+    FootSwitchTouchButton* button = _touchButtonManager.getButton(number);
+    if (button == nullptr)
+    {
+        return;
+    }
+
+    const Function& func = getFunction(number);
+    const bool enabled = isButtonEnabled(number);
+    const uint8_t ringBrightness = enabled ? ringBrightnessForButton(number) : 0;
+
+    button->setEnabled(enabled);
+    button->setLabel(func.label());
+
+    if (!enabled || ringBrightness == 0)
+    {
+        button->setPillColour(0);
+        button->setBorderVisible(false);
+        _ringManager.setRingColour(number, 0);
+        _ringManager.setRingBrightness(number, 0);
+    }
+    else
+    {
+        const uint16_t colour565 = func.colour();
+        button->setPillColour(colour565);
+        button->setBorderVisible(ringBrightness >= RingManager::FullBrightness);
+        _ringManager.setRingColour(number, ColorUtils::rgb565To888(colour565));
+        _ringManager.setRingBrightness(number, ringBrightness);
+    }
+
+    button->draw(_screenUi);
+}
+
+void PlayMode::updateSnapshotSelectionVisuals(byte previousSelected, byte currentSelected)
+{
     static constexpr byte kFirstPlayButton = 0;
     static constexpr byte kLastPlayButton = 2;
+
+    if (previousSelected >= kFirstPlayButton && previousSelected <= kLastPlayButton)
+    {
+        renderButton(previousSelected);
+    }
+
+    if (currentSelected != previousSelected && currentSelected >= kFirstPlayButton &&
+        currentSelected <= kLastPlayButton)
+    {
+        renderButton(currentSelected);
+    }
+}
+
+uint8_t PlayMode::ringBrightnessForButton(byte number) const
+{
+    // Snapshot buttons (0-2) are mutually exclusive: selected is bright, others are dim.
+    // Navigation buttons (Home/Patch) are always bright when enabled.
+    static constexpr byte kFirstPlayButton = 0;
+    static constexpr byte kLastPlayButton = 2;
+    static constexpr byte kHomeButton = 4;
+    static constexpr byte kPatchButton = 6;
+
+    if (number == kHomeButton || number == kPatchButton)
+    {
+        return RingManager::FullBrightness;
+    }
 
     const bool isPlayFunctionButton = (number >= kFirstPlayButton && number <= kLastPlayButton);
     return (isPlayFunctionButton && number == _selectedButton) ? RingManager::FullBrightness
@@ -80,8 +162,9 @@ void PlayMode::buttonPressed(byte number)
 
     executeAction(func.pressAction(), func.pressActionValue());
 
+    const byte previousSelected = _selectedButton;
     _selectedButton = number;
-    updateVisuals();
+    updateSnapshotSelectionVisuals(previousSelected, _selectedButton);
 }
 
 void PlayMode::buttonLongPressed(byte number)
@@ -107,7 +190,17 @@ void PlayMode::executeAction(ActionType action, byte actionValue)
         _midiManager.sendControlChange(STOMP_SNAPSHOT_CC, actionValue);
         break;
     case ActionType::ChangeMode:
-        _transitionDelegate.enterMode(Modes::Home, actionValue);
+    {
+        const Modes targetMode = static_cast<Modes>(actionValue);
+        if (targetMode == Modes::Home)
+        {
+            _transitionDelegate.enterMode(targetMode, ModeTransitionNone);
+        }
+        else if (targetMode == Modes::Patch)
+        {
+            _transitionDelegate.enterMode(targetMode, _selectedHomeProgramChange);
+        }
         break;
+    }
     }
 }

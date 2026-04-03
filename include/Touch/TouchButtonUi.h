@@ -15,6 +15,9 @@ class ITouchButtonCanvas
                                              uint16_t pillColour, bool selected = false,
                                              uint16_t selectedBorderColour = White565,
                                              uint16_t textColour = White565) = 0;
+
+    virtual void drawTouchButtonPill(const Point& areaLocation, const Size& areaSize, uint16_t pillColour,
+                     uint16_t pillBorderColour = White565) = 0;
 };
 
 class ITouchButtonLayout : public ITouchButtonCanvas

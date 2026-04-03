@@ -12,6 +12,7 @@ class TouchButtonManager : public ITouchButtonDelegate
 
     void initialize();
     void handleTouch(uint16_t x, uint16_t y);
+    void handleTouchRelease();
 
     FootSwitchTouchButton* getButton(uint8_t index);
 

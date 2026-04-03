@@ -45,6 +45,8 @@ class ScreenUi : public ITouchButtonLayout
                                      uint16_t pillColour, bool selected = false,
                                      uint16_t selectedBorderColour = TFT_WHITE,
                                      uint16_t textColour = TFT_WHITE) override;
+    void drawTouchButtonPill(const Point& areaLocation, const Size& areaSize, uint16_t pillColour,
+                 uint16_t pillBorderColour = TFT_WHITE) override;
     void drawStatusIndicator(int32_t circleX, int32_t circleY, int32_t radius, const char* label, int32_t textX,
                              int32_t textY, uint16_t colour);
     void drawSdStatusInitializing();

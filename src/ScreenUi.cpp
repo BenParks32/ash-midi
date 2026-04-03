@@ -149,10 +149,26 @@ void ScreenUi::drawTouchButtonLabelAndPill(const char* label, const Point& areaL
     const int32_t pillX = centerX - (pillWidth / 2);
     const int32_t pillY = labelY + 28;
 
+    drawTouchButtonPill(areaLocation, areaSize, pillColour, _borderColour);
+}
+
+void ScreenUi::drawTouchButtonPill(const Point& areaLocation, const Size& areaSize, uint16_t pillColour,
+                                   uint16_t pillBorderColour)
+{
+    const int32_t centerX = areaLocation.x + (areaSize.width / 2);
+    const int32_t labelY = areaLocation.y + (areaSize.height / 2) - 22;
+    const int32_t pillWidth = areaSize.width * 3 / 5;
+    const int32_t pillHeight = 12;
+    const int32_t pillRadius = pillHeight / 2;
+    const int32_t pillX = centerX - (pillWidth / 2);
+    const int32_t pillY = labelY + 28;
+
+    _tft.fillRect(pillX - 1, pillY - 1, pillWidth + 2, pillHeight + 2, TFT_BLACK);
+
     if (pillColour != 0)
     {
         _tft.fillRoundRect(pillX, pillY, pillWidth, pillHeight, pillRadius, pillColour);
-        _tft.drawRoundRect(pillX, pillY, pillWidth, pillHeight, pillRadius, _borderColour);
+        _tft.drawRoundRect(pillX, pillY, pillWidth, pillHeight, pillRadius, pillBorderColour);
     }
 }
 

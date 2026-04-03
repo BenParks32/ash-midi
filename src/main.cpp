@@ -11,6 +11,7 @@
 #include "Modes/HomeMode.h"
 #include "Modes/Mode.h"
 #include "Modes/ModeManager.h"
+#include "Modes/PatchMode.h"
 #include "Modes/PlayMode.h"
 #include "Resources.h"
 #include "RingManager.h"
@@ -52,6 +53,7 @@ MidiManager midiManager;
 IMode* modeRegistry[ModeCount] = {nullptr};
 ModeManager modeManager(activeMode, modeRegistry);
 PlayMode playMode(touchButtonManager, ringManager, screenUi, midiManager, modeManager);
+PatchMode patchMode(touchButtonManager, ringManager, screenUi, midiManager, modeManager);
 HomeMode homeMode(touchButtonManager, ringManager, screenUi, midiManager, modeManager);
 
 bool initResourcesSD()
@@ -105,6 +107,7 @@ void setup()
 
     modeRegistry[static_cast<uint8_t>(Modes::Home)] = &homeMode;
     modeRegistry[static_cast<uint8_t>(Modes::Play)] = &playMode;
+    modeRegistry[static_cast<uint8_t>(Modes::Patch)] = &patchMode;
 
     activeMode = &homeMode;
     activeMode->activate();
@@ -140,5 +143,8 @@ void HandleTouch()
     if (tft.getTouch(&x, &y))
     {
         touchButtonManager.handleTouch(x, y);
+        return;
     }
+
+    touchButtonManager.handleTouchRelease();
 }

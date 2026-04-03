@@ -31,9 +31,10 @@ void test_enter_mode_switches_active_and_activates_target()
 {
     FakeMode home;
     FakeMode play;
+    FakeMode patch;
 
     IMode* activeMode = &home;
-    IMode* modes[ModeCount] = {&home, &play};
+    IMode* modes[ModeCount] = {&home, &play, &patch};
     ModeManager manager(activeMode, modes);
 
     manager.enterMode(Modes::Play, 42);
@@ -48,12 +49,13 @@ void test_enter_mode_switches_active_and_activates_target()
 void test_enter_mode_ignores_null_target_mode()
 {
     FakeMode home;
+    FakeMode play;
 
     IMode* activeMode = &home;
-    IMode* modes[ModeCount] = {&home, nullptr};
+    IMode* modes[ModeCount] = {&home, &play, nullptr};
     ModeManager manager(activeMode, modes);
 
-    manager.enterMode(Modes::Play, 10);
+    manager.enterMode(Modes::Patch, 10);
 
     TEST_ASSERT_EQUAL_PTR(&home, activeMode);
     TEST_ASSERT_EQUAL_INT(0, home.activateCalls);
@@ -63,9 +65,10 @@ void test_enter_mode_ignores_out_of_range_mode()
 {
     FakeMode home;
     FakeMode play;
+    FakeMode patch;
 
     IMode* activeMode = &home;
-    IMode* modes[ModeCount] = {&home, &play};
+    IMode* modes[ModeCount] = {&home, &play, &patch};
     ModeManager manager(activeMode, modes);
 
     manager.enterMode(static_cast<Modes>(ModeCount), 99);
@@ -73,15 +76,17 @@ void test_enter_mode_ignores_out_of_range_mode()
     TEST_ASSERT_EQUAL_PTR(&home, activeMode);
     TEST_ASSERT_EQUAL_INT(0, home.activateCalls);
     TEST_ASSERT_EQUAL_INT(0, play.activateCalls);
+    TEST_ASSERT_EQUAL_INT(0, patch.activateCalls);
 }
 
 void test_enter_mode_can_switch_to_home()
 {
     FakeMode home;
     FakeMode play;
+    FakeMode patch;
 
     IMode* activeMode = &play;
-    IMode* modes[ModeCount] = {&home, &play};
+    IMode* modes[ModeCount] = {&home, &play, &patch};
     ModeManager manager(activeMode, modes);
 
     manager.enterMode(Modes::Home, 7);
@@ -90,6 +95,24 @@ void test_enter_mode_can_switch_to_home()
     TEST_ASSERT_EQUAL_INT(1, home.setTransitionValueCalls);
     TEST_ASSERT_EQUAL_UINT8(7, home.lastTransitionValue);
     TEST_ASSERT_EQUAL_INT(1, home.activateCalls);
+}
+
+void test_enter_mode_can_switch_to_patch()
+{
+    FakeMode home;
+    FakeMode play;
+    FakeMode patch;
+
+    IMode* activeMode = &play;
+    IMode* modes[ModeCount] = {&home, &play, &patch};
+    ModeManager manager(activeMode, modes);
+
+    manager.enterMode(Modes::Patch, 33);
+
+    TEST_ASSERT_EQUAL_PTR(&patch, activeMode);
+    TEST_ASSERT_EQUAL_INT(1, patch.setTransitionValueCalls);
+    TEST_ASSERT_EQUAL_UINT8(33, patch.lastTransitionValue);
+    TEST_ASSERT_EQUAL_INT(1, patch.activateCalls);
 }
 } // namespace
 
@@ -111,6 +134,7 @@ void setup()
     RUN_TEST(test_enter_mode_ignores_null_target_mode);
     RUN_TEST(test_enter_mode_ignores_out_of_range_mode);
     RUN_TEST(test_enter_mode_can_switch_to_home);
+    RUN_TEST(test_enter_mode_can_switch_to_patch);
     UNITY_END();
 }
 

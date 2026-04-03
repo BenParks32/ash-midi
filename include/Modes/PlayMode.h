@@ -18,6 +18,8 @@ class PlayMode : public FunctionModeBase
 
   private:
     void executeAction(ActionType action, byte actionValue);
+    void renderButton(byte number);
+    void updateSnapshotSelectionVisuals(byte previousSelected, byte currentSelected);
     void updateVisuals();
     uint8_t ringBrightnessForButton(byte number) const override;
     void setupFunctions();

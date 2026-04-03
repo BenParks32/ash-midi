@@ -5,10 +5,14 @@ enum class Modes : uint8_t
 {
     Home = 0,
     Play = 1,
+    Patch = 2,
     Count,
 };
 
 static constexpr uint8_t ModeCount = static_cast<uint8_t>(Modes::Count);
+static constexpr byte ModeTransitionNone = 0xFF;
+static constexpr byte ModeTransitionPatchReturnFlag = 0x80;
+static constexpr byte ModeTransitionPatchValueMask = 0x3F;
 
 class IModeTransistionDelegate
 {

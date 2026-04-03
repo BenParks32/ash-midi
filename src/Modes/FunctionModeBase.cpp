@@ -1,6 +1,8 @@
 #include "Modes/FunctionModeBase.h"
 #include "ColorUtils.h"
 
+#include <cstring>
+
 namespace
 {
 void applyButtonVisualFromFunctionColour(FootSwitchTouchButton& button, uint16_t colour565, uint8_t ringBrightness)
@@ -68,9 +70,21 @@ void FunctionModeBase::renderAllButtons()
         const uint16_t colour565 = func.colour();
         const bool enabled = isButtonEnabled(i);
         const uint8_t ringBrightness = enabled ? ringBrightnessForButton(i) : 0;
+        const uint16_t desiredPillColour = (ringBrightness == 0) ? TFT_BLACK : colour565;
+        const bool desiredBorderVisible = (ringBrightness >= RingManager::FullBrightness);
+        const char* desiredLabel = func.label();
+
+        const bool isUnchanged = (button->isEnabled() == enabled) && (button->pillColour() == desiredPillColour) &&
+                                 (button->hasBorder() == desiredBorderVisible) &&
+                                 (std::strcmp(button->label(), desiredLabel) == 0);
+
+        if (isUnchanged)
+        {
+            continue;
+        }
 
         button->setEnabled(enabled);
-        button->setLabel(func.label());
+        button->setLabel(desiredLabel);
         applyButtonVisualFromFunctionColour(*button, colour565, ringBrightness);
 
         if (enabled)

@@ -22,6 +22,12 @@ class TestTouchButtonLayout : public ITouchButtonLayout
     {
         // no-op for testing
     }
+
+    void drawTouchButtonPill(const Point&, const Size&, uint16_t,
+                             uint16_t = ITouchButtonCanvas::White565) override
+    {
+        // no-op for testing
+    }
 };
 
 class TestPressDelegate : public ITouchButtonDelegate
@@ -141,6 +147,25 @@ void test_touch_handle_detects_new_button_press()
     TEST_ASSERT_EQUAL_UINT8(1, delegate.lastPressed);
 }
 
+void test_touch_handle_allows_repeat_press_after_release()
+{
+    TestTouchButtonLayout screenUi;
+    TestPressDelegate delegate;
+    TouchButtonManager manager(screenUi, &delegate);
+
+    manager.getButton(7)->setEnabled(true);
+
+    manager.handleTouch(210, 30);
+    TEST_ASSERT_EQUAL_INT(1, delegate.pressCount);
+    TEST_ASSERT_EQUAL_UINT8(7, delegate.lastPressed);
+
+    manager.handleTouchRelease();
+    manager.handleTouch(210, 30);
+
+    TEST_ASSERT_EQUAL_INT(2, delegate.pressCount);
+    TEST_ASSERT_EQUAL_UINT8(7, delegate.lastPressed);
+}
+
 void setUp() {}
 
 void tearDown() {}
@@ -162,6 +187,7 @@ void setup()
     RUN_TEST(test_touch_handle_detects_button_press_from_coordinates);
     RUN_TEST(test_touch_handle_ignores_repeated_press_same_button);
     RUN_TEST(test_touch_handle_detects_new_button_press);
+    RUN_TEST(test_touch_handle_allows_repeat_press_after_release);
     UNITY_END();
 }
 

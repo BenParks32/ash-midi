@@ -72,6 +72,8 @@ void TouchButtonManager::handleTouch(uint16_t x, uint16_t y)
     }
 }
 
+void TouchButtonManager::handleTouchRelease() { _lastPressedButton = -1; }
+
 void TouchButtonManager::buttonPressed(const byte number)
 {
     FootSwitchTouchButton* pressedButton = nullptr;
