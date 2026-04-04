@@ -10,17 +10,16 @@ namespace
 const char* PlayPatchBadgeTitle = "Patch";
 const uint8_t PlayPatchBadgeTitleScale = 1;
 const uint8_t PlayPatchBadgeNumberScale = 1;
-const uint8_t PlaySnapshotLabelScale = 3;
+const uint8_t PlaySnapshotLabelScale = 1;
 
 const int32_t PlayPatchBadgeFrameWidth = 118;
 const int32_t PlayPatchBadgeFrameHeight = 72;
 const int32_t PlayPatchBadgeFrameRadius = 12;
-const int32_t PlayPatchBadgeRightMargin = 10;
-const int32_t PlayPatchBadgeTopOffset = 15;
+const int32_t PlayPatchBadgeRightMargin = 20;
+const int32_t PlaySnapshotLabelOffsetY = 72;
 const int32_t PlayPatchBadgeTitleBorderOffset = 5;
 const int32_t PlayPatchBadgeNumberOffset = 22;
 
-const int32_t PlaySnapshotLabelOffsetY = 72;
 const int32_t PlaySnapshotLabelLeftX = 40;
 const byte FirstSnapshotButtonIndex = 0;
 const byte LastSnapshotButtonIndex = 2;
@@ -130,7 +129,7 @@ void PlayMode::renderSnapshotLabel(byte snapshotButton, uint16_t textColour)
     formatSnapshotLabelUppercase(snapshotButton, snapshotLabel, sizeof(snapshotLabel));
 
     const int32_t labelY = _screenUi.boxHeight() + PlaySnapshotLabelOffsetY;
-    _screenUi.drawText(FF22, PlaySnapshotLabelScale, snapshotLabel, PlaySnapshotLabelLeftX, labelY, textColour,
+    _screenUi.drawText(FF32, PlaySnapshotLabelScale, snapshotLabel, PlaySnapshotLabelLeftX, labelY, textColour,
                        TFT_BLACK);
 }
 
@@ -173,7 +172,18 @@ int32_t PlayMode::patchBadgeFrameCenterX() const
     return screenWidth - PlayPatchBadgeRightMargin - (PlayPatchBadgeFrameWidth / 2);
 }
 
-int32_t PlayMode::patchBadgeFrameTopY() const { return _screenUi.boxHeight() + PlayPatchBadgeTopOffset; }
+int32_t PlayMode::patchBadgeFrameTopY() const
+{
+    const int32_t centerTopY = _screenUi.boxHeight();
+    const int32_t centerHeight = _screenUi.bottomRowY() - centerTopY;
+
+    // Current alignment gap from center top (before swap).
+    const int32_t topGap = PlaySnapshotLabelOffsetY - (PlayPatchBadgeFrameHeight / 2);
+    // Swap top and bottom gaps: newTop = centerHeight - oldTop - frameHeight.
+    const int32_t swappedTopGap = centerHeight - topGap - PlayPatchBadgeFrameHeight;
+
+    return centerTopY + swappedTopGap;
+}
 
 void PlayMode::updateVisuals() { renderAllButtons(); }
 
