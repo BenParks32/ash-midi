@@ -154,6 +154,17 @@ void test_activate_skips_program_change_for_patch_return_transition()
     TEST_ASSERT_EQUAL_INT(0, fixture.midiManager.programChangeCalls);
 }
 
+void test_activate_sends_selected_snapshot_control_change()
+{
+    PlayModeFixture fixture;
+
+    fixture.mode.activate();
+
+    TEST_ASSERT_EQUAL_INT(1, fixture.midiManager.controlChangeCalls);
+    TEST_ASSERT_EQUAL_UINT8(STOMP_SNAPSHOT_CC, fixture.midiManager.lastControlChangeNumber);
+    TEST_ASSERT_EQUAL_UINT8(0, fixture.midiManager.lastControlChangeValue);
+}
+
 void test_clean_sends_control_change_zero()
 {
     PlayModeFixture fixture;
@@ -161,7 +172,7 @@ void test_clean_sends_control_change_zero()
     fixture.mode.activate();
     fixture.mode.buttonPressed(0);
 
-    TEST_ASSERT_EQUAL_INT(1, fixture.midiManager.controlChangeCalls);
+    TEST_ASSERT_EQUAL_INT(2, fixture.midiManager.controlChangeCalls);
     TEST_ASSERT_EQUAL_UINT8(STOMP_SNAPSHOT_CC, fixture.midiManager.lastControlChangeNumber);
     TEST_ASSERT_EQUAL_UINT8(0, fixture.midiManager.lastControlChangeValue);
 }
@@ -173,7 +184,7 @@ void test_crunch_sends_control_change_one()
     fixture.mode.activate();
     fixture.mode.buttonPressed(1);
 
-    TEST_ASSERT_EQUAL_INT(1, fixture.midiManager.controlChangeCalls);
+    TEST_ASSERT_EQUAL_INT(2, fixture.midiManager.controlChangeCalls);
     TEST_ASSERT_EQUAL_UINT8(STOMP_SNAPSHOT_CC, fixture.midiManager.lastControlChangeNumber);
     TEST_ASSERT_EQUAL_UINT8(1, fixture.midiManager.lastControlChangeValue);
 }
@@ -185,7 +196,7 @@ void test_lead_sends_control_change_two()
     fixture.mode.activate();
     fixture.mode.buttonPressed(2);
 
-    TEST_ASSERT_EQUAL_INT(1, fixture.midiManager.controlChangeCalls);
+    TEST_ASSERT_EQUAL_INT(2, fixture.midiManager.controlChangeCalls);
     TEST_ASSERT_EQUAL_UINT8(STOMP_SNAPSHOT_CC, fixture.midiManager.lastControlChangeNumber);
     TEST_ASSERT_EQUAL_UINT8(2, fixture.midiManager.lastControlChangeValue);
 }
@@ -212,7 +223,7 @@ void test_button_pressed_ignores_disabled_button()
     fixture.mode.activate();
     fixture.mode.buttonPressed(5);
 
-    TEST_ASSERT_EQUAL_INT(0, fixture.midiManager.controlChangeCalls);
+    TEST_ASSERT_EQUAL_INT(1, fixture.midiManager.controlChangeCalls);
 }
 
 void test_long_press_is_noop()
@@ -222,7 +233,7 @@ void test_long_press_is_noop()
     fixture.mode.activate();
     fixture.mode.buttonLongPressed(0);
 
-    TEST_ASSERT_EQUAL_INT(0, fixture.midiManager.controlChangeCalls);
+    TEST_ASSERT_EQUAL_INT(1, fixture.midiManager.controlChangeCalls);
 }
 
 void test_button_eight_is_disabled_in_play_mode()
@@ -233,7 +244,7 @@ void test_button_eight_is_disabled_in_play_mode()
     fixture.mode.buttonPressed(7);
 
     TEST_ASSERT_EQUAL_INT(0, fixture.transitionDelegate.calls);
-    TEST_ASSERT_EQUAL_INT(0, fixture.midiManager.controlChangeCalls);
+    TEST_ASSERT_EQUAL_INT(1, fixture.midiManager.controlChangeCalls);
 }
 
 void test_button_five_transitions_to_patch_mode()
@@ -285,6 +296,7 @@ void setup()
     RUN_TEST(test_activate_sends_selected_home_program_change_zero);
     RUN_TEST(test_activate_skips_program_change_for_none_transition);
     RUN_TEST(test_activate_skips_program_change_for_patch_return_transition);
+    RUN_TEST(test_activate_sends_selected_snapshot_control_change);
     RUN_TEST(test_clean_sends_control_change_zero);
     RUN_TEST(test_crunch_sends_control_change_one);
     RUN_TEST(test_lead_sends_control_change_two);

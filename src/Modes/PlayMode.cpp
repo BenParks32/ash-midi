@@ -83,6 +83,8 @@ void PlayMode::activate()
         _selectedButton = 0;
     }
 
+    _midiManager.sendControlChange(STOMP_SNAPSHOT_CC, _selectedButton);
+
     updateVisuals();
     renderPlayCenterUi();
 }
