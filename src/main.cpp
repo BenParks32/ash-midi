@@ -47,9 +47,6 @@ void HandleTouch();
 void HandleEncoder();
 void HandleSerialDiagnosticsCommands();
 void HandleQuietDiagnosticsMidi();
-void PrintSdDiagnostics();
-void SyncSdStatusUi(bool mounted);
-void AttemptSdRemountDiagnostics();
 void SetQuietDiagnosticsMode(bool enabled);
 
 Adafruit_NeoPixel strip(LED_COUNT, LED_PIN, NEO_GRB + NEO_KHZ800);
@@ -197,75 +194,11 @@ void HandleSerialDiagnosticsCommands()
             continue;
         }
 
-        if (command == 's' || command == 'S')
-        {
-            PrintSdDiagnostics();
-            continue;
-        }
-
-        if (command == 'u' || command == 'U')
-        {
-            Serial.println("SD diagnostics: forcing unmount...");
-            resources.unmount();
-            SyncSdStatusUi(false);
-            PrintSdDiagnostics();
-            continue;
-        }
-
-        if (command == 'm' || command == 'M')
-        {
-            AttemptSdRemountDiagnostics();
-            continue;
-        }
-
         if (command == '?' || command == 'h' || command == 'H')
         {
             Serial.println("Commands: q = toggle quiet MIDI diagnostics mode");
-            Serial.println("          s = print SD diagnostics");
-            Serial.println("          u = force SD unmount");
-            Serial.println("          m = force SD remount");
         }
     }
-}
-
-void PrintSdDiagnostics()
-{
-    Serial.println("SD diagnostics:");
-    Serial.printf("  mounted: %s\n", resources.isMounted() ? "yes" : "no");
-}
-
-void SyncSdStatusUi(bool mounted)
-{
-    if (!mounted)
-    {
-        screenUi.setSdStatusNotMounted();
-    }
-    else
-    {
-        screenUi.setSdStatusReady();
-    }
-
-    if (activeMode == &homeMode)
-    {
-        screenUi.redrawSdStatus();
-    }
-}
-
-void AttemptSdRemountDiagnostics()
-{
-    Serial.println("SD diagnostics: starting remount sequence...");
-
-    resources.unmount();
-    SyncSdStatusUi(false);
-
-    const bool mounted = resources.mount();
-    if (!mounted)
-    {
-        Serial.println("SD diagnostics: remount failed.");
-    }
-
-    SyncSdStatusUi(mounted);
-    PrintSdDiagnostics();
 }
 
 void HandleQuietDiagnosticsMidi()

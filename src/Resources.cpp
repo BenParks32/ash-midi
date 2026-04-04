@@ -48,8 +48,6 @@ bool Resources::beginSdWithRetries()
 {
     for (uint8_t attempt = 0; attempt < SdInitRetryCount; ++attempt)
     {
-        Serial.printf("SD mount attempt %u/%u...\n", static_cast<unsigned int>(attempt + 1U),
-                      static_cast<unsigned int>(SdInitRetryCount));
         deselectSharedSpiDevices();
         delay(SdBusSettleDelayMs);
         sendSdIdleClocks();
@@ -57,11 +55,9 @@ bool Resources::beginSdWithRetries()
 
         if (SD.begin(SdInitClockHz, _sdPin))
         {
-            Serial.printf("SD card mounted on attempt %u.\n", static_cast<unsigned int>(attempt + 1U));
             return true;
         }
 
-        Serial.printf("SD mount attempt %u failed.\n", static_cast<unsigned int>(attempt + 1U));
         SD.end();
         delay(SdRetryDelayMs);
     }
