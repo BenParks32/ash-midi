@@ -91,6 +91,26 @@ void ScreenUi::drawText(const GFXfont* font, uint8_t scale, const char* label, i
     _tft.drawString(label, x, y, GFXFF);
 }
 
+void ScreenUi::fillRect(int32_t x, int32_t y, int32_t width, int32_t height, uint16_t colour)
+{
+    if (width <= 0 || height <= 0)
+    {
+        return;
+    }
+
+    _tft.fillRect(x, y, width, height, colour);
+}
+
+void ScreenUi::drawRect(int32_t x, int32_t y, int32_t width, int32_t height, uint16_t colour)
+{
+    if (width <= 0 || height <= 0)
+    {
+        return;
+    }
+
+    _tft.drawRect(x, y, width, height, colour);
+}
+
 void ScreenUi::drawSmallText(const char* label, int32_t x, int32_t y, uint16_t textColour, uint16_t backgroundColour)
 {
     _tft.setTextFont(1);

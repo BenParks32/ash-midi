@@ -20,6 +20,9 @@ namespace
 class MockMidiManager : public IMidiManager
 {
   public:
+    void setChannel(byte channel) override { currentChannel = channel; }
+    byte channel() const override { return currentChannel; }
+
     void sendProgramChange(byte programChangeValue) override
     {
         ++programChangeCalls;
@@ -38,6 +41,7 @@ class MockMidiManager : public IMidiManager
     byte lastProgramChangeValue = 0;
     byte lastControlChangeNumber = 0;
     byte lastControlChangeValue = 0;
+    byte currentChannel = 1;
 };
 
 class MockTransitionDelegate : public IModeTransistionDelegate

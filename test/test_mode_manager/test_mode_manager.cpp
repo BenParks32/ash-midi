@@ -32,9 +32,10 @@ void test_enter_mode_switches_active_and_activates_target()
     FakeMode home;
     FakeMode play;
     FakeMode patch;
+    FakeMode menu;
 
     IMode* activeMode = &home;
-    IMode* modes[ModeCount] = {&home, &play, &patch};
+    IMode* modes[ModeCount] = {&home, &play, &patch, &menu};
     ModeManager manager(activeMode, modes);
 
     manager.enterMode(Modes::Play, 42);
@@ -50,9 +51,10 @@ void test_enter_mode_ignores_null_target_mode()
 {
     FakeMode home;
     FakeMode play;
+    FakeMode menu;
 
     IMode* activeMode = &home;
-    IMode* modes[ModeCount] = {&home, &play, nullptr};
+    IMode* modes[ModeCount] = {&home, &play, nullptr, &menu};
     ModeManager manager(activeMode, modes);
 
     manager.enterMode(Modes::Patch, 10);
@@ -66,9 +68,10 @@ void test_enter_mode_ignores_out_of_range_mode()
     FakeMode home;
     FakeMode play;
     FakeMode patch;
+    FakeMode menu;
 
     IMode* activeMode = &home;
-    IMode* modes[ModeCount] = {&home, &play, &patch};
+    IMode* modes[ModeCount] = {&home, &play, &patch, &menu};
     ModeManager manager(activeMode, modes);
 
     manager.enterMode(static_cast<Modes>(ModeCount), 99);
@@ -77,6 +80,7 @@ void test_enter_mode_ignores_out_of_range_mode()
     TEST_ASSERT_EQUAL_INT(0, home.activateCalls);
     TEST_ASSERT_EQUAL_INT(0, play.activateCalls);
     TEST_ASSERT_EQUAL_INT(0, patch.activateCalls);
+    TEST_ASSERT_EQUAL_INT(0, menu.activateCalls);
 }
 
 void test_enter_mode_can_switch_to_home()
@@ -84,9 +88,10 @@ void test_enter_mode_can_switch_to_home()
     FakeMode home;
     FakeMode play;
     FakeMode patch;
+    FakeMode menu;
 
     IMode* activeMode = &play;
-    IMode* modes[ModeCount] = {&home, &play, &patch};
+    IMode* modes[ModeCount] = {&home, &play, &patch, &menu};
     ModeManager manager(activeMode, modes);
 
     manager.enterMode(Modes::Home, 7);
@@ -102,9 +107,10 @@ void test_enter_mode_can_switch_to_patch()
     FakeMode home;
     FakeMode play;
     FakeMode patch;
+    FakeMode menu;
 
     IMode* activeMode = &play;
-    IMode* modes[ModeCount] = {&home, &play, &patch};
+    IMode* modes[ModeCount] = {&home, &play, &patch, &menu};
     ModeManager manager(activeMode, modes);
 
     manager.enterMode(Modes::Patch, 33);

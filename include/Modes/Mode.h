@@ -6,6 +6,7 @@ enum class Modes : uint8_t
     Home = 0,
     Play = 1,
     Patch = 2,
+    Menu = 3,
     Count,
 };
 
@@ -31,4 +32,6 @@ class IMode
     virtual void buttonLongPressed(const byte number) = 0;
     virtual void frameTick() = 0;
     virtual void setTransitionValue(byte transitionValue) { (void)transitionValue; }
+    virtual void encoderRotated(int16_t steps) { (void)steps; }
+    virtual void encoderPressed() {}
 };

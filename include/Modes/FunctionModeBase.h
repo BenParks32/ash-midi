@@ -15,6 +15,11 @@ class FunctionModeBase : public IMode
                      IMidiManager& midiManager, IModeTransistionDelegate& transitionDelegate);
     virtual ~FunctionModeBase() = default;
 
+  private:
+    FunctionModeBase() = delete;
+    FunctionModeBase(const FunctionModeBase&) = delete;
+    FunctionModeBase& operator=(const FunctionModeBase&) = delete;
+
   protected:
     const Function& getFunction(byte number) const;
     bool isButtonEnabled(byte number) const;

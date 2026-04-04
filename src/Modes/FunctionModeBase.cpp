@@ -78,15 +78,6 @@ void FunctionModeBase::renderAllButtons()
                                  (button->hasBorder() == desiredBorderVisible) &&
                                  (std::strcmp(button->label(), desiredLabel) == 0);
 
-        if (isUnchanged)
-        {
-            continue;
-        }
-
-        button->setEnabled(enabled);
-        button->setLabel(desiredLabel);
-        applyButtonVisualFromFunctionColour(*button, colour565, ringBrightness);
-
         if (enabled)
         {
             _ringManager.setRingColour(i, ColorUtils::rgb565To888(colour565));
@@ -97,6 +88,15 @@ void FunctionModeBase::renderAllButtons()
             _ringManager.setRingColour(i, 0);
             _ringManager.setRingBrightness(i, 0);
         }
+
+        if (isUnchanged)
+        {
+            continue;
+        }
+
+        button->setEnabled(enabled);
+        button->setLabel(desiredLabel);
+        applyButtonVisualFromFunctionColour(*button, colour565, ringBrightness);
 
         button->draw(_screenUi);
     }

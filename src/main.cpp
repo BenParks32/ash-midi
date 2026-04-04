@@ -9,6 +9,7 @@
 #include "Gfx.h"
 #include "MidiManager.h"
 #include "Modes/HomeMode.h"
+#include "Modes/MenuMode.h"
 #include "Modes/Mode.h"
 #include "Modes/ModeManager.h"
 #include "Modes/PatchMode.h"
@@ -16,6 +17,7 @@
 #include "Resources.h"
 #include "RingManager.h"
 #include "ScreenUi.h"
+#include "SettingsStore.h"
 #include "TouchButtonManager.h"
 
 #define LED_PIN PA0
@@ -25,9 +27,9 @@
 #define SD_CS PA4
 #define ENCODER_PIN_A PB0
 #define ENCODER_PIN_B PB1
+#define ENCODER_BUTTON_PIN PB5
 
 const Size screenSize = {480, 320};
-const uint8_t BrightnessStep = 8;
 uint16_t calData[5] = {254, 3649, 281, 3563, 7};
 
 void HandleTouch();
@@ -36,7 +38,7 @@ void HandleEncoder();
 Adafruit_NeoPixel strip(LED_COUNT, LED_PIN, NEO_GRB + NEO_KHZ800);
 TFT_eSPI tft = TFT_eSPI();
 ScreenUi screenUi(tft, screenSize);
-RotaryEncoder encoder(ENCODER_PIN_A, ENCODER_PIN_B);
+RotaryEncoder encoder(ENCODER_PIN_A, ENCODER_PIN_B, ENCODER_BUTTON_PIN);
 RingManager ringManager(strip);
 
 const GFXfont* DefaultUiFont = FF22;
@@ -48,11 +50,14 @@ IMode* activeMode = nullptr;
 ButtonHandler buttonHandler(activeMode, ringManager);
 TouchButtonManager touchButtonManager(screenUi, &buttonHandler);
 MidiManager midiManager;
+SettingsStore settingsStore;
+AppSettings appSettings = SettingsStore::defaults();
 IMode* modeRegistry[ModeCount] = {nullptr};
 ModeManager modeManager(activeMode, modeRegistry);
 PlayMode playMode(touchButtonManager, ringManager, screenUi, midiManager, modeManager);
 PatchMode patchMode(touchButtonManager, ringManager, screenUi, midiManager, modeManager);
 HomeMode homeMode(touchButtonManager, ringManager, screenUi, midiManager, modeManager);
+MenuMode menuMode(touchButtonManager, ringManager, screenUi, midiManager, modeManager, settingsStore, appSettings);
 
 bool initResourcesSD()
 {
@@ -95,6 +100,10 @@ void setup()
     tft.setRotation(1);
     ringManager.begin();
 
+    settingsStore.load(appSettings);
+    ringManager.setMasterBrightness(appSettings.masterBrightness);
+    midiManager.setChannel(appSettings.midiChannel);
+
     screenUi.drawBackgroundAndBorder();
     screenUi.setTouchButtonLabelStyle(DefaultUiFont, DefaultUiScale);
 
@@ -105,6 +114,7 @@ void setup()
     modeRegistry[static_cast<uint8_t>(Modes::Home)] = &homeMode;
     modeRegistry[static_cast<uint8_t>(Modes::Play)] = &playMode;
     modeRegistry[static_cast<uint8_t>(Modes::Patch)] = &patchMode;
+    modeRegistry[static_cast<uint8_t>(Modes::Menu)] = &menuMode;
 
     activeMode = &homeMode;
     activeMode->activate();
@@ -125,13 +135,15 @@ void loop()
 void HandleEncoder()
 {
     const int16_t steps = encoder.consumeSteps();
-
-    if (!ringManager.adjustMasterBrightness(steps, BrightnessStep))
+    if (activeMode != nullptr && steps != 0)
     {
-        return;
+        activeMode->encoderRotated(steps);
     }
 
-    Serial.printf("Master ring brightness: %u\n", ringManager.masterBrightness());
+    if (activeMode != nullptr && encoder.consumeButtonPress())
+    {
+        activeMode->encoderPressed();
+    }
 }
 
 void HandleTouch()

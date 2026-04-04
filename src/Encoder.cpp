@@ -2,8 +2,14 @@
 
 RotaryEncoder* RotaryEncoder::s_active = nullptr;
 
-RotaryEncoder::RotaryEncoder(uint8_t pinA, uint8_t pinB)
-    : _pinA(pinA), _pinB(pinB), _previousState(0), _pulseAccumulator(0), _pendingSteps(0)
+namespace
+{
+constexpr uint32_t EncoderButtonDebounceMs = 25;
+}
+
+RotaryEncoder::RotaryEncoder(uint8_t pinA, uint8_t pinB, uint8_t pushPin)
+    : _pinA(pinA), _pinB(pinB), _pushPin(pushPin), _previousState(0), _pulseAccumulator(0), _pendingSteps(0),
+      _lastPushReading(false), _stablePushState(false), _lastPushDebounceMs(0), _pendingButtonPresses(0)
 {
 }
 
@@ -18,6 +24,17 @@ bool RotaryEncoder::begin()
 
     pinMode(_pinA, INPUT_PULLUP);
     pinMode(_pinB, INPUT_PULLUP);
+
+    if (_pushPin != NoPin)
+    {
+        pinMode(_pushPin, INPUT_PULLUP);
+        const bool pressed = (digitalRead(_pushPin) == LOW);
+        _lastPushReading = pressed;
+        _stablePushState = pressed;
+        _lastPushDebounceMs = millis();
+        _pendingButtonPresses = 0;
+    }
+
     _previousState = ((digitalRead(_pinA) & 0x01) << 1) | (digitalRead(_pinB) & 0x01);
     _pulseAccumulator = 0;
     _pendingSteps = 0;
@@ -35,6 +52,52 @@ int16_t RotaryEncoder::consumeSteps()
     _pendingSteps = 0;
     interrupts();
     return steps;
+}
+
+bool RotaryEncoder::consumeButtonPress()
+{
+    updatePushButtonState();
+
+    if (_pendingButtonPresses == 0)
+    {
+        return false;
+    }
+
+    --_pendingButtonPresses;
+    return true;
+}
+
+void RotaryEncoder::updatePushButtonState()
+{
+    if (_pushPin == NoPin)
+    {
+        return;
+    }
+
+    const bool reading = (digitalRead(_pushPin) == LOW);
+    const uint32_t now = millis();
+
+    if (reading != _lastPushReading)
+    {
+        _lastPushDebounceMs = now;
+        _lastPushReading = reading;
+    }
+
+    if ((uint32_t)(now - _lastPushDebounceMs) < EncoderButtonDebounceMs)
+    {
+        return;
+    }
+
+    if (reading == _stablePushState)
+    {
+        return;
+    }
+
+    _stablePushState = reading;
+    if (_stablePushState)
+    {
+        ++_pendingButtonPresses;
+    }
 }
 
 void RotaryEncoder::handleInterrupt()

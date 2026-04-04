@@ -21,6 +21,9 @@ namespace
 class MockMidiManager : public IMidiManager
 {
   public:
+    void setChannel(byte channel) override { currentChannel = channel; }
+    byte channel() const override { return currentChannel; }
+
     void sendProgramChange(byte programChangeValue) override
     {
         ++programChangeCalls;
@@ -39,6 +42,7 @@ class MockMidiManager : public IMidiManager
     byte lastProgramChangeValue = 0;
     byte lastControlChangeNumber = 0;
     byte lastControlChangeValue = 0;
+    byte currentChannel = 1;
 };
 
 class MockTransitionDelegate : public IModeTransistionDelegate
@@ -231,9 +235,10 @@ void test_patch_mode_transitions_via_mode_manager_to_play_slot()
     TestModeSlot homeSlot;
     TestModeSlot playSlot;
     TestModeSlot patchSlot;
+    IMode* menuSlot = nullptr;
 
     IMode* activeMode = &patchSlot;
-    IMode* modes[ModeCount] = {&homeSlot, &playSlot, &patchSlot};
+    IMode* modes[ModeCount] = {&homeSlot, &playSlot, &patchSlot, menuSlot};
     ModeManager modeManager(activeMode, modes);
     PatchMode mode(touchButtonManager, ringManager, ui, midiManager, modeManager);
 

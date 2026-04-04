@@ -3,6 +3,7 @@
 const uint8_t STOMP_PATCH_AMP = 0;
 const uint8_t STOMP_PATCH_AMPLESS = 6;
 const uint8_t STOMP_PATCH_CODERED = 20;
+const uint8_t HOME_MENU_MODE_VALUE = static_cast<uint8_t>(Modes::Menu);
 const GFXfont* HomeLogoTitleFont = FF32;
 const GFXfont* HomeLogoSubtitleFont = FF22;
 const uint8_t HomeLogoTitleScale = 1;
@@ -28,12 +29,14 @@ void HomeMode::setupFunctions()
     // Button 2: CodeRed (Red) -> enter Play and select Home Program 20
     _functions[2] = Function("CodeRed", 0xF800, ActionType::ChangeMode, STOMP_PATCH_CODERED, ActionType::None, 0);
 
-    // Buttons 3-7: Disabled slots use Function default constructor values.
+    // Buttons 3-6: Disabled slots use Function default constructor values.
     _functions[3] = Function();
     _functions[4] = Function();
     _functions[5] = Function();
     _functions[6] = Function();
-    _functions[7] = Function();
+
+    // Button 7: Menu (White) -> enter Menu mode
+    _functions[7] = Function("Menu", 0xFFFF, ActionType::ChangeMode, HOME_MENU_MODE_VALUE, ActionType::None, 0);
 }
 
 void HomeMode::activate()
@@ -117,7 +120,14 @@ void HomeMode::executeAction(ActionType action, byte actionValue)
         _midiManager.sendControlChange(actionValue, 127);
         break;
     case ActionType::ChangeMode:
-        _transitionDelegate.enterMode(Modes::Play, actionValue);
+        if (actionValue == HOME_MENU_MODE_VALUE)
+        {
+            _transitionDelegate.enterMode(Modes::Menu, ModeTransitionNone);
+        }
+        else
+        {
+            _transitionDelegate.enterMode(Modes::Play, actionValue);
+        }
         break;
     }
 }

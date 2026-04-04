@@ -21,6 +21,9 @@ namespace
 class MockMidiManager : public IMidiManager
 {
   public:
+    void setChannel(byte channel) override { currentChannel = channel; }
+    byte channel() const override { return currentChannel; }
+
     void sendProgramChange(byte programChangeValue) override
     {
         ++programChangeCalls;
@@ -39,6 +42,7 @@ class MockMidiManager : public IMidiManager
     byte lastProgramChangeValue = 0;
     byte lastControlChangeNumber = 0;
     byte lastControlChangeValue = 0;
+    byte currentChannel = 1;
 };
 
 class MockTransitionDelegate : public IModeTransistionDelegate
@@ -107,8 +111,9 @@ void test_activate_sets_home_labels_and_ring_matched_visuals()
     TEST_ASSERT_EQUAL_STRING("CodeRed", fixture.touchButtonManager.getButton(2)->label());
     TEST_ASSERT_EQUAL_STRING(" ", fixture.touchButtonManager.getButton(3)->label());
     TEST_ASSERT_EQUAL_STRING(" ", fixture.touchButtonManager.getButton(4)->label());
+    TEST_ASSERT_EQUAL_STRING("Menu", fixture.touchButtonManager.getButton(7)->label());
     TEST_ASSERT_NOT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(0)->pillColour());
-    TEST_ASSERT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(3)->pillColour());
+    TEST_ASSERT_NOT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(7)->pillColour());
     TEST_ASSERT_NOT_EQUAL_UINT32(0, fixture.strip.getPixelColor(RingManager::LedsPerRing * 0));
     TEST_ASSERT_EQUAL_UINT32(0, fixture.strip.getPixelColor(RingManager::LedsPerRing * 5));
 }
@@ -150,6 +155,18 @@ void test_button_pressed_selects_code_red_home_program_for_play_mode()
                             static_cast<uint8_t>(fixture.transitionDelegate.lastMode));
     TEST_ASSERT_EQUAL_UINT8(20, fixture.transitionDelegate.lastTransitionValue);
     TEST_ASSERT_EQUAL_INT(0, fixture.midiManager.programChangeCalls);
+}
+
+void test_button_eight_transitions_to_menu_mode()
+{
+    HomeModeFixture fixture;
+
+    fixture.mode.buttonPressed(7);
+
+    TEST_ASSERT_EQUAL_INT(1, fixture.transitionDelegate.calls);
+    TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(Modes::Menu),
+                            static_cast<uint8_t>(fixture.transitionDelegate.lastMode));
+    TEST_ASSERT_EQUAL_UINT8(ModeTransitionNone, fixture.transitionDelegate.lastTransitionValue);
 }
 
 void test_button_pressed_ignores_disabled_button()
@@ -214,7 +231,9 @@ void test_button_press_transitions_via_mode_manager_to_play_slot()
     TestModeSlot playSlot;
 
     IMode* activeMode = &homeSlot;
-    IMode* modes[ModeCount] = {&homeSlot, &playSlot};
+    IMode* menuSlot = nullptr;
+    IMode* patchSlot = nullptr;
+    IMode* modes[ModeCount] = {&homeSlot, &playSlot, patchSlot, menuSlot};
     ModeManager modeManager(activeMode, modes);
     HomeMode mode(touchButtonManager, ringManager, ui, midiManager, modeManager);
 
@@ -246,6 +265,7 @@ void setup()
     RUN_TEST(test_button_pressed_selects_requested_button_when_valid);
     RUN_TEST(test_button_pressed_selects_amp_home_program_for_play_mode);
     RUN_TEST(test_button_pressed_selects_code_red_home_program_for_play_mode);
+    RUN_TEST(test_button_eight_transitions_to_menu_mode);
     RUN_TEST(test_button_pressed_ignores_disabled_button);
     RUN_TEST(test_button_pressed_ignores_out_of_range_button);
     RUN_TEST(test_button_long_pressed_ignores_out_of_range_button);

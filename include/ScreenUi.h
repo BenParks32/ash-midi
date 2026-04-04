@@ -32,6 +32,8 @@ class ScreenUi : public ITouchButtonLayout
 
     void drawText(const GFXfont* font, uint8_t scale, const char* label, int32_t x, int32_t y,
                   uint16_t textColour = TFT_WHITE, uint16_t backgroundColour = TFT_BLACK);
+    void fillRect(int32_t x, int32_t y, int32_t width, int32_t height, uint16_t colour);
+    void drawRect(int32_t x, int32_t y, int32_t width, int32_t height, uint16_t colour);
     void drawSmallText(const char* label, int32_t x, int32_t y, uint16_t textColour = TFT_WHITE,
                        uint16_t backgroundColour = TFT_BLACK);
     void clearText(const GFXfont* font, uint8_t scale, const char* label, int32_t x, int32_t y);
