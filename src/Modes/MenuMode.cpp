@@ -83,9 +83,10 @@ uint32_t randomRingColour()
 
 MenuMode::MenuMode(TouchButtonManager& touchButtonManager, RingManager& ringManager, ScreenUi& screenUi,
                    IMidiManager& midiManager, IModeTransistionDelegate& transitionDelegate,
-                   ISettingsStore& settingsStore, AppSettings& settings)
+                   ISettingsStore& settingsStore, ISdCardManager& sdCardManager, AppSettings& settings)
     : FunctionModeBase(touchButtonManager, ringManager, screenUi, midiManager, transitionDelegate),
-      _settingsStore(settingsStore), _settings(settings), _selectedItem(MenuItem::Brightness), _isEditMode(false)
+      _settingsStore(settingsStore), _sdCardManager(sdCardManager), _settings(settings),
+      _selectedItem(MenuItem::Brightness), _isEditMode(false)
 {
     setupFunctions();
 }
@@ -104,6 +105,7 @@ void MenuMode::setupFunctions()
 void MenuMode::activate()
 {
     _isEditMode = false;
+    _screenUi.hideSdStatus();
     renderAllButtons();
     applyRandomRingColours();
     renderMenu();
@@ -154,6 +156,13 @@ void MenuMode::encoderRotated(int16_t steps)
 
 void MenuMode::encoderPressed()
 {
+    if (_selectedItem == MenuItem::SdCard)
+    {
+        _isEditMode = false;
+        handleSdCardAction();
+        return;
+    }
+
     if (_isEditMode)
     {
         _isEditMode = false;
@@ -247,6 +256,34 @@ void MenuMode::applyEditDelta(int16_t steps)
     }
 }
 
+void MenuMode::handleSdCardAction()
+{
+    if (_sdCardManager.isMounted())
+    {
+        if (_sdCardManager.unmount())
+        {
+            Serial.println("Menu: SD card unmounted.");
+            _screenUi.setSdStatusNotMounted();
+        }
+    }
+    else
+    {
+        if (_sdCardManager.mount())
+        {
+            Serial.println("Menu: SD card mounted.");
+            _screenUi.setSdStatusReady();
+        }
+        else
+        {
+            Serial.println("Menu: SD card mount failed.");
+            _screenUi.setSdStatusFailed();
+        }
+    }
+
+    renderMenuItem(_selectedItem, true);
+    renderValuePanel(false);
+}
+
 void MenuMode::applyRandomRingColours()
 {
     for (uint8_t ringIndex = 0; ringIndex < RingManager::RingCount; ++ringIndex)
@@ -266,6 +303,8 @@ const char* MenuMode::menuItemLabel(MenuMode::MenuItem item)
         return "Brightness";
     case MenuItem::MidiChannel:
         return "MIDI Channel";
+    case MenuItem::SdCard:
+        return "SD Card";
     case MenuItem::Count:
     default:
         return "";
@@ -290,6 +329,9 @@ void MenuMode::formatSelectedValue(MenuMode::MenuItem item, char* buffer, size_t
     }
     case MenuItem::MidiChannel:
         std::snprintf(buffer, bufferSize, "%u", static_cast<unsigned int>(_settings.midiChannel));
+        break;
+    case MenuItem::SdCard:
+        std::snprintf(buffer, bufferSize, "%s", _sdCardManager.isMounted() ? "Unmount" : "Mount");
         break;
     case MenuItem::Count:
     default:
@@ -365,8 +407,11 @@ void MenuMode::renderValueLabel(bool hasRightFocus)
     formatSelectedValue(_selectedItem, valueLabel, sizeof(valueLabel));
 
     const int32_t valueCenterX = layout.valuePanelX + (layout.valuePanelWidth / 2);
-    const int32_t valueY = layout.valuePanelY + ((layout.valuePanelHeight - 24) / 2);
-    _screenUi.drawCenteredText(FF32, MenuValueScale, valueLabel, valueCenterX, valueY,
+    const GFXfont* valueFont = (_selectedItem == MenuItem::SdCard) ? FF22 : FF32;
+    const int32_t valueTextHeight = (_selectedItem == MenuItem::SdCard) ? 16 : 24;
+    const int32_t valueY = layout.valuePanelY + ((layout.valuePanelHeight - valueTextHeight) / 2);
+
+    _screenUi.drawCenteredText(valueFont, MenuValueScale, valueLabel, valueCenterX, valueY,
                                hasRightFocus ? TFT_BLACK : TFT_WHITE, hasRightFocus ? TFT_WHITE : TFT_BLACK);
 }
 

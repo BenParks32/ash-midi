@@ -82,14 +82,38 @@ class MockSettingsStore : public ISettingsStore
     AppSettings stored = {RingManager::DefaultBrightness, 1};
 };
 
+class MockSdCardManager : public ISdCardManager
+{
+  public:
+    bool mount() override
+    {
+        ++mountCalls;
+        mounted = true;
+        return true;
+    }
+
+    bool unmount() override
+    {
+        ++unmountCalls;
+        mounted = false;
+        return true;
+    }
+
+    bool isMounted() const override { return mounted; }
+
+    int mountCalls = 0;
+    int unmountCalls = 0;
+    bool mounted = true;
+};
+
 class MenuModeFixture
 {
   public:
     MenuModeFixture()
         : screenSize{480, 320}, ui(tft, screenSize), strip(RingManager::LedCount, 0, NEO_GRB + NEO_KHZ800),
           ringManager(strip), touchButtonManager(ui), midiManager(), transitionDelegate(), settingsStore(),
-          settings{120, 3},
-          mode(touchButtonManager, ringManager, ui, midiManager, transitionDelegate, settingsStore, settings)
+          sdCardManager(), settings{120, 3}, mode(touchButtonManager, ringManager, ui, midiManager, transitionDelegate,
+                                                  settingsStore, sdCardManager, settings)
     {
     }
 
@@ -102,6 +126,7 @@ class MenuModeFixture
     MockMidiManager midiManager;
     MockTransitionDelegate transitionDelegate;
     MockSettingsStore settingsStore;
+    MockSdCardManager sdCardManager;
     AppSettings settings;
     MenuMode mode;
 };
@@ -223,6 +248,24 @@ void test_edit_mode_toggle_saves_only_when_leaving_edit_mode()
     fixture.mode.encoderPressed();
     TEST_ASSERT_EQUAL_INT(1, fixture.settingsStore.saveCalls);
 }
+
+void test_sd_card_item_toggles_unmount_and_mount()
+{
+    MenuModeFixture fixture;
+
+    fixture.mode.activate();
+    fixture.mode.encoderRotated(2);
+    fixture.mode.encoderPressed();
+
+    TEST_ASSERT_EQUAL_INT(1, fixture.sdCardManager.unmountCalls);
+    TEST_ASSERT_FALSE(fixture.sdCardManager.mounted);
+
+    fixture.mode.encoderPressed();
+
+    TEST_ASSERT_EQUAL_INT(1, fixture.sdCardManager.mountCalls);
+    TEST_ASSERT_TRUE(fixture.sdCardManager.mounted);
+    TEST_ASSERT_EQUAL_INT(0, fixture.settingsStore.saveCalls);
+}
 } // namespace
 
 void setUp() {}
@@ -246,6 +289,7 @@ void setup()
     RUN_TEST(test_random_ring_colours_are_assigned_on_activate_and_stable_during_midi_edit);
     RUN_TEST(test_edit_midi_channel_applies_immediately_and_clamps);
     RUN_TEST(test_edit_mode_toggle_saves_only_when_leaving_edit_mode);
+    RUN_TEST(test_sd_card_item_toggles_unmount_and_mount);
     UNITY_END();
 }
 

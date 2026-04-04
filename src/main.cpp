@@ -18,6 +18,7 @@
 #include "RingManager.h"
 #include "ScreenUi.h"
 #include "SettingsStore.h"
+#include "TFT_Setup.h"
 #include "TouchButtonManager.h"
 
 #define LED_PIN PA0
@@ -46,6 +47,9 @@ void HandleTouch();
 void HandleEncoder();
 void HandleSerialDiagnosticsCommands();
 void HandleQuietDiagnosticsMidi();
+void PrintSdDiagnostics();
+void SyncSdStatusUi(bool mounted);
+void AttemptSdRemountDiagnostics();
 void SetQuietDiagnosticsMode(bool enabled);
 
 Adafruit_NeoPixel strip(LED_COUNT, LED_PIN, NEO_GRB + NEO_KHZ800);
@@ -70,29 +74,23 @@ ModeManager modeManager(activeMode, modeRegistry);
 PlayMode playMode(touchButtonManager, ringManager, screenUi, midiManager, modeManager);
 PatchMode patchMode(touchButtonManager, ringManager, screenUi, midiManager, modeManager);
 HomeMode homeMode(touchButtonManager, ringManager, screenUi, midiManager, modeManager);
-MenuMode menuMode(touchButtonManager, ringManager, screenUi, midiManager, modeManager, settingsStore, appSettings);
+MenuMode menuMode(touchButtonManager, ringManager, screenUi, midiManager, modeManager, settingsStore, resources,
+                  appSettings);
 
 bool initResourcesSD()
 {
     Serial.println("Initializing SD card...");
-    screenUi.drawSdStatusInitializing();
+    screenUi.setSdStatusInitializing();
 
     if (!resources.init())
     {
         Serial.println("SD card initialization failed!");
-        screenUi.drawSdStatusFailed();
+        screenUi.setSdStatusFailed();
         return false;
     }
 
-    if (!resources.loadAll())
-    {
-        Serial.println("Failed to load resources!");
-        screenUi.drawSdStatusFailed();
-        return false;
-    }
-
-    Serial.println("SD card initialized and resources loaded successfully.");
-    screenUi.drawSdStatusReady();
+    Serial.println("SD card initialized successfully.");
+    screenUi.setSdStatusReady();
     return true;
 }
 
@@ -100,8 +98,15 @@ void setup()
 {
     pinMode(SD_CS, OUTPUT);
     digitalWrite(SD_CS, HIGH);
+    pinMode(TFT_CS, OUTPUT);
+    digitalWrite(TFT_CS, HIGH);
+    pinMode(TOUCH_CS, OUTPUT);
+    digitalWrite(TOUCH_CS, HIGH);
 
     Serial.begin(115200);
+    delay(250);
+    initResourcesSD();
+
     if (!encoder.begin())
     {
         Serial.println("Encoder initialization failed.");
@@ -118,11 +123,10 @@ void setup()
     midiManager.setChannel(appSettings.midiChannel);
 
     screenUi.drawBackgroundAndBorder();
+    screenUi.redrawSdStatus();
     screenUi.setTouchButtonLabelStyle(DefaultUiFont, DefaultUiScale);
 
     touchButtonManager.initialize();
-
-    initResourcesSD();
 
     modeRegistry[static_cast<uint8_t>(Modes::Home)] = &homeMode;
     modeRegistry[static_cast<uint8_t>(Modes::Play)] = &playMode;
@@ -193,11 +197,75 @@ void HandleSerialDiagnosticsCommands()
             continue;
         }
 
+        if (command == 's' || command == 'S')
+        {
+            PrintSdDiagnostics();
+            continue;
+        }
+
+        if (command == 'u' || command == 'U')
+        {
+            Serial.println("SD diagnostics: forcing unmount...");
+            resources.unmount();
+            SyncSdStatusUi(false);
+            PrintSdDiagnostics();
+            continue;
+        }
+
+        if (command == 'm' || command == 'M')
+        {
+            AttemptSdRemountDiagnostics();
+            continue;
+        }
+
         if (command == '?' || command == 'h' || command == 'H')
         {
             Serial.println("Commands: q = toggle quiet MIDI diagnostics mode");
+            Serial.println("          s = print SD diagnostics");
+            Serial.println("          u = force SD unmount");
+            Serial.println("          m = force SD remount");
         }
     }
+}
+
+void PrintSdDiagnostics()
+{
+    Serial.println("SD diagnostics:");
+    Serial.printf("  mounted: %s\n", resources.isMounted() ? "yes" : "no");
+}
+
+void SyncSdStatusUi(bool mounted)
+{
+    if (!mounted)
+    {
+        screenUi.setSdStatusNotMounted();
+    }
+    else
+    {
+        screenUi.setSdStatusReady();
+    }
+
+    if (activeMode == &homeMode)
+    {
+        screenUi.redrawSdStatus();
+    }
+}
+
+void AttemptSdRemountDiagnostics()
+{
+    Serial.println("SD diagnostics: starting remount sequence...");
+
+    resources.unmount();
+    SyncSdStatusUi(false);
+
+    const bool mounted = resources.mount();
+    if (!mounted)
+    {
+        Serial.println("SD diagnostics: remount failed.");
+    }
+
+    SyncSdStatusUi(mounted);
+    PrintSdDiagnostics();
 }
 
 void HandleQuietDiagnosticsMidi()

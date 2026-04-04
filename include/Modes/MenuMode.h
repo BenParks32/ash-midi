@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Modes/FunctionModeBase.h"
+#include "Resources.h"
 #include "SettingsStore.h"
 
 class MenuMode : public FunctionModeBase
@@ -8,7 +9,7 @@ class MenuMode : public FunctionModeBase
   public:
     MenuMode(TouchButtonManager& touchButtonManager, RingManager& ringManager, ScreenUi& screenUi,
              IMidiManager& midiManager, IModeTransistionDelegate& transitionDelegate, ISettingsStore& settingsStore,
-             AppSettings& settings);
+             ISdCardManager& sdCardManager, AppSettings& settings);
 
     void activate() override;
     void buttonPressed(byte number) override;
@@ -27,6 +28,7 @@ class MenuMode : public FunctionModeBase
     {
         Brightness = 0,
         MidiChannel = 1,
+        SdCard = 2,
         Count,
     };
 
@@ -42,6 +44,7 @@ class MenuMode : public FunctionModeBase
     int32_t menuRowY(MenuItem item) const;
     void moveSelection(int16_t steps);
     void applyEditDelta(int16_t steps);
+    void handleSdCardAction();
     void applyRandomRingColours();
     static const char* menuItemLabel(MenuItem item);
     void formatSelectedValue(MenuItem item, char* buffer, size_t bufferSize) const;
@@ -49,6 +52,7 @@ class MenuMode : public FunctionModeBase
 
   private:
     ISettingsStore& _settingsStore;
+    ISdCardManager& _sdCardManager;
     AppSettings& _settings;
     MenuItem _selectedItem;
     bool _isEditMode;

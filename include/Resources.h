@@ -6,6 +6,16 @@
 
 const uint SZ_ICON_FOOTSWITCH = 48;
 
+class ISdCardManager
+{
+  public:
+    virtual ~ISdCardManager() = default;
+
+    virtual bool mount() = 0;
+    virtual bool unmount() = 0;
+    virtual bool isMounted() const = 0;
+};
+
 class Resource
 {
   public:
@@ -53,7 +63,7 @@ class Icon : public Resource
     const Size _iconSize;
 };
 
-class Resources
+class Resources : public ISdCardManager
 {
   public:
     Resources(const byte sdPin);
@@ -67,6 +77,9 @@ class Resources
   private:
     const uint16_t* readFile(const char* path, const size_t expectedSizeBytes) const;
     const Icon* const loadIcon(const char* path, const Size& size) const;
+    void deselectSharedSpiDevices() const;
+    void sendSdIdleClocks() const;
+    bool beginSdWithRetries();
 
   private:
     const byte _sdPin;
@@ -75,5 +88,11 @@ class Resources
   public:
     bool init();
     bool loadAll();
+    bool mount() override;
+    bool unmount() override;
+    bool isMounted() const override { return _isMounted; }
     const Icon& footSwitchIcon() const { return *FootSwitchIcon; }
+
+  private:
+    bool _isMounted = false;
 };

@@ -53,9 +53,15 @@ class ScreenUi : public ITouchButtonLayout
                              uint16_t pillBorderColour = TFT_WHITE) override;
     void drawStatusIndicator(int32_t circleX, int32_t circleY, int32_t radius, const char* label, int32_t textX,
                              int32_t textY, uint16_t colour);
+    void setSdStatusInitializing();
+    void setSdStatusFailed();
+    void setSdStatusReady();
+    void setSdStatusNotMounted();
     void drawSdStatusInitializing();
     void drawSdStatusFailed();
     void drawSdStatusReady();
+    void drawSdStatusNotMounted();
+    void hideSdStatus();
     void redrawSdStatus();
 
     int32_t boxWidth() const override;
@@ -75,6 +81,7 @@ class ScreenUi : public ITouchButtonLayout
         Initializing,
         Failed,
         Ready,
+      NotMounted,
     };
 
   private:

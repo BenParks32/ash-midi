@@ -1,8 +1,97 @@
 #include "Resources.h"
 
-Resources::Resources(const byte sdPin) : _sdPin(sdPin), FootSwitchIcon(nullptr) {}
+#include <SPI.h>
 
-bool Resources::init() { return SD.begin(_sdPin); }
+#include "TFT_Setup.h"
+
+namespace
+{
+constexpr uint32_t SdInitClockHz = 100000;
+constexpr uint8_t SdInitRetryCount = 3;
+constexpr uint8_t SdIdleClockBytes = 20;
+constexpr uint32_t SdRetryDelayMs = 50;
+constexpr uint32_t SdBusSettleDelayMs = 10;
+constexpr uint32_t SdPowerSettleDelayMs = 250;
+} // namespace
+
+Resources::Resources(const byte sdPin) : _sdPin(sdPin), FootSwitchIcon(nullptr), _isMounted(false) {}
+
+bool Resources::init() { return mount(); }
+
+void Resources::deselectSharedSpiDevices() const
+{
+    pinMode(_sdPin, OUTPUT);
+    digitalWrite(_sdPin, HIGH);
+
+    pinMode(TFT_CS, OUTPUT);
+    digitalWrite(TFT_CS, HIGH);
+
+    pinMode(TOUCH_CS, OUTPUT);
+    digitalWrite(TOUCH_CS, HIGH);
+}
+
+void Resources::sendSdIdleClocks() const
+{
+    SPI.begin();
+    SPI.beginTransaction(SPISettings(SdInitClockHz, MSBFIRST, SPI_MODE0));
+    deselectSharedSpiDevices();
+
+    for (uint8_t index = 0; index < SdIdleClockBytes; ++index)
+    {
+        SPI.transfer(0xFF);
+    }
+
+    SPI.endTransaction();
+}
+
+bool Resources::beginSdWithRetries()
+{
+    for (uint8_t attempt = 0; attempt < SdInitRetryCount; ++attempt)
+    {
+        Serial.printf("SD mount attempt %u/%u...\n", static_cast<unsigned int>(attempt + 1U),
+                      static_cast<unsigned int>(SdInitRetryCount));
+        deselectSharedSpiDevices();
+        delay(SdBusSettleDelayMs);
+        sendSdIdleClocks();
+        deselectSharedSpiDevices();
+
+        if (SD.begin(SdInitClockHz, _sdPin))
+        {
+            Serial.printf("SD card mounted on attempt %u.\n", static_cast<unsigned int>(attempt + 1U));
+            return true;
+        }
+
+        Serial.printf("SD mount attempt %u failed.\n", static_cast<unsigned int>(attempt + 1U));
+        SD.end();
+        delay(SdRetryDelayMs);
+    }
+
+    return false;
+}
+
+bool Resources::mount()
+{
+    if (_isMounted)
+    {
+        return true;
+    }
+
+    deselectSharedSpiDevices();
+    SD.end();
+    delay(SdPowerSettleDelayMs);
+
+    _isMounted = beginSdWithRetries();
+    if (_isMounted)
+    {
+        deselectSharedSpiDevices();
+    }
+    else
+    {
+        Serial.println("SD card mount failed.");
+    }
+
+    return _isMounted;
+}
 
 const uint16_t* Resources::readFile(const char* path, const size_t expectedSizeBytes) const
 {
@@ -81,14 +170,38 @@ const Icon* const Resources::loadIcon(const char* path, const Size& size) const
 
 bool Resources::loadAll()
 {
+    if (!_isMounted)
+    {
+        Serial.println("Cannot load resources: SD card is not mounted");
+        return false;
+    }
+
     Serial.println("Loading all resources...");
-    FootSwitchIcon = loadIcon("/switch.raw", {SZ_ICON_FOOTSWITCH, SZ_ICON_FOOTSWITCH});
-    if (FootSwitchIcon == nullptr)
+    const Icon* nextFootSwitchIcon = loadIcon("/switch.raw", {SZ_ICON_FOOTSWITCH, SZ_ICON_FOOTSWITCH});
+    if (nextFootSwitchIcon == nullptr)
     {
         Serial.println("Failed to load foot switch icon");
         return false;
     }
 
+    delete FootSwitchIcon;
+    FootSwitchIcon = nextFootSwitchIcon;
+
+    return true;
+}
+
+bool Resources::unmount()
+{
+    if (!_isMounted)
+    {
+        return true;
+    }
+
+    SD.end();
+    deselectSharedSpiDevices();
+    delay(SdBusSettleDelayMs);
+    _isMounted = false;
+    Serial.println("SD card unmounted.");
     return true;
 }
 

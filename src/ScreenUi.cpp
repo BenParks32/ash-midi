@@ -252,25 +252,46 @@ void ScreenUi::drawStatusIndicator(int32_t circleX, int32_t circleY, int32_t rad
     drawSmallText(label, textX, textY, TFT_WHITE, TFT_BLACK);
 }
 
+void ScreenUi::setSdStatusInitializing() { _sdStatusState = SdStatusState::Initializing; }
+
+void ScreenUi::setSdStatusFailed() { _sdStatusState = SdStatusState::Failed; }
+
+void ScreenUi::setSdStatusReady() { _sdStatusState = SdStatusState::Ready; }
+
+void ScreenUi::setSdStatusNotMounted() { _sdStatusState = SdStatusState::NotMounted; }
+
 void ScreenUi::drawSdStatusInitializing()
 {
-    _sdStatusState = SdStatusState::Initializing;
+    setSdStatusInitializing();
     drawStatusIndicator(_sdStatusCircleX, _sdStatusCircleY, _sdStatusRadius, "SD init...", _sdStatusTextX,
                         _sdStatusTextY, TFT_YELLOW);
 }
 
 void ScreenUi::drawSdStatusFailed()
 {
-    _sdStatusState = SdStatusState::Failed;
+    setSdStatusFailed();
     drawStatusIndicator(_sdStatusCircleX, _sdStatusCircleY, _sdStatusRadius, "SD failed", _sdStatusTextX,
                         _sdStatusTextY, TFT_RED);
 }
 
 void ScreenUi::drawSdStatusReady()
 {
-    _sdStatusState = SdStatusState::Ready;
+    setSdStatusReady();
     drawStatusIndicator(_sdStatusCircleX, _sdStatusCircleY, _sdStatusRadius, "SD ready", _sdStatusTextX, _sdStatusTextY,
                         TFT_GREEN);
+}
+
+void ScreenUi::drawSdStatusNotMounted()
+{
+    setSdStatusNotMounted();
+    drawStatusIndicator(_sdStatusCircleX, _sdStatusCircleY, _sdStatusRadius, "SD unmounted", _sdStatusTextX,
+                        _sdStatusTextY, TFT_DARKGREY);
+}
+
+void ScreenUi::hideSdStatus()
+{
+    _tft.fillCircle(_sdStatusCircleX, _sdStatusCircleY, _sdStatusRadius + 1, TFT_BLACK);
+    _tft.fillRect(_sdStatusTextX, _sdStatusTextY, _sdStatusTextClearWidth, _sdStatusTextClearHeight, TFT_BLACK);
 }
 
 void ScreenUi::redrawSdStatus()
@@ -285,6 +306,9 @@ void ScreenUi::redrawSdStatus()
         break;
     case SdStatusState::Ready:
         drawSdStatusReady();
+        break;
+    case SdStatusState::NotMounted:
+        drawSdStatusNotMounted();
         break;
     case SdStatusState::None:
     default:
