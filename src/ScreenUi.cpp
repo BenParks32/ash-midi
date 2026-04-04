@@ -16,6 +16,58 @@ void ScreenUi::drawBackgroundAndBorder()
     _tft.writecommand(TFT_DISPON);
 }
 
+void ScreenUi::clearCenterSection()
+{
+    const int32_t x = _lineWidth;
+    const int32_t y = _logoSectionTop + _lineWidth;
+    const int32_t width = _screenSize.width - (_lineWidth * 2);
+    const int32_t height = (_logoSectionBottom - _logoSectionTop) - (_lineWidth * 2);
+
+    if (width <= 0 || height <= 0)
+    {
+        return;
+    }
+
+    _tft.fillRect(x, y, width, height, TFT_BLACK);
+}
+
+void ScreenUi::drawCenteredFrame(int32_t centerX, int32_t topY, int32_t width, int32_t height, int32_t radius)
+{
+    if (width <= 0 || height <= 0 || radius < 0)
+    {
+        return;
+    }
+
+    const int32_t left = centerX - (width / 2);
+    _tft.drawRoundRect(left, topY, width, height, radius, _logoFrameOuterColour);
+
+    const int32_t outerBottomY = topY + height - 1;
+    const int32_t outerBottomX = left + radius;
+    const int32_t outerBottomWidth = width - (radius * 2);
+    if (outerBottomWidth > 0)
+    {
+        _tft.drawFastHLine(outerBottomX, outerBottomY, outerBottomWidth, _logoFrameOuterColour);
+    }
+
+    const int32_t innerLeft = left + 2;
+    const int32_t innerTop = topY + 2;
+    const int32_t innerWidth = width - 4;
+    const int32_t innerHeight = height - 4;
+    const int32_t innerRadius = (radius > 2) ? (radius - 2) : 0;
+    if (innerWidth > 0 && innerHeight > 0)
+    {
+        _tft.drawRoundRect(innerLeft, innerTop, innerWidth, innerHeight, innerRadius, _logoFrameInnerColour);
+
+        const int32_t innerBottomY = innerTop + innerHeight - 1;
+        const int32_t innerBottomX = innerLeft + innerRadius;
+        const int32_t innerBottomWidth = innerWidth - (innerRadius * 2);
+        if (innerBottomWidth > 0)
+        {
+            _tft.drawFastHLine(innerBottomX, innerBottomY, innerBottomWidth, _logoFrameInnerColour);
+        }
+    }
+}
+
 void ScreenUi::drawLogo(const GFXfont* titleFont, uint8_t titleScale, const char* title, const GFXfont* subtitleFont,
                         uint8_t subtitleScale, const char* subtitle)
 {
@@ -182,20 +234,42 @@ void ScreenUi::drawStatusIndicator(int32_t circleX, int32_t circleY, int32_t rad
 
 void ScreenUi::drawSdStatusInitializing()
 {
+    _sdStatusState = SdStatusState::Initializing;
     drawStatusIndicator(_sdStatusCircleX, _sdStatusCircleY, _sdStatusRadius, "SD init...", _sdStatusTextX,
                         _sdStatusTextY, TFT_YELLOW);
 }
 
 void ScreenUi::drawSdStatusFailed()
 {
+    _sdStatusState = SdStatusState::Failed;
     drawStatusIndicator(_sdStatusCircleX, _sdStatusCircleY, _sdStatusRadius, "SD failed", _sdStatusTextX,
                         _sdStatusTextY, TFT_RED);
 }
 
 void ScreenUi::drawSdStatusReady()
 {
+    _sdStatusState = SdStatusState::Ready;
     drawStatusIndicator(_sdStatusCircleX, _sdStatusCircleY, _sdStatusRadius, "SD ready", _sdStatusTextX, _sdStatusTextY,
                         TFT_GREEN);
+}
+
+void ScreenUi::redrawSdStatus()
+{
+    switch (_sdStatusState)
+    {
+    case SdStatusState::Initializing:
+        drawSdStatusInitializing();
+        break;
+    case SdStatusState::Failed:
+        drawSdStatusFailed();
+        break;
+    case SdStatusState::Ready:
+        drawSdStatusReady();
+        break;
+    case SdStatusState::None:
+    default:
+        break;
+    }
 }
 
 int32_t ScreenUi::boxWidth() const { return _boxWidth; }

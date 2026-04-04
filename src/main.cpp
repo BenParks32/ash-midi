@@ -40,9 +40,7 @@ RotaryEncoder encoder(ENCODER_PIN_A, ENCODER_PIN_B);
 RingManager ringManager(strip);
 
 const GFXfont* DefaultUiFont = FF22;
-const GFXfont* LogoUiFont = FF32;
 const uint8_t DefaultUiScale = 1;
-const uint8_t LogoUiScale = 1;
 
 Resources resources(SD_CS);
 IMode* activeMode = nullptr;
@@ -98,7 +96,6 @@ void setup()
     ringManager.begin();
 
     screenUi.drawBackgroundAndBorder();
-    screenUi.drawLogo(LogoUiFont, LogoUiScale, "ASH", DefaultUiFont, DefaultUiScale, "guitars");
     screenUi.setTouchButtonLabelStyle(DefaultUiFont, DefaultUiScale);
 
     touchButtonManager.initialize();

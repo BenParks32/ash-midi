@@ -3,6 +3,12 @@
 const uint8_t STOMP_PATCH_AMP = 0;
 const uint8_t STOMP_PATCH_AMPLESS = 6;
 const uint8_t STOMP_PATCH_CODERED = 20;
+const GFXfont* HomeLogoTitleFont = FF32;
+const GFXfont* HomeLogoSubtitleFont = FF22;
+const uint8_t HomeLogoTitleScale = 1;
+const uint8_t HomeLogoSubtitleScale = 1;
+const char* HomeLogoTitleText = "ASH";
+const char* HomeLogoSubtitleText = "guitars";
 
 HomeMode::HomeMode(TouchButtonManager& touchButtonManager, RingManager& ringManager, ScreenUi& screenUi,
                    IMidiManager& midiManager, IModeTransistionDelegate& transitionDelegate)
@@ -30,7 +36,14 @@ void HomeMode::setupFunctions()
     _functions[7] = Function();
 }
 
-void HomeMode::activate() { renderAllButtons(); }
+void HomeMode::activate()
+{
+    _screenUi.clearCenterSection();
+    _screenUi.drawLogo(HomeLogoTitleFont, HomeLogoTitleScale, HomeLogoTitleText, HomeLogoSubtitleFont,
+                       HomeLogoSubtitleScale, HomeLogoSubtitleText);
+    _screenUi.redrawSdStatus();
+    renderAllButtons();
+}
 
 void HomeMode::buttonPressed(byte number)
 {

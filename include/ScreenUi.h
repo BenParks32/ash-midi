@@ -25,6 +25,8 @@ class ScreenUi : public ITouchButtonLayout
 
   public:
     void drawBackgroundAndBorder();
+    void clearCenterSection();
+    void drawCenteredFrame(int32_t centerX, int32_t topY, int32_t width, int32_t height, int32_t radius);
     void drawLogo(const GFXfont* titleFont, uint8_t titleScale, const char* title, const GFXfont* subtitleFont,
                   uint8_t subtitleScale, const char* subtitle);
 
@@ -46,12 +48,13 @@ class ScreenUi : public ITouchButtonLayout
                                      uint16_t selectedBorderColour = TFT_WHITE,
                                      uint16_t textColour = TFT_WHITE) override;
     void drawTouchButtonPill(const Point& areaLocation, const Size& areaSize, uint16_t pillColour,
-                 uint16_t pillBorderColour = TFT_WHITE) override;
+                             uint16_t pillBorderColour = TFT_WHITE) override;
     void drawStatusIndicator(int32_t circleX, int32_t circleY, int32_t radius, const char* label, int32_t textX,
                              int32_t textY, uint16_t colour);
     void drawSdStatusInitializing();
     void drawSdStatusFailed();
     void drawSdStatusReady();
+    void redrawSdStatus();
 
     int32_t boxWidth() const override;
     int32_t boxHeight() const;
@@ -62,6 +65,15 @@ class ScreenUi : public ITouchButtonLayout
     void fillScreenFast(uint16_t color);
     void drawBorder();
     void drawLogoFrame();
+
+  private:
+    enum class SdStatusState : uint8_t
+    {
+        None,
+        Initializing,
+        Failed,
+        Ready,
+    };
 
   private:
     TFT_eSPI& _tft;
@@ -97,4 +109,5 @@ class ScreenUi : public ITouchButtonLayout
 
     const GFXfont* _touchButtonLabelFont = nullptr;
     uint8_t _touchButtonLabelScale = 1;
+    SdStatusState _sdStatusState = SdStatusState::None;
 };

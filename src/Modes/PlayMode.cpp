@@ -50,6 +50,8 @@ void PlayMode::setupFunctions()
 
 void PlayMode::activate()
 {
+    _screenUi.clearCenterSection();
+
     if (_hasSelectedHomeProgramChange)
     {
         _midiManager.sendProgramChange(_selectedHomeProgramChange);

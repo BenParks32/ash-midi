@@ -2,6 +2,8 @@
 
 #include "ColorUtils.h"
 
+#include <cstdio>
+
 namespace
 {
 const byte PatchMin = 0;
@@ -10,6 +12,14 @@ const byte PatchDownAction = 0;
 const byte PatchUpAction = 1;
 const byte PlayButtonIndex = 6;
 const uint32_t PlayButtonFlashHalfPeriodMs = 500;
+const char* PatchSelectorTitle = "Select Patch";
+const uint8_t PatchSelectorTitleScale = 1;
+const uint8_t PatchNumberScale = 2;
+const int32_t PatchNumberFrameWidth = 196;
+const int32_t PatchNumberFrameHeight = 110;
+const int32_t PatchNumberFrameRadius = 16;
+const int32_t PatchNumberTextOffsetFromFrameTop = 16;
+const int32_t PatchTitleBorderOffset = 12;
 } // namespace
 
 PatchMode::PatchMode(TouchButtonManager& touchButtonManager, RingManager& ringManager, ScreenUi& screenUi,
@@ -39,6 +49,7 @@ void PatchMode::activate()
     _isPlayButtonLit = true;
     _nextPlayFlashToggleMs = millis() + PlayButtonFlashHalfPeriodMs;
     renderAllButtons();
+    renderPatchSelector();
 }
 
 void PatchMode::buttonPressed(byte number)
@@ -120,6 +131,51 @@ void PatchMode::renderPlayButton()
     _screenUi.drawTouchButtonPill(button->getLocation(), button->getSize(), pillColour);
 }
 
+void PatchMode::renderPatchSelector()
+{
+    _screenUi.clearCenterSection();
+
+    const int32_t centerX = _screenUi.boxWidth() * 2;
+    const int32_t frameTopY = patchFrameTopY();
+    const int32_t titleY = frameTopY - PatchTitleBorderOffset;
+
+    _screenUi.drawCenteredFrame(centerX, frameTopY, PatchNumberFrameWidth, PatchNumberFrameHeight,
+                                PatchNumberFrameRadius);
+
+    _screenUi.drawCenteredText(FF22, PatchSelectorTitleScale, PatchSelectorTitle, centerX, titleY, TFT_WHITE,
+                               TFT_BLACK);
+    renderPatchNumber(_currentPatch, TFT_WHITE);
+}
+
+void PatchMode::renderPatchNumber(byte patchNumber, uint16_t textColour)
+{
+    const int32_t centerX = _screenUi.boxWidth() * 2;
+
+    char patchLabel[3] = {'0', '0', '\0'};
+    formatPatchLabel(patchNumber, patchLabel, sizeof(patchLabel));
+    _screenUi.drawCenteredText(FF32, PatchNumberScale, patchLabel, centerX, patchNumberY(), textColour, TFT_BLACK);
+}
+
+int32_t PatchMode::patchFrameTopY() const
+{
+    const int32_t centerTopY = _screenUi.boxHeight();
+    const int32_t centerBottomY = _screenUi.bottomRowY();
+    const int32_t centerHeight = centerBottomY - centerTopY;
+    return centerTopY + ((centerHeight - PatchNumberFrameHeight) / 2);
+}
+
+int32_t PatchMode::patchNumberY() const { return patchFrameTopY() + PatchNumberTextOffsetFromFrameTop; }
+
+void PatchMode::formatPatchLabel(byte patchNumber, char* buffer, size_t bufferSize)
+{
+    if (buffer == nullptr || bufferSize == 0)
+    {
+        return;
+    }
+
+    std::snprintf(buffer, bufferSize, "%02u", static_cast<unsigned int>(patchNumber));
+}
+
 void PatchMode::setTransitionValue(byte transitionValue)
 {
     if (transitionValue == ModeTransitionNone)
@@ -173,6 +229,8 @@ void PatchMode::executeAction(ActionType action, byte actionValue)
 
 void PatchMode::changePatch(int8_t delta)
 {
+    const byte previousPatch = _currentPatch;
+
     if (delta > 0)
     {
         _currentPatch = (_currentPatch >= PatchMax) ? PatchMin : static_cast<byte>(_currentPatch + 1);
@@ -182,5 +240,13 @@ void PatchMode::changePatch(int8_t delta)
         _currentPatch = (_currentPatch <= PatchMin) ? PatchMax : static_cast<byte>(_currentPatch - 1);
     }
 
+    if (_currentPatch == previousPatch)
+    {
+        return;
+    }
+
+    renderPatchNumber(previousPatch, TFT_BLACK);
+
     _midiManager.sendProgramChange(_currentPatch);
+    renderPatchNumber(_currentPatch, TFT_WHITE);
 }
