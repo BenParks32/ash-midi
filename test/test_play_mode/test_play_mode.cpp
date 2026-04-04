@@ -86,8 +86,9 @@ void test_activate_sets_play_labels()
     TEST_ASSERT_EQUAL_STRING("Crunch", fixture.touchButtonManager.getButton(1)->label());
     TEST_ASSERT_EQUAL_STRING("Lead", fixture.touchButtonManager.getButton(2)->label());
     TEST_ASSERT_EQUAL_STRING(" ", fixture.touchButtonManager.getButton(3)->label());
-    TEST_ASSERT_EQUAL_STRING("Home", fixture.touchButtonManager.getButton(4)->label());
-    TEST_ASSERT_EQUAL_STRING("Patch", fixture.touchButtonManager.getButton(6)->label());
+    TEST_ASSERT_EQUAL_STRING("Patch", fixture.touchButtonManager.getButton(4)->label());
+    TEST_ASSERT_EQUAL_STRING(" ", fixture.touchButtonManager.getButton(6)->label());
+    TEST_ASSERT_EQUAL_STRING(" ", fixture.touchButtonManager.getButton(7)->label());
 }
 
 void test_activate_selects_single_button_and_dims_others()
@@ -100,13 +101,15 @@ void test_activate_selects_single_button_and_dims_others()
     TEST_ASSERT_FALSE(fixture.touchButtonManager.getButton(1)->hasBorder());
     TEST_ASSERT_FALSE(fixture.touchButtonManager.getButton(2)->hasBorder());
     TEST_ASSERT_TRUE(fixture.touchButtonManager.getButton(4)->hasBorder());
-    TEST_ASSERT_TRUE(fixture.touchButtonManager.getButton(6)->hasBorder());
+    TEST_ASSERT_FALSE(fixture.touchButtonManager.getButton(6)->hasBorder());
+    TEST_ASSERT_FALSE(fixture.touchButtonManager.getButton(7)->hasBorder());
 
     TEST_ASSERT_NOT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(0)->pillColour());
     TEST_ASSERT_NOT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(1)->pillColour());
     TEST_ASSERT_NOT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(2)->pillColour());
     TEST_ASSERT_NOT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(4)->pillColour());
-    TEST_ASSERT_NOT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(6)->pillColour());
+    TEST_ASSERT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(6)->pillColour());
+    TEST_ASSERT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(7)->pillColour());
 }
 
 void test_activate_sends_selected_home_program_change()
@@ -198,7 +201,8 @@ void test_button_press_changes_selection_to_single_button()
     TEST_ASSERT_FALSE(fixture.touchButtonManager.getButton(1)->hasBorder());
     TEST_ASSERT_TRUE(fixture.touchButtonManager.getButton(2)->hasBorder());
     TEST_ASSERT_TRUE(fixture.touchButtonManager.getButton(4)->hasBorder());
-    TEST_ASSERT_TRUE(fixture.touchButtonManager.getButton(6)->hasBorder());
+    TEST_ASSERT_FALSE(fixture.touchButtonManager.getButton(6)->hasBorder());
+    TEST_ASSERT_FALSE(fixture.touchButtonManager.getButton(7)->hasBorder());
 }
 
 void test_button_pressed_ignores_disabled_button()
@@ -206,7 +210,7 @@ void test_button_pressed_ignores_disabled_button()
     PlayModeFixture fixture;
 
     fixture.mode.activate();
-    fixture.mode.buttonPressed(7);
+    fixture.mode.buttonPressed(5);
 
     TEST_ASSERT_EQUAL_INT(0, fixture.midiManager.controlChangeCalls);
 }
@@ -221,26 +225,24 @@ void test_long_press_is_noop()
     TEST_ASSERT_EQUAL_INT(0, fixture.midiManager.controlChangeCalls);
 }
 
-void test_button_five_transitions_back_to_home_mode()
+void test_button_eight_is_disabled_in_play_mode()
 {
     PlayModeFixture fixture;
 
     fixture.mode.activate();
-    fixture.mode.buttonPressed(4);
+    fixture.mode.buttonPressed(7);
 
-    TEST_ASSERT_EQUAL_INT(1, fixture.transitionDelegate.calls);
-    TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(Modes::Home),
-                            static_cast<uint8_t>(fixture.transitionDelegate.lastMode));
-    TEST_ASSERT_EQUAL_UINT8(ModeTransitionNone, fixture.transitionDelegate.lastTransitionValue);
+    TEST_ASSERT_EQUAL_INT(0, fixture.transitionDelegate.calls);
+    TEST_ASSERT_EQUAL_INT(0, fixture.midiManager.controlChangeCalls);
 }
 
-void test_button_seven_transitions_to_patch_mode()
+void test_button_five_transitions_to_patch_mode()
 {
     PlayModeFixture fixture;
 
     fixture.mode.setSelectedHomeProgramChange(6);
     fixture.mode.activate();
-    fixture.mode.buttonPressed(6);
+    fixture.mode.buttonPressed(4);
 
     TEST_ASSERT_EQUAL_INT(1, fixture.transitionDelegate.calls);
     TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(Modes::Patch),
@@ -248,13 +250,13 @@ void test_button_seven_transitions_to_patch_mode()
     TEST_ASSERT_EQUAL_UINT8(6, fixture.transitionDelegate.lastTransitionValue);
 }
 
-void test_button_seven_uses_patch_return_value_for_next_patch_entry()
+void test_button_five_uses_patch_return_value_for_next_patch_entry()
 {
     PlayModeFixture fixture;
 
     fixture.mode.setTransitionValue(static_cast<byte>(ModeTransitionPatchReturnFlag | 11));
     fixture.mode.activate();
-    fixture.mode.buttonPressed(6);
+    fixture.mode.buttonPressed(4);
 
     TEST_ASSERT_EQUAL_INT(1, fixture.transitionDelegate.calls);
     TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(Modes::Patch),
@@ -289,9 +291,9 @@ void setup()
     RUN_TEST(test_button_press_changes_selection_to_single_button);
     RUN_TEST(test_button_pressed_ignores_disabled_button);
     RUN_TEST(test_long_press_is_noop);
-    RUN_TEST(test_button_five_transitions_back_to_home_mode);
-    RUN_TEST(test_button_seven_transitions_to_patch_mode);
-    RUN_TEST(test_button_seven_uses_patch_return_value_for_next_patch_entry);
+    RUN_TEST(test_button_eight_is_disabled_in_play_mode);
+    RUN_TEST(test_button_five_transitions_to_patch_mode);
+    RUN_TEST(test_button_five_uses_patch_return_value_for_next_patch_entry);
     UNITY_END();
 }
 

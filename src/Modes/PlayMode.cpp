@@ -42,10 +42,9 @@ void PlayMode::setupFunctions()
 
     _functions[3] = Function();
     _functions[4] =
-        Function("Home", 0xFFFF, ActionType::ChangeMode, static_cast<byte>(Modes::Home), ActionType::None, 0);
-    _functions[5] = Function();
-    _functions[6] =
         Function("Patch", 0xFFE0, ActionType::ChangeMode, static_cast<byte>(Modes::Patch), ActionType::None, 0);
+    _functions[5] = Function();
+    _functions[6] = Function();
     _functions[7] = Function();
 }
 
@@ -125,13 +124,12 @@ void PlayMode::updateSnapshotSelectionVisuals(byte previousSelected, byte curren
 uint8_t PlayMode::ringBrightnessForButton(byte number) const
 {
     // Snapshot buttons (0-2) are mutually exclusive: selected is bright, others are dim.
-    // Navigation buttons (Home/Patch) are always bright when enabled.
+    // Patch navigation button is always bright when enabled.
     static constexpr byte kFirstPlayButton = 0;
     static constexpr byte kLastPlayButton = 2;
-    static constexpr byte kHomeButton = 4;
-    static constexpr byte kPatchButton = 6;
+    static constexpr byte kPatchButton = 4;
 
-    if (number == kHomeButton || number == kPatchButton)
+    if (number == kPatchButton)
     {
         return RingManager::FullBrightness;
     }
