@@ -2,6 +2,30 @@
 #include "ColorUtils.h"
 #include "HxStompMidi.h"
 
+#include <cctype>
+#include <cstdio>
+
+namespace
+{
+const char* PlayPatchBadgeTitle = "Patch";
+const uint8_t PlayPatchBadgeTitleScale = 1;
+const uint8_t PlayPatchBadgeNumberScale = 1;
+const uint8_t PlaySnapshotLabelScale = 3;
+
+const int32_t PlayPatchBadgeFrameWidth = 118;
+const int32_t PlayPatchBadgeFrameHeight = 72;
+const int32_t PlayPatchBadgeFrameRadius = 12;
+const int32_t PlayPatchBadgeRightMargin = 10;
+const int32_t PlayPatchBadgeTopOffset = 15;
+const int32_t PlayPatchBadgeTitleBorderOffset = 5;
+const int32_t PlayPatchBadgeNumberOffset = 22;
+
+const int32_t PlaySnapshotLabelOffsetY = 72;
+const int32_t PlaySnapshotLabelLeftX = 40;
+const byte FirstSnapshotButtonIndex = 0;
+const byte LastSnapshotButtonIndex = 2;
+} // namespace
+
 PlayMode::PlayMode(TouchButtonManager& touchButtonManager, RingManager& ringManager, ScreenUi& screenUi,
                    IMidiManager& midiManager, IModeTransistionDelegate& transitionDelegate)
     : FunctionModeBase(touchButtonManager, ringManager, screenUi, midiManager, transitionDelegate),
@@ -50,8 +74,6 @@ void PlayMode::setupFunctions()
 
 void PlayMode::activate()
 {
-    _screenUi.clearCenterSection();
-
     if (_hasSelectedHomeProgramChange)
     {
         _midiManager.sendProgramChange(_selectedHomeProgramChange);
@@ -63,7 +85,95 @@ void PlayMode::activate()
     }
 
     updateVisuals();
+    renderPlayCenterUi();
 }
+
+void PlayMode::renderPlayCenterUi()
+{
+    _screenUi.clearCenterSection();
+    renderPatchBadge();
+    renderSnapshotLabel(_selectedButton, TFT_WHITE);
+}
+
+void PlayMode::renderPatchBadge()
+{
+    const int32_t frameCenterX = patchBadgeFrameCenterX();
+    const int32_t frameTopY = patchBadgeFrameTopY();
+    const int32_t titleY = frameTopY - PlayPatchBadgeTitleBorderOffset;
+
+    _screenUi.drawCenteredFrame(frameCenterX, frameTopY, PlayPatchBadgeFrameWidth, PlayPatchBadgeFrameHeight,
+                                PlayPatchBadgeFrameRadius);
+    _screenUi.drawCenteredText(FF22, PlayPatchBadgeTitleScale, PlayPatchBadgeTitle, frameCenterX, titleY, TFT_WHITE,
+                               TFT_BLACK);
+    renderPatchBadgeNumber(_selectedHomeProgramChange, TFT_WHITE);
+}
+
+void PlayMode::renderPatchBadgeNumber(byte patchNumber, uint16_t textColour)
+{
+    const int32_t frameCenterX = patchBadgeFrameCenterX();
+    const int32_t numberY = patchBadgeFrameTopY() + PlayPatchBadgeNumberOffset;
+
+    char patchLabel[3] = {'0', '0', '\0'};
+    formatPatchNumberLabel(patchNumber, patchLabel, sizeof(patchLabel));
+    _screenUi.drawCenteredText(FF32, PlayPatchBadgeNumberScale, patchLabel, frameCenterX, numberY, textColour,
+                               TFT_BLACK);
+}
+
+void PlayMode::renderSnapshotLabel(byte snapshotButton, uint16_t textColour)
+{
+    if (snapshotButton < FirstSnapshotButtonIndex || snapshotButton > LastSnapshotButtonIndex)
+    {
+        return;
+    }
+
+    char snapshotLabel[16] = {'\0'};
+    formatSnapshotLabelUppercase(snapshotButton, snapshotLabel, sizeof(snapshotLabel));
+
+    const int32_t labelY = _screenUi.boxHeight() + PlaySnapshotLabelOffsetY;
+    _screenUi.drawText(FF22, PlaySnapshotLabelScale, snapshotLabel, PlaySnapshotLabelLeftX, labelY, textColour,
+                       TFT_BLACK);
+}
+
+void PlayMode::formatPatchNumberLabel(byte patchNumber, char* buffer, size_t bufferSize)
+{
+    if (buffer == nullptr || bufferSize == 0)
+    {
+        return;
+    }
+
+    std::snprintf(buffer, bufferSize, "%02u", static_cast<unsigned int>(patchNumber));
+}
+
+void PlayMode::formatSnapshotLabelUppercase(byte snapshotButton, char* buffer, size_t bufferSize) const
+{
+    if (buffer == nullptr || bufferSize == 0)
+    {
+        return;
+    }
+
+    const char* source = getFunction(snapshotButton).label();
+    if (source == nullptr)
+    {
+        buffer[0] = '\0';
+        return;
+    }
+
+    size_t out = 0;
+    while (source[out] != '\0' && (out + 1) < bufferSize)
+    {
+        buffer[out] = static_cast<char>(std::toupper(static_cast<unsigned char>(source[out])));
+        ++out;
+    }
+    buffer[out] = '\0';
+}
+
+int32_t PlayMode::patchBadgeFrameCenterX() const
+{
+    const int32_t screenWidth = _screenUi.boxWidth() * 4;
+    return screenWidth - PlayPatchBadgeRightMargin - (PlayPatchBadgeFrameWidth / 2);
+}
+
+int32_t PlayMode::patchBadgeFrameTopY() const { return _screenUi.boxHeight() + PlayPatchBadgeTopOffset; }
 
 void PlayMode::updateVisuals() { renderAllButtons(); }
 
@@ -108,18 +218,20 @@ void PlayMode::renderButton(byte number)
 
 void PlayMode::updateSnapshotSelectionVisuals(byte previousSelected, byte currentSelected)
 {
-    static constexpr byte kFirstPlayButton = 0;
-    static constexpr byte kLastPlayButton = 2;
-
-    if (previousSelected >= kFirstPlayButton && previousSelected <= kLastPlayButton)
+    if (previousSelected >= FirstSnapshotButtonIndex && previousSelected <= LastSnapshotButtonIndex)
     {
         renderButton(previousSelected);
+        if (previousSelected != currentSelected)
+        {
+            renderSnapshotLabel(previousSelected, TFT_BLACK);
+        }
     }
 
-    if (currentSelected != previousSelected && currentSelected >= kFirstPlayButton &&
-        currentSelected <= kLastPlayButton)
+    if (currentSelected != previousSelected && currentSelected >= FirstSnapshotButtonIndex &&
+        currentSelected <= LastSnapshotButtonIndex)
     {
         renderButton(currentSelected);
+        renderSnapshotLabel(currentSelected, TFT_WHITE);
     }
 }
 
@@ -127,8 +239,6 @@ uint8_t PlayMode::ringBrightnessForButton(byte number) const
 {
     // Snapshot buttons (0-2) are mutually exclusive: selected is bright, others are dim.
     // Patch navigation button is always bright when enabled.
-    static constexpr byte kFirstPlayButton = 0;
-    static constexpr byte kLastPlayButton = 2;
     static constexpr byte kPatchButton = 4;
 
     if (number == kPatchButton)
@@ -136,7 +246,7 @@ uint8_t PlayMode::ringBrightnessForButton(byte number) const
         return RingManager::FullBrightness;
     }
 
-    const bool isPlayFunctionButton = (number >= kFirstPlayButton && number <= kLastPlayButton);
+    const bool isPlayFunctionButton = (number >= FirstSnapshotButtonIndex && number <= LastSnapshotButtonIndex);
     return (isPlayFunctionButton && number == _selectedButton) ? RingManager::FullBrightness
                                                                : RingManager::DimBrightness;
 }

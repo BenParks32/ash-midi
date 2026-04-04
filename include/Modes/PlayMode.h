@@ -18,6 +18,14 @@ class PlayMode : public FunctionModeBase
 
   private:
     void executeAction(ActionType action, byte actionValue);
+    void renderPlayCenterUi();
+    void renderPatchBadge();
+    void renderPatchBadgeNumber(byte patchNumber, uint16_t textColour);
+    void renderSnapshotLabel(byte snapshotButton, uint16_t textColour);
+    static void formatPatchNumberLabel(byte patchNumber, char* buffer, size_t bufferSize);
+    void formatSnapshotLabelUppercase(byte snapshotButton, char* buffer, size_t bufferSize) const;
+    int32_t patchBadgeFrameCenterX() const;
+    int32_t patchBadgeFrameTopY() const;
     void renderButton(byte number);
     void updateSnapshotSelectionVisuals(byte previousSelected, byte currentSelected);
     void updateVisuals();

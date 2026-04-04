@@ -42,8 +42,8 @@ void ScreenUi::drawCenteredFrame(int32_t centerX, int32_t topY, int32_t width, i
     _tft.drawRoundRect(left, topY, width, height, radius, _logoFrameOuterColour);
 
     const int32_t outerBottomY = topY + height - 1;
-    const int32_t outerBottomX = left + radius;
-    const int32_t outerBottomWidth = width - (radius * 2);
+    const int32_t outerBottomX = left + radius - 1;
+    const int32_t outerBottomWidth = width - (radius * 2) + 2;
     if (outerBottomWidth > 0)
     {
         _tft.drawFastHLine(outerBottomX, outerBottomY, outerBottomWidth, _logoFrameOuterColour);
@@ -59,8 +59,8 @@ void ScreenUi::drawCenteredFrame(int32_t centerX, int32_t topY, int32_t width, i
         _tft.drawRoundRect(innerLeft, innerTop, innerWidth, innerHeight, innerRadius, _logoFrameInnerColour);
 
         const int32_t innerBottomY = innerTop + innerHeight - 1;
-        const int32_t innerBottomX = innerLeft + innerRadius;
-        const int32_t innerBottomWidth = innerWidth - (innerRadius * 2);
+        const int32_t innerBottomX = innerLeft + innerRadius - 1;
+        const int32_t innerBottomWidth = innerWidth - (innerRadius * 2) + 2;
         if (innerBottomWidth > 0)
         {
             _tft.drawFastHLine(innerBottomX, innerBottomY, innerBottomWidth, _logoFrameInnerColour);
