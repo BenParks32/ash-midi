@@ -110,12 +110,16 @@ void test_activate_sets_home_labels_and_ring_matched_visuals()
     TEST_ASSERT_EQUAL_STRING("Ampless", fixture.touchButtonManager.getButton(1)->label());
     TEST_ASSERT_EQUAL_STRING("CodeRed", fixture.touchButtonManager.getButton(2)->label());
     TEST_ASSERT_EQUAL_STRING(" ", fixture.touchButtonManager.getButton(3)->label());
-    TEST_ASSERT_EQUAL_STRING(" ", fixture.touchButtonManager.getButton(4)->label());
+    TEST_ASSERT_EQUAL_STRING("Play", fixture.touchButtonManager.getButton(4)->label());
+    TEST_ASSERT_EQUAL_STRING("Patch", fixture.touchButtonManager.getButton(5)->label());
+    TEST_ASSERT_EQUAL_STRING(" ", fixture.touchButtonManager.getButton(6)->label());
     TEST_ASSERT_EQUAL_STRING("Menu", fixture.touchButtonManager.getButton(7)->label());
     TEST_ASSERT_NOT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(0)->pillColour());
+    TEST_ASSERT_NOT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(4)->pillColour());
+    TEST_ASSERT_NOT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(5)->pillColour());
     TEST_ASSERT_NOT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(7)->pillColour());
     TEST_ASSERT_NOT_EQUAL_UINT32(0, fixture.strip.getPixelColor(RingManager::LedsPerRing * 0));
-    TEST_ASSERT_EQUAL_UINT32(0, fixture.strip.getPixelColor(RingManager::LedsPerRing * 5));
+    TEST_ASSERT_EQUAL_UINT32(0, fixture.strip.getPixelColor(RingManager::LedsPerRing * 6));
 }
 
 void test_button_pressed_selects_requested_button_when_valid()
@@ -169,11 +173,35 @@ void test_button_eight_transitions_to_menu_mode()
     TEST_ASSERT_EQUAL_UINT8(ModeTransitionNone, fixture.transitionDelegate.lastTransitionValue);
 }
 
-void test_button_pressed_ignores_disabled_button()
+void test_button_five_transitions_to_play_mode_with_patch_zero()
+{
+    HomeModeFixture fixture;
+
+    fixture.mode.buttonPressed(4);
+
+    TEST_ASSERT_EQUAL_INT(1, fixture.transitionDelegate.calls);
+    TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(Modes::Play),
+                            static_cast<uint8_t>(fixture.transitionDelegate.lastMode));
+    TEST_ASSERT_EQUAL_UINT8(0, fixture.transitionDelegate.lastTransitionValue);
+}
+
+void test_button_six_transitions_to_patch_mode_with_no_transition_override()
 {
     HomeModeFixture fixture;
 
     fixture.mode.buttonPressed(5);
+
+    TEST_ASSERT_EQUAL_INT(1, fixture.transitionDelegate.calls);
+    TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(Modes::Patch),
+                            static_cast<uint8_t>(fixture.transitionDelegate.lastMode));
+    TEST_ASSERT_EQUAL_UINT8(ModeTransitionNone, fixture.transitionDelegate.lastTransitionValue);
+}
+
+void test_button_pressed_ignores_disabled_button()
+{
+    HomeModeFixture fixture;
+
+    fixture.mode.buttonPressed(6);
 
     TEST_ASSERT_EQUAL_INT(0, fixture.transitionDelegate.calls);
 }
@@ -245,6 +273,35 @@ void test_button_press_transitions_via_mode_manager_to_play_slot()
     TEST_ASSERT_EQUAL_INT(1, playSlot.activateCalls);
     TEST_ASSERT_EQUAL_INT(0, midiManager.programChangeCalls);
 }
+
+void test_button_six_transitions_via_mode_manager_to_patch_slot()
+{
+    const Size screenSize = {480, 320};
+    TFT_eSPI tft;
+    ScreenUi ui(tft, screenSize);
+    Adafruit_NeoPixel strip(RingManager::LedCount, 0, NEO_GRB + NEO_KHZ800);
+    RingManager ringManager(strip);
+    TouchButtonManager touchButtonManager(ui);
+    MockMidiManager midiManager;
+
+    TestModeSlot homeSlot;
+    TestModeSlot playSlot;
+    TestModeSlot patchSlot;
+
+    IMode* activeMode = &homeSlot;
+    IMode* menuSlot = nullptr;
+    IMode* modes[ModeCount] = {&homeSlot, &playSlot, &patchSlot, menuSlot};
+    ModeManager modeManager(activeMode, modes);
+    HomeMode mode(touchButtonManager, ringManager, ui, midiManager, modeManager);
+
+    mode.buttonPressed(5);
+
+    TEST_ASSERT_EQUAL_PTR(&patchSlot, activeMode);
+    TEST_ASSERT_EQUAL_INT(1, patchSlot.setTransitionValueCalls);
+    TEST_ASSERT_EQUAL_UINT8(ModeTransitionNone, patchSlot.lastTransitionValue);
+    TEST_ASSERT_EQUAL_INT(1, patchSlot.activateCalls);
+    TEST_ASSERT_EQUAL_INT(0, midiManager.programChangeCalls);
+}
 } // namespace
 
 void setUp() {}
@@ -266,12 +323,15 @@ void setup()
     RUN_TEST(test_button_pressed_selects_amp_home_program_for_play_mode);
     RUN_TEST(test_button_pressed_selects_code_red_home_program_for_play_mode);
     RUN_TEST(test_button_eight_transitions_to_menu_mode);
+    RUN_TEST(test_button_five_transitions_to_play_mode_with_patch_zero);
+    RUN_TEST(test_button_six_transitions_to_patch_mode_with_no_transition_override);
     RUN_TEST(test_button_pressed_ignores_disabled_button);
     RUN_TEST(test_button_pressed_ignores_out_of_range_button);
     RUN_TEST(test_button_long_pressed_ignores_out_of_range_button);
     RUN_TEST(test_button_long_pressed_on_enabled_home_button_is_noop);
     RUN_TEST(test_frame_tick_noop);
     RUN_TEST(test_button_press_transitions_via_mode_manager_to_play_slot);
+    RUN_TEST(test_button_six_transitions_via_mode_manager_to_patch_slot);
     UNITY_END();
 }
 

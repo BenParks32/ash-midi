@@ -4,6 +4,8 @@ const uint8_t STOMP_PATCH_AMP = 0;
 const uint8_t STOMP_PATCH_AMPLESS = 6;
 const uint8_t STOMP_PATCH_CODERED = 20;
 const uint8_t HOME_MENU_MODE_VALUE = static_cast<uint8_t>(Modes::Menu);
+const uint8_t HOME_PATCH_MODE_VALUE = 0xFE;
+const uint8_t HOME_PLAY_PATCH_DEFAULT = 0;
 const GFXfont* HomeLogoTitleFont = FF32;
 const GFXfont* HomeLogoSubtitleFont = FF22;
 const uint8_t HomeLogoTitleScale = 1;
@@ -29,10 +31,16 @@ void HomeMode::setupFunctions()
     // Button 2: CodeRed (Red) -> enter Play and select Home Program 20
     _functions[2] = Function("CodeRed", 0xF800, ActionType::ChangeMode, STOMP_PATCH_CODERED, ActionType::None, 0);
 
-    // Buttons 3-6: Disabled slots use Function default constructor values.
+    // Button 3: Disabled slot uses Function default constructor values.
     _functions[3] = Function();
-    _functions[4] = Function();
-    _functions[5] = Function();
+
+    // Button 4: Play -> enter Play and select patch 0
+    _functions[4] = Function("Play", 0x07E0, ActionType::ChangeMode, HOME_PLAY_PATCH_DEFAULT, ActionType::None, 0);
+
+    // Button 5: Patch -> enter Patch mode on the most recent patch
+    _functions[5] = Function("Patch", 0xFFE0, ActionType::ChangeMode, HOME_PATCH_MODE_VALUE, ActionType::None, 0);
+
+    // Button 6: Disabled slot uses Function default constructor values.
     _functions[6] = Function();
 
     // Button 7: Menu (White) -> enter Menu mode
@@ -129,6 +137,11 @@ void HomeMode::executeAction(ActionType action, byte actionValue)
         if (actionValue == HOME_MENU_MODE_VALUE)
         {
             _transitionDelegate.enterMode(Modes::Menu, ModeTransitionNone);
+        }
+        else if (actionValue == HOME_PATCH_MODE_VALUE)
+        {
+            // Keep Patch mode's current selection. On startup this defaults to patch 0.
+            _transitionDelegate.enterMode(Modes::Patch, ModeTransitionNone);
         }
         else
         {
