@@ -1,6 +1,7 @@
 #pragma once
+
+#include "Touch/TouchButton.h"
 #include "Touch/TouchButtonUi.h"
-#include "TouchButton.h"
 
 class TouchButtonManager : public ITouchButtonDelegate
 {

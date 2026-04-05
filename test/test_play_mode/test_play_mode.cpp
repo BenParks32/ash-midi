@@ -12,8 +12,8 @@
 #include "../../src/Modes/PlayMode.cpp"
 #include "../../src/RingManager.cpp"
 #include "../../src/ScreenUi.cpp"
-#include "../../src/TouchButton.cpp"
-#include "../../src/TouchButtonManager.cpp"
+#include "../../src/Touch/TouchButton.cpp"
+#include "../../src/Touch/TouchButtonManager.cpp"
 
 namespace
 {
@@ -104,7 +104,7 @@ void test_activate_selects_single_button_and_dims_others()
     TEST_ASSERT_TRUE(fixture.touchButtonManager.getButton(0)->hasBorder());
     TEST_ASSERT_FALSE(fixture.touchButtonManager.getButton(1)->hasBorder());
     TEST_ASSERT_FALSE(fixture.touchButtonManager.getButton(2)->hasBorder());
-    TEST_ASSERT_TRUE(fixture.touchButtonManager.getButton(4)->hasBorder());
+    TEST_ASSERT_FALSE(fixture.touchButtonManager.getButton(4)->hasBorder());
     TEST_ASSERT_FALSE(fixture.touchButtonManager.getButton(6)->hasBorder());
     TEST_ASSERT_FALSE(fixture.touchButtonManager.getButton(7)->hasBorder());
 
@@ -215,7 +215,7 @@ void test_button_press_changes_selection_to_single_button()
     TEST_ASSERT_FALSE(fixture.touchButtonManager.getButton(0)->hasBorder());
     TEST_ASSERT_FALSE(fixture.touchButtonManager.getButton(1)->hasBorder());
     TEST_ASSERT_TRUE(fixture.touchButtonManager.getButton(2)->hasBorder());
-    TEST_ASSERT_TRUE(fixture.touchButtonManager.getButton(4)->hasBorder());
+    TEST_ASSERT_FALSE(fixture.touchButtonManager.getButton(4)->hasBorder());
     TEST_ASSERT_FALSE(fixture.touchButtonManager.getButton(6)->hasBorder());
     TEST_ASSERT_FALSE(fixture.touchButtonManager.getButton(7)->hasBorder());
 }

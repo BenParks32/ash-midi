@@ -19,7 +19,7 @@
 #include "ScreenUi.h"
 #include "SettingsStore.h"
 #include "TFT_Setup.h"
-#include "TouchButtonManager.h"
+#include "Touch/TouchButtonManager.h"
 
 #define LED_PIN PA0
 

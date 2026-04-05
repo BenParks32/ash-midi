@@ -254,6 +254,10 @@ void ScreenUi::drawTouchButtonPill(const Point& areaLocation, const Size& areaSi
     if (pillColour != 0)
     {
         _tft.fillRoundRect(pillX, pillY, pillWidth, pillHeight, pillRadius, pillColour);
+    }
+
+    if (pillBorderColour != 0)
+    {
         _tft.drawRoundRect(pillX, pillY, pillWidth, pillHeight, pillRadius, pillBorderColour);
     }
 }
@@ -369,15 +373,11 @@ void ScreenUi::drawBorder()
     }
 }
 
-void ScreenUi::drawLogoFrame()
-{
-    drawLogoFrame(_logoFrameOuterColour, _logoFrameInnerColour);
-}
+void ScreenUi::drawLogoFrame() { drawLogoFrame(_logoFrameOuterColour, _logoFrameInnerColour); }
 
 void ScreenUi::drawLogoFrame(uint16_t outerColour, uint16_t innerColour)
 {
-    _tft.drawRoundRect(_logoFrameLeft, _logoFrameTop, _logoFrameWidth, _logoFrameHeight, _logoFrameRadius,
-                       outerColour);
+    _tft.drawRoundRect(_logoFrameLeft, _logoFrameTop, _logoFrameWidth, _logoFrameHeight, _logoFrameRadius, outerColour);
     _tft.drawRoundRect(_logoFrameLeft + 2, _logoFrameTop + 2, _logoFrameWidth - 4, _logoFrameHeight - 4,
                        _logoFrameRadius - 2, innerColour);
 }

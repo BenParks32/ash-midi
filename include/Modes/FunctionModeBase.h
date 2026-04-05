@@ -6,7 +6,7 @@
 #include "MidiManager.h"
 #include "RingManager.h"
 #include "ScreenUi.h"
-#include "TouchButtonManager.h"
+#include "Touch/TouchButtonManager.h"
 
 class FunctionModeBase : public IMode
 {
@@ -25,6 +25,7 @@ class FunctionModeBase : public IMode
     bool isButtonEnabled(byte number) const;
     static bool isEmptyLabel(const char* label);
     void renderAllButtons();
+    virtual bool usesSelectionBorder(byte number) const;
     virtual uint8_t ringBrightnessForButton(byte number) const = 0;
 
     TouchButtonManager& _touchButtonManager;

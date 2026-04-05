@@ -32,6 +32,7 @@ class PlayMode : public FunctionModeBase
     void renderButton(byte number);
     void updateSnapshotSelectionVisuals(byte previousSelected, byte currentSelected);
     void updateVisuals();
+    bool usesSelectionBorder(byte number) const override;
     uint8_t ringBrightnessForButton(byte number) const override;
     void setupFunctions();
 

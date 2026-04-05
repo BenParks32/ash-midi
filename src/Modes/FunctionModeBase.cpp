@@ -5,17 +5,10 @@
 
 namespace
 {
-void applyButtonVisualFromFunctionColour(FootSwitchTouchButton& button, uint16_t colour565, uint8_t ringBrightness)
+void applyButtonVisualFromFunctionColour(FootSwitchTouchButton& button, uint16_t colour565, bool showSelectionBorder)
 {
-    if (ringBrightness == 0)
-    {
-        button.setPillColour(TFT_BLACK);
-        button.setBorderVisible(false);
-        return;
-    }
-
     button.setPillColour(colour565);
-    button.setBorderVisible(ringBrightness >= RingManager::FullBrightness);
+    button.setBorderVisible(showSelectionBorder);
 }
 } // namespace
 
@@ -56,6 +49,12 @@ bool FunctionModeBase::isEmptyLabel(const char* label)
     return true;
 }
 
+bool FunctionModeBase::usesSelectionBorder(byte number) const
+{
+    (void)number;
+    return false;
+}
+
 void FunctionModeBase::renderAllButtons()
 {
     for (byte i = 0; i < TouchButtonManager::BUTTON_COUNT; ++i)
@@ -71,7 +70,8 @@ void FunctionModeBase::renderAllButtons()
         const bool enabled = isButtonEnabled(i);
         const uint8_t ringBrightness = enabled ? ringBrightnessForButton(i) : 0;
         const uint16_t desiredPillColour = (ringBrightness == 0) ? TFT_BLACK : colour565;
-        const bool desiredBorderVisible = (ringBrightness >= RingManager::FullBrightness);
+        const bool desiredBorderVisible = enabled && usesSelectionBorder(i) &&
+                          (ringBrightness >= RingManager::FullBrightness);
         const char* desiredLabel = func.label();
 
         const bool isUnchanged = (button->isEnabled() == enabled) && (button->pillColour() == desiredPillColour) &&
@@ -96,7 +96,15 @@ void FunctionModeBase::renderAllButtons()
 
         button->setEnabled(enabled);
         button->setLabel(desiredLabel);
-        applyButtonVisualFromFunctionColour(*button, colour565, ringBrightness);
+        if (!enabled || ringBrightness == 0)
+        {
+            button->setPillColour(TFT_BLACK);
+            button->setBorderVisible(false);
+        }
+        else
+        {
+            applyButtonVisualFromFunctionColour(*button, colour565, desiredBorderVisible);
+        }
 
         button->draw(_screenUi);
     }

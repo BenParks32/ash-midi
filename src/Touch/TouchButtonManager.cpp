@@ -1,4 +1,4 @@
-#include "TouchButtonManager.h"
+#include "Touch/TouchButtonManager.h"
 
 TouchButtonManager::TouchButtonManager(ITouchButtonLayout& screenUi, ITouchButtonDelegate* buttonPressDelegate)
     : screenUi(screenUi), _buttonPressDelegate(buttonPressDelegate), _lastPressedButton(-1),

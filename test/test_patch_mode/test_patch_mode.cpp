@@ -13,8 +13,8 @@
 #include "../../src/Modes/PatchMode.cpp"
 #include "../../src/RingManager.cpp"
 #include "../../src/ScreenUi.cpp"
-#include "../../src/TouchButton.cpp"
-#include "../../src/TouchButtonManager.cpp"
+#include "../../src/Touch/TouchButton.cpp"
+#include "../../src/Touch/TouchButtonManager.cpp"
 
 namespace
 {

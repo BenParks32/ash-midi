@@ -3,7 +3,7 @@
 #include <Arduino.h>
 
 #include "Button.h"
-#include "TouchButton.h"
+#include "Touch/TouchButton.h"
 
 class IMode;
 class RingManager;

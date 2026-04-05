@@ -4,7 +4,7 @@
 #include "ButtonHandler.h"
 #include "Modes/Mode.h"
 #include "RingManager.h"
-#include "TouchButton.h"
+#include "Touch/TouchButton.h"
 
 // Pull in implementation units required by ButtonHandler without linking app main.cpp.
 #include "../../src/Button.cpp"

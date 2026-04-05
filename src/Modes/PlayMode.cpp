@@ -89,10 +89,7 @@ void PlayMode::activate()
     renderPlayCenterUi();
 }
 
-void PlayMode::deactivate()
-{
-    clearPlayCenterUi();
-}
+void PlayMode::deactivate() { clearPlayCenterUi(); }
 
 void PlayMode::renderPlayCenterUi()
 {
@@ -243,7 +240,7 @@ void PlayMode::renderButton(byte number)
     {
         const uint16_t colour565 = func.colour();
         button->setPillColour(colour565);
-        button->setBorderVisible(ringBrightness >= RingManager::FullBrightness);
+        button->setBorderVisible(usesSelectionBorder(number) && (ringBrightness >= RingManager::FullBrightness));
         _ringManager.setRingColour(number, ColorUtils::rgb565To888(colour565));
         _ringManager.setRingBrightness(number, ringBrightness);
     }
@@ -268,6 +265,11 @@ void PlayMode::updateSnapshotSelectionVisuals(byte previousSelected, byte curren
         renderButton(currentSelected);
         renderSnapshotLabel(currentSelected, TFT_WHITE);
     }
+}
+
+bool PlayMode::usesSelectionBorder(byte number) const
+{
+    return number >= FirstSnapshotButtonIndex && number <= LastSnapshotButtonIndex;
 }
 
 uint8_t PlayMode::ringBrightnessForButton(byte number) const

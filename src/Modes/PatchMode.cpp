@@ -52,10 +52,7 @@ void PatchMode::activate()
     renderPatchSelector();
 }
 
-void PatchMode::deactivate()
-{
-    clearPatchSelector();
-}
+void PatchMode::deactivate() { clearPatchSelector(); }
 
 void PatchMode::buttonPressed(byte number)
 {
@@ -133,7 +130,7 @@ void PatchMode::renderPlayButton()
         _ringManager.setRingBrightness(PlayButtonIndex, ringBrightness);
     }
 
-    _screenUi.drawTouchButtonPill(button->getLocation(), button->getSize(), pillColour);
+    _screenUi.drawTouchButtonPill(button->getLocation(), button->getSize(), pillColour, TFT_WHITE);
 }
 
 void PatchMode::renderPatchSelector()

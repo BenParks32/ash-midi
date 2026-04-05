@@ -1,12 +1,12 @@
 #include <Arduino.h>
 #include <unity.h>
 
-#include "TouchButton.h"
-#include "TouchButtonManager.h"
+#include "Touch/TouchButton.h"
+#include "Touch/TouchButtonManager.h"
 
 // Pull in implementation units required by TouchButtonManager
-#include "../../src/TouchButton.cpp"
-#include "../../src/TouchButtonManager.cpp"
+#include "../../src/Touch/TouchButton.cpp"
+#include "../../src/Touch/TouchButtonManager.cpp"
 
 // Minimal test fixtures for TouchButtonManager's dependencies
 class TestTouchButtonLayout : public ITouchButtonLayout
@@ -23,8 +23,7 @@ class TestTouchButtonLayout : public ITouchButtonLayout
         // no-op for testing
     }
 
-    void drawTouchButtonPill(const Point&, const Size&, uint16_t,
-                             uint16_t = ITouchButtonCanvas::White565) override
+    void drawTouchButtonPill(const Point&, const Size&, uint16_t, uint16_t = ITouchButtonCanvas::White565) override
     {
         // no-op for testing
     }
