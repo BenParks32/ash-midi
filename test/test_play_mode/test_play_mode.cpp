@@ -238,6 +238,20 @@ void test_long_press_is_noop()
     fixture.mode.buttonLongPressed(0);
 
     TEST_ASSERT_EQUAL_INT(1, fixture.midiManager.controlChangeCalls);
+    TEST_ASSERT_EQUAL_INT(0, fixture.transitionDelegate.calls);
+}
+
+void test_button_five_long_press_transitions_to_home()
+{
+    PlayModeFixture fixture;
+
+    fixture.mode.activate();
+    fixture.mode.buttonLongPressed(4);
+
+    TEST_ASSERT_EQUAL_INT(1, fixture.transitionDelegate.calls);
+    TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(Modes::Home),
+                            static_cast<uint8_t>(fixture.transitionDelegate.lastMode));
+    TEST_ASSERT_EQUAL_UINT8(ModeTransitionNone, fixture.transitionDelegate.lastTransitionValue);
 }
 
 void test_button_eight_is_disabled_in_play_mode()
@@ -307,6 +321,7 @@ void setup()
     RUN_TEST(test_button_press_changes_selection_to_single_button);
     RUN_TEST(test_button_pressed_ignores_disabled_button);
     RUN_TEST(test_long_press_is_noop);
+    RUN_TEST(test_button_five_long_press_transitions_to_home);
     RUN_TEST(test_button_eight_is_disabled_in_play_mode);
     RUN_TEST(test_button_five_transitions_to_patch_mode);
     RUN_TEST(test_button_five_uses_patch_return_value_for_next_patch_entry);

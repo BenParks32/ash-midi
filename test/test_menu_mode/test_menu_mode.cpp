@@ -139,20 +139,31 @@ void test_activate_disables_all_footswitch_labels()
 
     TEST_ASSERT_EQUAL_STRING(" ", fixture.touchButtonManager.getButton(0)->label());
     TEST_ASSERT_EQUAL_STRING(" ", fixture.touchButtonManager.getButton(3)->label());
-    TEST_ASSERT_EQUAL_STRING("Home", fixture.touchButtonManager.getButton(7)->label());
+    TEST_ASSERT_EQUAL_STRING("Home", fixture.touchButtonManager.getButton(4)->label());
+    TEST_ASSERT_EQUAL_STRING(" ", fixture.touchButtonManager.getButton(7)->label());
 }
 
-void test_button_eight_exits_menu_to_home()
+void test_button_five_exits_menu_to_home()
+{
+    MenuModeFixture fixture;
+
+    fixture.mode.activate();
+    fixture.mode.buttonPressed(4);
+
+    TEST_ASSERT_EQUAL_INT(1, fixture.transitionDelegate.calls);
+    TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(Modes::Home),
+                            static_cast<uint8_t>(fixture.transitionDelegate.lastMode));
+    TEST_ASSERT_EQUAL_UINT8(ModeTransitionNone, fixture.transitionDelegate.lastTransitionValue);
+}
+
+void test_button_eight_is_noop_in_menu_mode()
 {
     MenuModeFixture fixture;
 
     fixture.mode.activate();
     fixture.mode.buttonPressed(7);
 
-    TEST_ASSERT_EQUAL_INT(1, fixture.transitionDelegate.calls);
-    TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(Modes::Home),
-                            static_cast<uint8_t>(fixture.transitionDelegate.lastMode));
-    TEST_ASSERT_EQUAL_UINT8(ModeTransitionNone, fixture.transitionDelegate.lastTransitionValue);
+    TEST_ASSERT_EQUAL_INT(0, fixture.transitionDelegate.calls);
 }
 
 void test_encoder_rotate_in_navigation_mode_does_not_change_values()
@@ -193,6 +204,13 @@ void test_random_ring_colours_are_assigned_on_activate_and_stable_during_midi_ed
 
     randomSeed(1234);
     fixture.mode.activate();
+
+    const uint8_t menuExitRingIndex = 4;
+    const uint8_t scaledBrightness = static_cast<uint8_t>(
+        (static_cast<uint16_t>(RingManager::FullBrightness) * fixture.ringManager.masterBrightness()) / 255U);
+    const uint8_t channel = static_cast<uint8_t>(((static_cast<uint16_t>(255U) * scaledBrightness) + 127U) / 255U);
+    const uint32_t white = (static_cast<uint32_t>(channel) << 16) | (static_cast<uint32_t>(channel) << 8) | channel;
+    TEST_ASSERT_EQUAL_UINT32(white, fixture.strip.getPixelColor(menuExitRingIndex * RingManager::LedsPerRing));
 
     uint32_t coloursBefore[RingManager::RingCount] = {0};
     bool anyNonZero = false;
@@ -283,7 +301,8 @@ void setup()
 
     UNITY_BEGIN();
     RUN_TEST(test_activate_disables_all_footswitch_labels);
-    RUN_TEST(test_button_eight_exits_menu_to_home);
+    RUN_TEST(test_button_five_exits_menu_to_home);
+    RUN_TEST(test_button_eight_is_noop_in_menu_mode);
     RUN_TEST(test_encoder_rotate_in_navigation_mode_does_not_change_values);
     RUN_TEST(test_edit_brightness_applies_immediately_and_saves_on_confirm);
     RUN_TEST(test_random_ring_colours_are_assigned_on_activate_and_stable_during_midi_edit);

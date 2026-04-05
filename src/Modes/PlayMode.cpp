@@ -64,8 +64,8 @@ void PlayMode::setupFunctions()
     _functions[2] = Function("Lead", 0xF800, ActionType::SendMidiControlChange, 2, ActionType::None, 0);
 
     _functions[3] = Function();
-    _functions[4] =
-        Function("Patch", 0xFFE0, ActionType::ChangeMode, static_cast<byte>(Modes::Patch), ActionType::None, 0);
+    _functions[4] = Function("Patch", 0xFFE0, ActionType::ChangeMode, static_cast<byte>(Modes::Patch),
+                             ActionType::ChangeMode, static_cast<byte>(Modes::Home));
     _functions[5] = Function();
     _functions[6] = Function();
     _functions[7] = Function();
@@ -316,7 +316,18 @@ void PlayMode::buttonPressed(byte number)
 
 void PlayMode::buttonLongPressed(byte number)
 {
-    // Explicitly no action for Play mode long press.
+    if (number >= TouchButtonManager::BUTTON_COUNT)
+    {
+        return;
+    }
+
+    if (!isButtonEnabled(number))
+    {
+        return;
+    }
+
+    const Function& func = getFunction(number);
+    executeAction(func.longPressAction(), func.longPressActionValue());
 }
 
 void PlayMode::frameTick()

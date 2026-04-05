@@ -6,7 +6,8 @@ namespace
 {
 constexpr uint8_t MenuItemScale = 1;
 constexpr uint8_t MenuValueScale = 1;
-constexpr byte MenuExitButtonIndex = 7;
+constexpr byte MenuExitButtonIndex = 4;
+constexpr uint32_t MenuExitRingColour = 0xFFFFFF;
 constexpr uint8_t BrightnessStep = 8;
 constexpr int32_t PanelPadding = 8;
 constexpr int32_t SplitLineWidth = 2;
@@ -290,7 +291,8 @@ void MenuMode::applyRandomRingColours()
 {
     for (uint8_t ringIndex = 0; ringIndex < RingManager::RingCount; ++ringIndex)
     {
-        _ringManager.setRingColour(ringIndex, randomRingColour());
+        const uint32_t ringColour = (ringIndex == MenuExitButtonIndex) ? MenuExitRingColour : randomRingColour();
+        _ringManager.setRingColour(ringIndex, ringColour);
         _ringManager.setRingBrightness(ringIndex, RingManager::FullBrightness);
     }
 

@@ -99,9 +99,9 @@ void test_activate_sets_patch_labels_and_disables_unused_buttons()
     TEST_ASSERT_EQUAL_STRING(" ", fixture.touchButtonManager.getButton(1)->label());
     TEST_ASSERT_EQUAL_STRING(" ", fixture.touchButtonManager.getButton(2)->label());
     TEST_ASSERT_EQUAL_STRING("Down", fixture.touchButtonManager.getButton(3)->label());
-    TEST_ASSERT_EQUAL_STRING("Home", fixture.touchButtonManager.getButton(4)->label());
+    TEST_ASSERT_EQUAL_STRING("Play", fixture.touchButtonManager.getButton(4)->label());
     TEST_ASSERT_EQUAL_STRING(" ", fixture.touchButtonManager.getButton(5)->label());
-    TEST_ASSERT_EQUAL_STRING("Play", fixture.touchButtonManager.getButton(6)->label());
+    TEST_ASSERT_EQUAL_STRING(" ", fixture.touchButtonManager.getButton(6)->label());
     TEST_ASSERT_EQUAL_STRING("Up", fixture.touchButtonManager.getButton(7)->label());
 }
 
@@ -133,12 +133,12 @@ void test_button_eight_wraps_patch_from_39_to_0()
 {
     PatchModeFixture fixture;
 
+    fixture.mode.setTransitionValue(39);
     fixture.mode.activate();
-    stepUp(fixture, 39);
-    TEST_ASSERT_EQUAL_UINT8(39, fixture.midiManager.lastProgramChangeValue);
 
     fixture.mode.buttonPressed(7);
 
+    TEST_ASSERT_EQUAL_INT(1, fixture.midiManager.programChangeCalls);
     TEST_ASSERT_EQUAL_UINT8(0, fixture.midiManager.lastProgramChangeValue);
 }
 
@@ -165,25 +165,12 @@ void test_transition_value_sets_starting_patch_number()
     TEST_ASSERT_EQUAL_UINT8(7, fixture.midiManager.lastProgramChangeValue);
 }
 
-void test_button_five_transitions_to_home()
+void test_button_five_transitions_to_play_without_program_change()
 {
     PatchModeFixture fixture;
 
     fixture.mode.activate();
     fixture.mode.buttonPressed(4);
-
-    TEST_ASSERT_EQUAL_INT(1, fixture.transitionDelegate.calls);
-    TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(Modes::Home),
-                            static_cast<uint8_t>(fixture.transitionDelegate.lastMode));
-    TEST_ASSERT_EQUAL_UINT8(ModeTransitionNone, fixture.transitionDelegate.lastTransitionValue);
-}
-
-void test_button_seven_transitions_to_play_without_program_change()
-{
-    PatchModeFixture fixture;
-
-    fixture.mode.activate();
-    fixture.mode.buttonPressed(6);
 
     TEST_ASSERT_EQUAL_INT(1, fixture.transitionDelegate.calls);
     TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(Modes::Play),
@@ -192,7 +179,32 @@ void test_button_seven_transitions_to_play_without_program_change()
     TEST_ASSERT_EQUAL_INT(0, fixture.midiManager.programChangeCalls);
 }
 
-void test_long_press_is_noop()
+void test_button_seven_is_disabled_in_patch_mode()
+{
+    PatchModeFixture fixture;
+
+    fixture.mode.activate();
+    fixture.mode.buttonPressed(6);
+
+    TEST_ASSERT_EQUAL_INT(0, fixture.transitionDelegate.calls);
+    TEST_ASSERT_EQUAL_INT(0, fixture.midiManager.programChangeCalls);
+}
+
+void test_button_five_long_press_transitions_to_home()
+{
+    PatchModeFixture fixture;
+
+    fixture.mode.activate();
+    fixture.mode.buttonLongPressed(4);
+
+    TEST_ASSERT_EQUAL_INT(1, fixture.transitionDelegate.calls);
+    TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(Modes::Home),
+                            static_cast<uint8_t>(fixture.transitionDelegate.lastMode));
+    TEST_ASSERT_EQUAL_UINT8(ModeTransitionNone, fixture.transitionDelegate.lastTransitionValue);
+    TEST_ASSERT_EQUAL_INT(0, fixture.midiManager.programChangeCalls);
+}
+
+void test_long_press_non_home_button_is_noop()
 {
     PatchModeFixture fixture;
 
@@ -242,7 +254,7 @@ void test_patch_mode_transitions_via_mode_manager_to_play_slot()
     ModeManager modeManager(activeMode, modes);
     PatchMode mode(touchButtonManager, ringManager, ui, midiManager, modeManager);
 
-    mode.buttonPressed(6);
+    mode.buttonPressed(4);
 
     TEST_ASSERT_EQUAL_PTR(&playSlot, activeMode);
     TEST_ASSERT_EQUAL_INT(1, playSlot.setTransitionValueCalls);
@@ -271,9 +283,10 @@ void setup()
     RUN_TEST(test_button_eight_wraps_patch_from_39_to_0);
     RUN_TEST(test_button_four_decrements_patch_and_wraps_from_0_to_39);
     RUN_TEST(test_transition_value_sets_starting_patch_number);
-    RUN_TEST(test_button_five_transitions_to_home);
-    RUN_TEST(test_button_seven_transitions_to_play_without_program_change);
-    RUN_TEST(test_long_press_is_noop);
+    RUN_TEST(test_button_five_transitions_to_play_without_program_change);
+    RUN_TEST(test_button_seven_is_disabled_in_patch_mode);
+    RUN_TEST(test_button_five_long_press_transitions_to_home);
+    RUN_TEST(test_long_press_non_home_button_is_noop);
     RUN_TEST(test_patch_mode_transitions_via_mode_manager_to_play_slot);
     UNITY_END();
 }

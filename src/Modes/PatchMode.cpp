@@ -10,7 +10,7 @@ const byte PatchMin = 0;
 const byte PatchMax = 39;
 const byte PatchDownAction = 0;
 const byte PatchUpAction = 1;
-const byte PlayButtonIndex = 6;
+const byte PlayButtonIndex = 4;
 const uint32_t PlayButtonFlashHalfPeriodMs = 500;
 const char* PatchSelectorTitle = "Select Patch";
 const uint8_t PatchSelectorTitleScale = 1;
@@ -36,11 +36,10 @@ void PatchMode::setupFunctions()
     _functions[1] = Function();
     _functions[2] = Function();
     _functions[3] = Function("Down", 0x07FF, ActionType::SendMidiProgramChange, PatchDownAction, ActionType::None, 0);
-    _functions[4] =
-        Function("Home", 0xFFFF, ActionType::ChangeMode, static_cast<byte>(Modes::Home), ActionType::None, 0);
+    _functions[4] = Function("Play", 0x07E0, ActionType::ChangeMode, static_cast<byte>(Modes::Play),
+                             ActionType::ChangeMode, static_cast<byte>(Modes::Home));
     _functions[5] = Function();
-    _functions[6] =
-        Function("Play", 0x07E0, ActionType::ChangeMode, static_cast<byte>(Modes::Play), ActionType::None, 0);
+    _functions[6] = Function();
     _functions[7] = Function("Up", 0xFD20, ActionType::SendMidiProgramChange, PatchUpAction, ActionType::None, 0);
 }
 
@@ -72,8 +71,18 @@ void PatchMode::buttonPressed(byte number)
 
 void PatchMode::buttonLongPressed(byte number)
 {
-    (void)number;
-    // Patch mode long press is currently unused.
+    if (number >= TouchButtonManager::BUTTON_COUNT)
+    {
+        return;
+    }
+
+    if (!isButtonEnabled(number))
+    {
+        return;
+    }
+
+    const Function& func = getFunction(number);
+    executeAction(func.longPressAction(), func.longPressActionValue());
 }
 
 void PatchMode::frameTick()
