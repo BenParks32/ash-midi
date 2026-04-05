@@ -11,6 +11,7 @@ class PlayMode : public FunctionModeBase
     void setSelectedHomeProgramChange(byte selectedHomeProgramChange);
 
     void activate() override;
+    void deactivate() override;
     void buttonPressed(byte number) override;
     void buttonLongPressed(byte number) override;
     void frameTick() override;
@@ -19,7 +20,9 @@ class PlayMode : public FunctionModeBase
   private:
     void executeAction(ActionType action, byte actionValue);
     void renderPlayCenterUi();
+    void clearPlayCenterUi();
     void renderPatchBadge();
+    void clearPatchBadge();
     void renderPatchBadgeNumber(byte patchNumber, uint16_t textColour);
     void renderSnapshotLabel(byte snapshotButton, uint16_t textColour);
     static void formatPatchNumberLabel(byte patchNumber, char* buffer, size_t bufferSize);

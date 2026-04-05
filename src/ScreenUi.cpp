@@ -33,20 +33,26 @@ void ScreenUi::clearCenterSection()
 
 void ScreenUi::drawCenteredFrame(int32_t centerX, int32_t topY, int32_t width, int32_t height, int32_t radius)
 {
+    drawCenteredFrame(centerX, topY, width, height, radius, _logoFrameOuterColour, _logoFrameInnerColour);
+}
+
+void ScreenUi::drawCenteredFrame(int32_t centerX, int32_t topY, int32_t width, int32_t height, int32_t radius,
+                                 uint16_t outerColour, uint16_t innerColour)
+{
     if (width <= 0 || height <= 0 || radius < 0)
     {
         return;
     }
 
     const int32_t left = centerX - (width / 2);
-    _tft.drawRoundRect(left, topY, width, height, radius, _logoFrameOuterColour);
+    _tft.drawRoundRect(left, topY, width, height, radius, outerColour);
 
     const int32_t outerBottomY = topY + height - 1;
     const int32_t outerBottomX = left + radius - 1;
     const int32_t outerBottomWidth = width - (radius * 2) + 2;
     if (outerBottomWidth > 0)
     {
-        _tft.drawFastHLine(outerBottomX, outerBottomY, outerBottomWidth, _logoFrameOuterColour);
+        _tft.drawFastHLine(outerBottomX, outerBottomY, outerBottomWidth, outerColour);
     }
 
     const int32_t innerLeft = left + 2;
@@ -56,14 +62,14 @@ void ScreenUi::drawCenteredFrame(int32_t centerX, int32_t topY, int32_t width, i
     const int32_t innerRadius = (radius > 2) ? (radius - 2) : 0;
     if (innerWidth > 0 && innerHeight > 0)
     {
-        _tft.drawRoundRect(innerLeft, innerTop, innerWidth, innerHeight, innerRadius, _logoFrameInnerColour);
+        _tft.drawRoundRect(innerLeft, innerTop, innerWidth, innerHeight, innerRadius, innerColour);
 
         const int32_t innerBottomY = innerTop + innerHeight - 1;
         const int32_t innerBottomX = innerLeft + innerRadius - 1;
         const int32_t innerBottomWidth = innerWidth - (innerRadius * 2) + 2;
         if (innerBottomWidth > 0)
         {
-            _tft.drawFastHLine(innerBottomX, innerBottomY, innerBottomWidth, _logoFrameInnerColour);
+            _tft.drawFastHLine(innerBottomX, innerBottomY, innerBottomWidth, innerColour);
         }
     }
 }
@@ -71,15 +77,23 @@ void ScreenUi::drawCenteredFrame(int32_t centerX, int32_t topY, int32_t width, i
 void ScreenUi::drawLogo(const GFXfont* titleFont, uint8_t titleScale, const char* title, const GFXfont* subtitleFont,
                         uint8_t subtitleScale, const char* subtitle)
 {
-    drawLogoFrame();
+    drawLogo(titleFont, titleScale, title, subtitleFont, subtitleScale, subtitle, TFT_WHITE, TFT_WHITE,
+             _logoFrameOuterColour, _logoFrameInnerColour);
+}
+
+void ScreenUi::drawLogo(const GFXfont* titleFont, uint8_t titleScale, const char* title, const GFXfont* subtitleFont,
+                        uint8_t subtitleScale, const char* subtitle, uint16_t titleColour, uint16_t subtitleColour,
+                        uint16_t outerFrameColour, uint16_t innerFrameColour)
+{
+    drawLogoFrame(outerFrameColour, innerFrameColour);
 
     // Keep legacy visual spacing, but center the two-line pair vertically in the frame.
     const int32_t logoFrameCenterY = _logoFrameTop + (_logoFrameHeight / 2);
     const int32_t titleY = logoFrameCenterY - (_logoTextLineSpacing / 2) - _logoTextVerticalOffset;
     const int32_t subtitleY = titleY + _logoTextLineSpacing;
 
-    drawCenteredText(titleFont, titleScale, title, _titleCenterX, titleY);
-    drawCenteredText(subtitleFont, subtitleScale, subtitle, _titleCenterX, subtitleY);
+    drawCenteredText(titleFont, titleScale, title, _titleCenterX, titleY, titleColour, TFT_BLACK);
+    drawCenteredText(subtitleFont, subtitleScale, subtitle, _titleCenterX, subtitleY, subtitleColour, TFT_BLACK);
 }
 
 void ScreenUi::drawText(const GFXfont* font, uint8_t scale, const char* label, int32_t x, int32_t y,
@@ -357,8 +371,13 @@ void ScreenUi::drawBorder()
 
 void ScreenUi::drawLogoFrame()
 {
+    drawLogoFrame(_logoFrameOuterColour, _logoFrameInnerColour);
+}
+
+void ScreenUi::drawLogoFrame(uint16_t outerColour, uint16_t innerColour)
+{
     _tft.drawRoundRect(_logoFrameLeft, _logoFrameTop, _logoFrameWidth, _logoFrameHeight, _logoFrameRadius,
-                       _logoFrameOuterColour);
+                       outerColour);
     _tft.drawRoundRect(_logoFrameLeft + 2, _logoFrameTop + 2, _logoFrameWidth - 4, _logoFrameHeight - 4,
-                       _logoFrameRadius - 2, _logoFrameInnerColour);
+                       _logoFrameRadius - 2, innerColour);
 }

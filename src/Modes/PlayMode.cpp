@@ -89,11 +89,21 @@ void PlayMode::activate()
     renderPlayCenterUi();
 }
 
+void PlayMode::deactivate()
+{
+    clearPlayCenterUi();
+}
+
 void PlayMode::renderPlayCenterUi()
 {
-    _screenUi.clearCenterSection();
     renderPatchBadge();
     renderSnapshotLabel(_selectedButton, TFT_WHITE);
+}
+
+void PlayMode::clearPlayCenterUi()
+{
+    clearPatchBadge();
+    renderSnapshotLabel(_selectedButton, TFT_BLACK);
 }
 
 void PlayMode::renderPatchBadge()
@@ -107,6 +117,19 @@ void PlayMode::renderPatchBadge()
     _screenUi.drawCenteredText(FF22, PlayPatchBadgeTitleScale, PlayPatchBadgeTitle, frameCenterX, titleY, TFT_WHITE,
                                TFT_BLACK);
     renderPatchBadgeNumber(_selectedHomeProgramChange, TFT_WHITE);
+}
+
+void PlayMode::clearPatchBadge()
+{
+    const int32_t frameCenterX = patchBadgeFrameCenterX();
+    const int32_t frameTopY = patchBadgeFrameTopY();
+    const int32_t titleY = frameTopY - PlayPatchBadgeTitleBorderOffset;
+
+    _screenUi.drawCenteredFrame(frameCenterX, frameTopY, PlayPatchBadgeFrameWidth, PlayPatchBadgeFrameHeight,
+                                PlayPatchBadgeFrameRadius, TFT_BLACK, TFT_BLACK);
+    _screenUi.drawCenteredText(FF22, PlayPatchBadgeTitleScale, PlayPatchBadgeTitle, frameCenterX, titleY, TFT_BLACK,
+                               TFT_BLACK);
+    renderPatchBadgeNumber(_selectedHomeProgramChange, TFT_BLACK);
 }
 
 void PlayMode::renderPatchBadgeNumber(byte patchNumber, uint16_t textColour)

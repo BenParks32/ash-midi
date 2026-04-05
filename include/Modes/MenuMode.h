@@ -12,6 +12,7 @@ class MenuMode : public FunctionModeBase
              ISdCardManager& sdCardManager, AppSettings& settings);
 
     void activate() override;
+    void deactivate() override;
     void buttonPressed(byte number) override;
     void buttonLongPressed(byte number) override;
     void frameTick() override;
@@ -35,6 +36,7 @@ class MenuMode : public FunctionModeBase
   private:
     void setupFunctions();
     void renderMenu();
+    void clearMenu();
     void renderStaticMenuPanels();
     void renderMenuItem(MenuItem item, bool hasLeftFocus);
     void renderValuePanel(bool hasRightFocus);

@@ -9,6 +9,7 @@ class PatchMode : public FunctionModeBase
               IMidiManager& midiManager, IModeTransistionDelegate& transitionDelegate);
 
     void activate() override;
+    void deactivate() override;
     void buttonPressed(byte number) override;
     void buttonLongPressed(byte number) override;
     void frameTick() override;
@@ -18,6 +19,7 @@ class PatchMode : public FunctionModeBase
     void setupFunctions();
     void renderPlayButton();
     void renderPatchSelector();
+    void clearPatchSelector();
     void renderPatchNumber(byte patchNumber, uint16_t textColour);
     int32_t patchFrameTopY() const;
     int32_t patchNumberY() const;

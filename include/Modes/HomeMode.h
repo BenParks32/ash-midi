@@ -9,6 +9,7 @@ class HomeMode : public FunctionModeBase
              IMidiManager& midiManager, IModeTransistionDelegate& transitionDelegate);
 
     void activate() override;
+    void deactivate() override;
     void buttonPressed(byte number) override;
     void buttonLongPressed(byte number) override;
     void frameTick() override;

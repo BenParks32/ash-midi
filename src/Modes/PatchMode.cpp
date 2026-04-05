@@ -52,6 +52,11 @@ void PatchMode::activate()
     renderPatchSelector();
 }
 
+void PatchMode::deactivate()
+{
+    clearPatchSelector();
+}
+
 void PatchMode::buttonPressed(byte number)
 {
     if (number >= TouchButtonManager::BUTTON_COUNT)
@@ -133,8 +138,6 @@ void PatchMode::renderPlayButton()
 
 void PatchMode::renderPatchSelector()
 {
-    _screenUi.clearCenterSection();
-
     const int32_t centerX = _screenUi.boxWidth() * 2;
     const int32_t frameTopY = patchFrameTopY();
     const int32_t titleY = frameTopY - PatchTitleBorderOffset;
@@ -145,6 +148,19 @@ void PatchMode::renderPatchSelector()
     _screenUi.drawCenteredText(FF22, PatchSelectorTitleScale, PatchSelectorTitle, centerX, titleY, TFT_WHITE,
                                TFT_BLACK);
     renderPatchNumber(_currentPatch, TFT_WHITE);
+}
+
+void PatchMode::clearPatchSelector()
+{
+    const int32_t centerX = _screenUi.boxWidth() * 2;
+    const int32_t frameTopY = patchFrameTopY();
+    const int32_t titleY = frameTopY - PatchTitleBorderOffset;
+
+    _screenUi.drawCenteredFrame(centerX, frameTopY, PatchNumberFrameWidth, PatchNumberFrameHeight,
+                                PatchNumberFrameRadius, TFT_BLACK, TFT_BLACK);
+    _screenUi.drawCenteredText(FF22, PatchSelectorTitleScale, PatchSelectorTitle, centerX, titleY, TFT_BLACK,
+                               TFT_BLACK);
+    renderPatchNumber(_currentPatch, TFT_BLACK);
 }
 
 void PatchMode::renderPatchNumber(byte patchNumber, uint16_t textColour)

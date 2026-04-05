@@ -27,8 +27,13 @@ class ScreenUi : public ITouchButtonLayout
     void drawBackgroundAndBorder();
     void clearCenterSection();
     void drawCenteredFrame(int32_t centerX, int32_t topY, int32_t width, int32_t height, int32_t radius);
+    void drawCenteredFrame(int32_t centerX, int32_t topY, int32_t width, int32_t height, int32_t radius,
+                           uint16_t outerColour, uint16_t innerColour);
     void drawLogo(const GFXfont* titleFont, uint8_t titleScale, const char* title, const GFXfont* subtitleFont,
                   uint8_t subtitleScale, const char* subtitle);
+    void drawLogo(const GFXfont* titleFont, uint8_t titleScale, const char* title, const GFXfont* subtitleFont,
+                  uint8_t subtitleScale, const char* subtitle, uint16_t titleColour, uint16_t subtitleColour,
+                  uint16_t outerFrameColour, uint16_t innerFrameColour);
 
     void drawText(const GFXfont* font, uint8_t scale, const char* label, int32_t x, int32_t y,
                   uint16_t textColour = TFT_WHITE, uint16_t backgroundColour = TFT_BLACK);
@@ -73,6 +78,7 @@ class ScreenUi : public ITouchButtonLayout
     void fillScreenFast(uint16_t color);
     void drawBorder();
     void drawLogoFrame();
+    void drawLogoFrame(uint16_t outerColour, uint16_t innerColour);
 
   private:
     enum class SdStatusState : uint8_t

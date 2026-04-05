@@ -28,6 +28,7 @@ class IMode
     virtual ~IMode() = default;
 
     virtual void activate() = 0;
+    virtual void deactivate() {}
     virtual void buttonPressed(const byte number) = 0;
     virtual void buttonLongPressed(const byte number) = 0;
     virtual void frameTick() = 0;

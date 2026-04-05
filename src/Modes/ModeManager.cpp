@@ -16,6 +16,11 @@ void ModeManager::enterMode(Modes mode, byte transitionValue)
         return;
     }
 
+    if (_activeMode != nullptr && _activeMode != nextMode)
+    {
+        _activeMode->deactivate();
+    }
+
     nextMode->setTransitionValue(transitionValue);
     _activeMode = nextMode;
     _activeMode->activate();

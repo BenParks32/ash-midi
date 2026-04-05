@@ -12,6 +12,7 @@ class FakeMode : public IMode
 {
   public:
     void activate() override { ++activateCalls; }
+        void deactivate() override { ++deactivateCalls; }
     void buttonPressed(const byte) override {}
     void buttonLongPressed(const byte) override {}
     void frameTick() override {}
@@ -23,6 +24,7 @@ class FakeMode : public IMode
     }
 
     int activateCalls = 0;
+    int deactivateCalls = 0;
     int setTransitionValueCalls = 0;
     byte lastTransitionValue = 0xFF;
 };
@@ -45,6 +47,7 @@ void test_enter_mode_switches_active_and_activates_target()
     TEST_ASSERT_EQUAL_UINT8(42, play.lastTransitionValue);
     TEST_ASSERT_EQUAL_INT(1, play.activateCalls);
     TEST_ASSERT_EQUAL_INT(0, home.activateCalls);
+    TEST_ASSERT_EQUAL_INT(1, home.deactivateCalls);
 }
 
 void test_enter_mode_ignores_null_target_mode()
@@ -119,6 +122,7 @@ void test_enter_mode_can_switch_to_patch()
     TEST_ASSERT_EQUAL_INT(1, patch.setTransitionValueCalls);
     TEST_ASSERT_EQUAL_UINT8(33, patch.lastTransitionValue);
     TEST_ASSERT_EQUAL_INT(1, patch.activateCalls);
+    TEST_ASSERT_EQUAL_INT(1, play.deactivateCalls);
 }
 } // namespace
 

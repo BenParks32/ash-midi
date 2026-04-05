@@ -41,11 +41,17 @@ void HomeMode::setupFunctions()
 
 void HomeMode::activate()
 {
-    _screenUi.clearCenterSection();
     _screenUi.drawLogo(HomeLogoTitleFont, HomeLogoTitleScale, HomeLogoTitleText, HomeLogoSubtitleFont,
                        HomeLogoSubtitleScale, HomeLogoSubtitleText);
     _screenUi.redrawSdStatus();
     renderAllButtons();
+}
+
+void HomeMode::deactivate()
+{
+    _screenUi.hideSdStatus();
+    _screenUi.drawLogo(HomeLogoTitleFont, HomeLogoTitleScale, HomeLogoTitleText, HomeLogoSubtitleFont,
+                       HomeLogoSubtitleScale, HomeLogoSubtitleText, TFT_BLACK, TFT_BLACK, TFT_BLACK, TFT_BLACK);
 }
 
 void HomeMode::buttonPressed(byte number)

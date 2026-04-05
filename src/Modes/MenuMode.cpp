@@ -111,6 +111,11 @@ void MenuMode::activate()
     renderMenu();
 }
 
+void MenuMode::deactivate()
+{
+    clearMenu();
+}
+
 void MenuMode::buttonPressed(byte number)
 {
     if (number >= TouchButtonManager::BUTTON_COUNT)
@@ -342,8 +347,6 @@ void MenuMode::formatSelectedValue(MenuMode::MenuItem item, char* buffer, size_t
 
 void MenuMode::renderMenu()
 {
-    _screenUi.clearCenterSection();
-
     renderStaticMenuPanels();
 
     for (uint8_t itemIndex = 0; itemIndex < static_cast<uint8_t>(MenuItem::Count); ++itemIndex)
@@ -353,6 +356,40 @@ void MenuMode::renderMenu()
     }
 
     renderValuePanel(_isEditMode);
+}
+
+void MenuMode::clearMenu()
+{
+    const MenuLayout layout = buildMenuLayout(_screenUi);
+
+    _screenUi.fillRect(layout.splitX, layout.leftPanelY, SplitLineWidth, layout.panelHeight, TFT_BLACK);
+
+    for (uint8_t itemIndex = 0; itemIndex < static_cast<uint8_t>(MenuItem::Count); ++itemIndex)
+    {
+        const MenuItem item = static_cast<MenuItem>(itemIndex);
+        const int32_t rowY = menuRowY(item);
+        const int32_t rowX = layout.leftPanelX + RowHorizontalPadding;
+        const int32_t rowWidth = layout.leftPanelWidth - (RowHorizontalPadding * 2);
+
+        _screenUi.fillRect(rowX, rowY, rowWidth, RowHeight, TFT_BLACK);
+        _screenUi.drawText(FF22, MenuItemScale, menuItemLabel(item), rowX + 10, rowY + 6, TFT_BLACK, TFT_BLACK);
+    }
+
+    _screenUi.fillRect(layout.valuePanelX, layout.valuePanelY, layout.valuePanelWidth, layout.valuePanelHeight,
+                       TFT_BLACK);
+    _screenUi.drawRect(layout.valuePanelX, layout.valuePanelY, layout.valuePanelWidth, layout.valuePanelHeight,
+                       TFT_BLACK);
+
+    char valueLabel[16] = {'\0'};
+    formatSelectedValue(_selectedItem, valueLabel, sizeof(valueLabel));
+
+    const int32_t valueCenterX = layout.valuePanelX + (layout.valuePanelWidth / 2);
+    const GFXfont* valueFont = (_selectedItem == MenuItem::SdCard) ? FF22 : FF32;
+    const int32_t valueTextHeight = (_selectedItem == MenuItem::SdCard) ? 16 : 24;
+    const int32_t valueY = layout.valuePanelY + ((layout.valuePanelHeight - valueTextHeight) / 2);
+
+    _screenUi.drawCenteredText(valueFont, MenuValueScale, valueLabel, valueCenterX, valueY, TFT_BLACK, TFT_BLACK);
+    renderSavingIndicator(false);
 }
 
 void MenuMode::renderStaticMenuPanels()
