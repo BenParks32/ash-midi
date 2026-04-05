@@ -87,7 +87,7 @@ class ScreenUi : public ITouchButtonLayout
         Initializing,
         Failed,
         Ready,
-      NotMounted,
+        NotMounted,
     };
 
   private:

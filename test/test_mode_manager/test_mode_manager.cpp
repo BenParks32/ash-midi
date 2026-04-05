@@ -12,7 +12,7 @@ class FakeMode : public IMode
 {
   public:
     void activate() override { ++activateCalls; }
-        void deactivate() override { ++deactivateCalls; }
+    void deactivate() override { ++deactivateCalls; }
     void buttonPressed(const byte) override {}
     void buttonLongPressed(const byte) override {}
     void frameTick() override {}

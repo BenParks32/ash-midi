@@ -111,10 +111,7 @@ void MenuMode::activate()
     renderMenu();
 }
 
-void MenuMode::deactivate()
-{
-    clearMenu();
-}
+void MenuMode::deactivate() { clearMenu(); }
 
 void MenuMode::buttonPressed(byte number)
 {

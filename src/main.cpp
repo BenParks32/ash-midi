@@ -35,19 +35,11 @@ uint16_t calData[5] = {254, 3649, 281, 3563, 7};
 
 namespace
 {
-constexpr uint8_t DiagnosticsControlChangeNumber = 119;
-constexpr uint32_t DiagnosticsMidiIntervalMs = 250;
-
-bool gQuietDiagnosticsMode = false;
-uint32_t gNextDiagnosticsMidiMs = 0;
-bool gDiagnosticsHighValue = false;
 } // namespace
 
 void HandleTouch();
 void HandleEncoder();
 void HandleSerialDiagnosticsCommands();
-void HandleQuietDiagnosticsMidi();
-void SetQuietDiagnosticsMode(bool enabled);
 
 Adafruit_NeoPixel strip(LED_COUNT, LED_PIN, NEO_GRB + NEO_KHZ800);
 TFT_eSPI tft = TFT_eSPI();
@@ -132,19 +124,11 @@ void setup()
 
     activeMode = &homeMode;
     activeMode->activate();
-
-    Serial.println("Diagnostics: send 'q' in serial monitor to toggle quiet MIDI test mode.");
 }
 
 void loop()
 {
     HandleSerialDiagnosticsCommands();
-
-    if (gQuietDiagnosticsMode)
-    {
-        HandleQuietDiagnosticsMidi();
-        return;
-    }
 
     HandleEncoder();
     buttonHandler.updateButtons();
@@ -186,63 +170,6 @@ void HandleSerialDiagnosticsCommands()
 {
     while (Serial.available() > 0)
     {
-        const char command = static_cast<char>(Serial.read());
-
-        if (command == 'q' || command == 'Q')
-        {
-            SetQuietDiagnosticsMode(!gQuietDiagnosticsMode);
-            continue;
-        }
-
-        if (command == '?' || command == 'h' || command == 'H')
-        {
-            Serial.println("Commands: q = toggle quiet MIDI diagnostics mode");
-        }
-    }
-}
-
-void HandleQuietDiagnosticsMidi()
-{
-    const uint32_t now = millis();
-    if (static_cast<int32_t>(now - gNextDiagnosticsMidiMs) < 0)
-    {
-        return;
-    }
-
-    gNextDiagnosticsMidiMs = now + DiagnosticsMidiIntervalMs;
-    gDiagnosticsHighValue = !gDiagnosticsHighValue;
-
-    const byte ccValue = gDiagnosticsHighValue ? 127 : 0;
-    midiManager.sendControlChange(DiagnosticsControlChangeNumber, ccValue);
-}
-
-void SetQuietDiagnosticsMode(bool enabled)
-{
-    if (enabled == gQuietDiagnosticsMode)
-    {
-        return;
-    }
-
-    gQuietDiagnosticsMode = enabled;
-
-    if (gQuietDiagnosticsMode)
-    {
-        for (uint8_t ringIndex = 0; ringIndex < RingManager::RingCount; ++ringIndex)
-        {
-            ringManager.setRingColour(ringIndex, 0);
-            ringManager.setRingBrightness(ringIndex, 0);
-        }
-
-        touchButtonManager.handleTouchRelease();
-        gDiagnosticsHighValue = false;
-        gNextDiagnosticsMidiMs = millis();
-        Serial.println("Quiet MIDI diagnostics mode enabled.");
-        return;
-    }
-
-    Serial.println("Quiet MIDI diagnostics mode disabled.");
-    if (activeMode != nullptr)
-    {
-        activeMode->activate();
+        Serial.read();
     }
 }
