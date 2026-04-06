@@ -88,3 +88,17 @@ The firmware still contains the hardened SD mount path:
 - SD init before TFT startup
 
 Those changes are worth keeping even though the final root cause was mainly hardware / card quality.
+
+## Stripboard Carrier Implementation
+
+An implementation-ready stripboard plan for the Black Pill carrier is in:
+
+- STRIPBOARD_CARRIER_V1.md
+
+That guide includes:
+
+- hole-grid placement
+- AHCT125 track cuts and jumper nets
+- four-buck power-domain distribution
+- branch fuse suggestions
+- staged bring-up and test procedure
