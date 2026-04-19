@@ -105,27 +105,25 @@ void PlayMode::clearPlayCenterUi()
 
 void PlayMode::renderPatchBadge()
 {
-    const int32_t frameCenterX = patchBadgeFrameCenterX();
-    const int32_t frameTopY = patchBadgeFrameTopY();
-    const int32_t titleY = frameTopY - PlayPatchBadgeTitleBorderOffset;
+    const PatchBadgeMetrics metrics = patchBadgeMetrics();
 
-    _screenUi.drawCenteredFrame(frameCenterX, frameTopY, PlayPatchBadgeFrameWidth, PlayPatchBadgeFrameHeight,
+    _screenUi.drawCenteredFrame(metrics.frameCenterX, metrics.frameTopY, PlayPatchBadgeFrameWidth,
+                                PlayPatchBadgeFrameHeight,
                                 PlayPatchBadgeFrameRadius);
-    _screenUi.drawCenteredText(FF22, PlayPatchBadgeTitleScale, PlayPatchBadgeTitle, frameCenterX, titleY, TFT_WHITE,
-                               TFT_BLACK);
+    _screenUi.drawCenteredText(FF22, PlayPatchBadgeTitleScale, PlayPatchBadgeTitle, metrics.frameCenterX,
+                               metrics.titleY, TFT_WHITE, TFT_BLACK);
     renderPatchBadgeNumber(_selectedHomeProgramChange, TFT_WHITE);
 }
 
 void PlayMode::clearPatchBadge()
 {
-    const int32_t frameCenterX = patchBadgeFrameCenterX();
-    const int32_t frameTopY = patchBadgeFrameTopY();
-    const int32_t titleY = frameTopY - PlayPatchBadgeTitleBorderOffset;
+    const PatchBadgeMetrics metrics = patchBadgeMetrics();
 
-    _screenUi.drawCenteredFrame(frameCenterX, frameTopY, PlayPatchBadgeFrameWidth, PlayPatchBadgeFrameHeight,
+    _screenUi.drawCenteredFrame(metrics.frameCenterX, metrics.frameTopY, PlayPatchBadgeFrameWidth,
+                                PlayPatchBadgeFrameHeight,
                                 PlayPatchBadgeFrameRadius, TFT_BLACK, TFT_BLACK);
-    _screenUi.drawCenteredText(FF22, PlayPatchBadgeTitleScale, PlayPatchBadgeTitle, frameCenterX, titleY, TFT_BLACK,
-                               TFT_BLACK);
+    _screenUi.drawCenteredText(FF22, PlayPatchBadgeTitleScale, PlayPatchBadgeTitle, metrics.frameCenterX,
+                               metrics.titleY, TFT_BLACK, TFT_BLACK);
     renderPatchBadgeNumber(_selectedHomeProgramChange, TFT_BLACK);
 }
 
@@ -192,6 +190,18 @@ int32_t PlayMode::patchBadgeFrameCenterX() const
 {
     const int32_t screenWidth = _screenUi.boxWidth() * 4;
     return screenWidth - PlayPatchBadgeRightMargin - (PlayPatchBadgeFrameWidth / 2);
+}
+
+PlayMode::PatchBadgeMetrics PlayMode::patchBadgeMetrics() const
+{
+    const int32_t frameCenterX = patchBadgeFrameCenterX();
+    const int32_t frameTopY = patchBadgeFrameTopY();
+
+    PatchBadgeMetrics metrics = {};
+    metrics.frameCenterX = frameCenterX;
+    metrics.frameTopY = frameTopY;
+    metrics.titleY = frameTopY - PlayPatchBadgeTitleBorderOffset - 2;
+    return metrics;
 }
 
 int32_t PlayMode::patchBadgeFrameTopY() const

@@ -18,6 +18,14 @@ class PlayMode : public FunctionModeBase
     void setTransitionValue(byte transitionValue) override;
 
   private:
+    struct PatchBadgeMetrics
+    {
+        int32_t frameCenterX;
+        int32_t frameTopY;
+        int32_t titleY;
+    };
+
+  private:
     void executeAction(ActionType action, byte actionValue);
     void renderPlayCenterUi();
     void clearPlayCenterUi();
@@ -27,6 +35,7 @@ class PlayMode : public FunctionModeBase
     void renderSnapshotLabel(byte snapshotButton, uint16_t textColour);
     static void formatPatchNumberLabel(byte patchNumber, char* buffer, size_t bufferSize);
     void formatSnapshotLabelUppercase(byte snapshotButton, char* buffer, size_t bufferSize) const;
+    PatchBadgeMetrics patchBadgeMetrics() const;
     int32_t patchBadgeFrameCenterX() const;
     int32_t patchBadgeFrameTopY() const;
     void renderButton(byte number);
