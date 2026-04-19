@@ -7,6 +7,7 @@ enum class Modes : uint8_t
     Play = 1,
     Patch = 2,
     Menu = 3,
+  ButtonDiagnostic = 4,
     Count,
 };
 

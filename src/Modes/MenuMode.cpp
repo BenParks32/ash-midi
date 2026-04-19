@@ -12,7 +12,9 @@ constexpr uint8_t BrightnessStep = 8;
 constexpr int32_t PanelPadding = 8;
 constexpr int32_t SplitLineWidth = 2;
 constexpr int32_t RowHeight = 32;
-constexpr int32_t RowGap = 16;
+constexpr int32_t MaxRowGap = 16;
+constexpr int32_t MinRowGap = 4;
+constexpr int32_t FirstRowTopInset = 1;
 constexpr int32_t RowHorizontalPadding = 8;
 constexpr int32_t ValuePanelHorizontalPadding = 12;
 constexpr int32_t ValuePanelSizePercent = 105;
@@ -79,6 +81,32 @@ uint32_t randomRingColour()
     const uint8_t green = static_cast<uint8_t>(random(256));
     const uint8_t blue = static_cast<uint8_t>(random(256));
     return (static_cast<uint32_t>(red) << 16) | (static_cast<uint32_t>(green) << 8) | static_cast<uint32_t>(blue);
+}
+
+int32_t menuRowGapForLayout(const MenuLayout& layout, uint8_t itemCount)
+{
+    if (itemCount <= 1)
+    {
+        return 0;
+    }
+
+    const int32_t availableGapSpace = layout.centerHeight - (static_cast<int32_t>(itemCount) * RowHeight);
+    if (availableGapSpace <= 0)
+    {
+        return MinRowGap;
+    }
+
+    int32_t gap = availableGapSpace / (static_cast<int32_t>(itemCount) - 1);
+    if (gap > MaxRowGap)
+    {
+        gap = MaxRowGap;
+    }
+    if (gap < MinRowGap)
+    {
+        gap = MinRowGap;
+    }
+
+    return gap;
 }
 } // namespace
 
@@ -159,6 +187,13 @@ void MenuMode::encoderRotated(int16_t steps)
 
 void MenuMode::encoderPressed()
 {
+    if (_selectedItem == MenuItem::ButtonDiagnostics)
+    {
+        _isEditMode = false;
+        _transitionDelegate.enterMode(Modes::ButtonDiagnostic, ModeTransitionNone);
+        return;
+    }
+
     if (_selectedItem == MenuItem::SdCard)
     {
         _isEditMode = false;
@@ -309,6 +344,8 @@ const char* MenuMode::menuItemLabel(MenuMode::MenuItem item)
         return "MIDI Channel";
     case MenuItem::SdCard:
         return "SD Card";
+    case MenuItem::ButtonDiagnostics:
+        return "Button Diag";
     case MenuItem::Count:
     default:
         return "";
@@ -336,6 +373,9 @@ void MenuMode::formatSelectedValue(MenuMode::MenuItem item, char* buffer, size_t
         break;
     case MenuItem::SdCard:
         std::snprintf(buffer, bufferSize, "%s", _sdCardManager.isMounted() ? "Unmount" : "Mount");
+        break;
+    case MenuItem::ButtonDiagnostics:
+        std::snprintf(buffer, bufferSize, "%s", "Run");
         break;
     case MenuItem::Count:
     default:
@@ -383,8 +423,9 @@ void MenuMode::clearMenu()
     formatSelectedValue(_selectedItem, valueLabel, sizeof(valueLabel));
 
     const int32_t valueCenterX = layout.valuePanelX + (layout.valuePanelWidth / 2);
-    const GFXfont* valueFont = (_selectedItem == MenuItem::SdCard) ? FF22 : FF32;
-    const int32_t valueTextHeight = (_selectedItem == MenuItem::SdCard) ? 16 : 24;
+    const bool compactValueText = (_selectedItem == MenuItem::SdCard || _selectedItem == MenuItem::ButtonDiagnostics);
+    const GFXfont* valueFont = compactValueText ? FF22 : FF32;
+    const int32_t valueTextHeight = compactValueText ? 16 : 24;
     const int32_t valueY = layout.valuePanelY + ((layout.valuePanelHeight - valueTextHeight) / 2);
 
     _screenUi.drawCenteredText(valueFont, MenuValueScale, valueLabel, valueCenterX, valueY, TFT_BLACK, TFT_BLACK);
@@ -400,15 +441,25 @@ void MenuMode::renderStaticMenuPanels()
 int32_t MenuMode::menuListStartY() const
 {
     const MenuLayout layout = buildMenuLayout(_screenUi);
+    const int32_t rowGap = menuRowGapForLayout(layout, static_cast<uint8_t>(MenuItem::Count));
     const int32_t listHeight =
-        (static_cast<int32_t>(MenuItem::Count) * RowHeight) + ((static_cast<int32_t>(MenuItem::Count) - 1) * RowGap);
+        (static_cast<int32_t>(MenuItem::Count) * RowHeight) + ((static_cast<int32_t>(MenuItem::Count) - 1) * rowGap);
 
     return layout.centerTopY + ((layout.centerHeight - listHeight) / 2);
 }
 
 int32_t MenuMode::menuRowY(MenuMode::MenuItem item) const
 {
-    return menuListStartY() + (static_cast<int32_t>(item) * (RowHeight + RowGap));
+    const MenuLayout layout = buildMenuLayout(_screenUi);
+    const int32_t rowGap = menuRowGapForLayout(layout, static_cast<uint8_t>(MenuItem::Count));
+    const int32_t rowY = menuListStartY() + (static_cast<int32_t>(item) * (RowHeight + rowGap));
+
+    if (item == static_cast<MenuItem>(0))
+    {
+        return rowY + FirstRowTopInset;
+    }
+
+    return rowY;
 }
 
 void MenuMode::renderMenuItem(MenuMode::MenuItem item, bool hasLeftFocus)
@@ -443,8 +494,9 @@ void MenuMode::renderValueLabel(bool hasRightFocus)
     formatSelectedValue(_selectedItem, valueLabel, sizeof(valueLabel));
 
     const int32_t valueCenterX = layout.valuePanelX + (layout.valuePanelWidth / 2);
-    const GFXfont* valueFont = (_selectedItem == MenuItem::SdCard) ? FF22 : FF32;
-    const int32_t valueTextHeight = (_selectedItem == MenuItem::SdCard) ? 16 : 24;
+    const bool compactValueText = (_selectedItem == MenuItem::SdCard || _selectedItem == MenuItem::ButtonDiagnostics);
+    const GFXfont* valueFont = compactValueText ? FF22 : FF32;
+    const int32_t valueTextHeight = compactValueText ? 16 : 24;
     const int32_t valueY = layout.valuePanelY + ((layout.valuePanelHeight - valueTextHeight) / 2);
 
     _screenUi.drawCenteredText(valueFont, MenuValueScale, valueLabel, valueCenterX, valueY,

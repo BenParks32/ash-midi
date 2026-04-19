@@ -248,9 +248,10 @@ void test_patch_mode_transitions_via_mode_manager_to_play_slot()
     TestModeSlot playSlot;
     TestModeSlot patchSlot;
     IMode* menuSlot = nullptr;
+    IMode* buttonDiagnosticSlot = nullptr;
 
     IMode* activeMode = &patchSlot;
-    IMode* modes[ModeCount] = {&homeSlot, &playSlot, &patchSlot, menuSlot};
+    IMode* modes[ModeCount] = {&homeSlot, &playSlot, &patchSlot, menuSlot, buttonDiagnosticSlot};
     ModeManager modeManager(activeMode, modes);
     PatchMode mode(touchButtonManager, ringManager, ui, midiManager, modeManager);
 

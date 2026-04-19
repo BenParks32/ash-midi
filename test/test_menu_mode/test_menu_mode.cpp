@@ -284,6 +284,21 @@ void test_sd_card_item_toggles_unmount_and_mount()
     TEST_ASSERT_TRUE(fixture.sdCardManager.mounted);
     TEST_ASSERT_EQUAL_INT(0, fixture.settingsStore.saveCalls);
 }
+
+void test_button_diagnostics_item_enters_button_diagnostic_mode()
+{
+    MenuModeFixture fixture;
+
+    fixture.mode.activate();
+    fixture.mode.encoderRotated(3);
+    fixture.mode.encoderPressed();
+
+    TEST_ASSERT_EQUAL_INT(1, fixture.transitionDelegate.calls);
+    TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(Modes::ButtonDiagnostic),
+                            static_cast<uint8_t>(fixture.transitionDelegate.lastMode));
+    TEST_ASSERT_EQUAL_UINT8(ModeTransitionNone, fixture.transitionDelegate.lastTransitionValue);
+    TEST_ASSERT_EQUAL_INT(0, fixture.settingsStore.saveCalls);
+}
 } // namespace
 
 void setUp() {}
@@ -309,6 +324,7 @@ void setup()
     RUN_TEST(test_edit_midi_channel_applies_immediately_and_clamps);
     RUN_TEST(test_edit_mode_toggle_saves_only_when_leaving_edit_mode);
     RUN_TEST(test_sd_card_item_toggles_unmount_and_mount);
+    RUN_TEST(test_button_diagnostics_item_enters_button_diagnostic_mode);
     UNITY_END();
 }
 

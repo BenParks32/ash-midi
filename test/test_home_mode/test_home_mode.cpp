@@ -261,7 +261,8 @@ void test_button_press_transitions_via_mode_manager_to_play_slot()
     IMode* activeMode = &homeSlot;
     IMode* menuSlot = nullptr;
     IMode* patchSlot = nullptr;
-    IMode* modes[ModeCount] = {&homeSlot, &playSlot, patchSlot, menuSlot};
+    IMode* buttonDiagnosticSlot = nullptr;
+    IMode* modes[ModeCount] = {&homeSlot, &playSlot, patchSlot, menuSlot, buttonDiagnosticSlot};
     ModeManager modeManager(activeMode, modes);
     HomeMode mode(touchButtonManager, ringManager, ui, midiManager, modeManager);
 
@@ -290,7 +291,8 @@ void test_button_six_transitions_via_mode_manager_to_patch_slot()
 
     IMode* activeMode = &homeSlot;
     IMode* menuSlot = nullptr;
-    IMode* modes[ModeCount] = {&homeSlot, &playSlot, &patchSlot, menuSlot};
+    IMode* buttonDiagnosticSlot = nullptr;
+    IMode* modes[ModeCount] = {&homeSlot, &playSlot, &patchSlot, menuSlot, buttonDiagnosticSlot};
     ModeManager modeManager(activeMode, modes);
     HomeMode mode(touchButtonManager, ringManager, ui, midiManager, modeManager);
 

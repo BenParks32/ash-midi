@@ -8,6 +8,7 @@
 #include "Encoder.h"
 #include "Gfx.h"
 #include "MidiManager.h"
+#include "Modes/ButtonDiagnosticMode.h"
 #include "Modes/HomeMode.h"
 #include "Modes/MenuMode.h"
 #include "Modes/Mode.h"
@@ -65,6 +66,7 @@ PatchMode patchMode(touchButtonManager, ringManager, screenUi, midiManager, mode
 HomeMode homeMode(touchButtonManager, ringManager, screenUi, midiManager, modeManager);
 MenuMode menuMode(touchButtonManager, ringManager, screenUi, midiManager, modeManager, settingsStore, resources,
                   appSettings);
+ButtonDiagnosticMode buttonDiagnosticMode(touchButtonManager, ringManager, screenUi, midiManager, modeManager);
 
 bool initResourcesSD()
 {
@@ -121,6 +123,7 @@ void setup()
     modeRegistry[static_cast<uint8_t>(Modes::Play)] = &playMode;
     modeRegistry[static_cast<uint8_t>(Modes::Patch)] = &patchMode;
     modeRegistry[static_cast<uint8_t>(Modes::Menu)] = &menuMode;
+    modeRegistry[static_cast<uint8_t>(Modes::ButtonDiagnostic)] = &buttonDiagnosticMode;
 
     activeMode = &homeMode;
     activeMode->activate();

@@ -30,6 +30,7 @@ class MenuMode : public FunctionModeBase
         Brightness = 0,
         MidiChannel = 1,
         SdCard = 2,
+      ButtonDiagnostics = 3,
         Count,
     };
 
