@@ -80,10 +80,14 @@ class Resources : public ISdCardManager
     void deselectSharedSpiDevices() const;
     void sendSdIdleClocks() const;
     bool beginSdWithRetries();
+    bool openFileForRead(const char* path, SdFile& file) const;
 
   private:
     const byte _sdPin;
     const Icon* FootSwitchIcon;
+    Sd2Card _card;
+    SdVolume _volume;
+    SdFile _root;
 
   public:
     bool init();

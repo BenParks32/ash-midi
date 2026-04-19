@@ -12,6 +12,7 @@ constexpr uint8_t SdIdleClockBytes = 20;
 constexpr uint32_t SdRetryDelayMs = 50;
 constexpr uint32_t SdBusSettleDelayMs = 10;
 constexpr uint32_t SdPowerSettleDelayMs = 250;
+constexpr uint8_t SdInitRateId = 5;
 } // namespace
 
 Resources::Resources(const byte sdPin) : _sdPin(sdPin), FootSwitchIcon(nullptr), _isMounted(false) {}
@@ -53,12 +54,42 @@ bool Resources::beginSdWithRetries()
         sendSdIdleClocks();
         deselectSharedSpiDevices();
 
-        if (SD.begin(SdInitClockHz, _sdPin))
+        if (!_card.init(SdInitRateId, _sdPin))
+        {
+            Serial.printf("SD init attempt %u/%u failed during card reset: error=0x%02X data=0x%02X\n",
+                          (unsigned int)(attempt + 1), (unsigned int)SdInitRetryCount, (unsigned int)_card.errorCode(),
+                          (unsigned int)_card.errorData());
+            _root.close();
+            delay(SdRetryDelayMs);
+            continue;
+        }
+
+        if (!_card.setSpiClock(SdInitClockHz))
+        {
+            Serial.printf("SD init attempt %u/%u failed setting SPI clock to %lu Hz\n", (unsigned int)(attempt + 1),
+                          (unsigned int)SdInitRetryCount, (unsigned long)SdInitClockHz);
+            _root.close();
+            delay(SdRetryDelayMs);
+            continue;
+        }
+
+        if (!_volume.init(_card))
+        {
+            Serial.printf("SD init attempt %u/%u failed mounting volume\n", (unsigned int)(attempt + 1),
+                          (unsigned int)SdInitRetryCount);
+            _root.close();
+            delay(SdRetryDelayMs);
+            continue;
+        }
+
+        if (_root.openRoot(_volume))
         {
             return true;
         }
 
-        SD.end();
+        Serial.printf("SD init attempt %u/%u failed opening root directory\n", (unsigned int)(attempt + 1),
+                      (unsigned int)SdInitRetryCount);
+        _root.close();
         delay(SdRetryDelayMs);
     }
 
@@ -73,7 +104,7 @@ bool Resources::mount()
     }
 
     deselectSharedSpiDevices();
-    SD.end();
+    _root.close();
     delay(SdPowerSettleDelayMs);
 
     _isMounted = beginSdWithRetries();
@@ -89,27 +120,48 @@ bool Resources::mount()
     return _isMounted;
 }
 
+bool Resources::openFileForRead(const char* path, SdFile& file) const
+{
+    if (!_root.isOpen())
+    {
+        return false;
+    }
+
+    const char* normalizedPath = path;
+    while (*normalizedPath == '/')
+    {
+        ++normalizedPath;
+    }
+
+    if (*normalizedPath == '\0')
+    {
+        return false;
+    }
+
+    return file.open(const_cast<SdFile*>(&_root), normalizedPath, O_READ);
+}
+
 const uint16_t* Resources::readFile(const char* path, const size_t expectedSizeBytes) const
 {
     Serial.printf("Loading resource from path: %s\n", path);
 
-    if (!SD.exists(path))
+    SdFile file;
+    if (!openFileForRead(path, file))
     {
-        Serial.printf("File not found: %s\n", path);
+        Serial.printf("File not found or failed to open: %s\n", path);
         return nullptr;
     }
 
-    File file = SD.open(path, FILE_READ);
-    if (!file)
+    if (!file.isOpen())
     {
         Serial.printf("Failed to open file: %s\n", path);
         return nullptr;
     }
 
-    if (file.size() < expectedSizeBytes)
+    if (file.fileSize() < expectedSizeBytes)
     {
         Serial.printf("File too small: expected %u, actual %u\n", (unsigned int)expectedSizeBytes,
-                      (unsigned int)file.size());
+                      (unsigned int)file.fileSize());
         file.close();
         return nullptr;
     }
@@ -193,7 +245,7 @@ bool Resources::unmount()
         return true;
     }
 
-    SD.end();
+    _root.close();
     deselectSharedSpiDevices();
     delay(SdBusSettleDelayMs);
     _isMounted = false;

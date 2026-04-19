@@ -29,10 +29,15 @@ It assumes you already have four separate 5V buck outputs available:
 ### 3.1 Black Pill sockets (plug-in carrier)
 
 - J_BP_L: 1x20 female header at column 8, rows C-V.
-- J_BP_R: 1x20 female header at column 17, rows C-V.
-- Header gap: 8 clear columns between socket rails (columns 9-16).
+- J_BP_R: 1x20 female header at column 16, rows C-V.
+- Header gap: 7 clear columns between socket rails (columns 9-15).
 - Keepout for USB-C and BOOT/NRST access: rows A-B, columns 6-19.
 - Insert board with USB-C toward row A.
+
+Verified row map with USB-C toward row A:
+
+- J_BP_L rows used here: O=PB5, P=PB6.
+- J_BP_R rows used here: F=PB10, G=PB2, H=PB1, I=PB0, J=PA7, K=PA6, L=PA5, M=PA4, N=PA3, O=PA2, P=PA1, Q=PA0.
 
 ### 3.2 Buffer IC and passives
 
@@ -52,47 +57,47 @@ It assumes you already have four separate 5V buck outputs available:
 - J_PWR_C_IN (LED group 2 5V/GND): column 3, rows L-M.
 - J_PWR_D_IN (LED group 3 5V/GND): column 3, rows P-Q.
 
+- J_LED_DATA (2-way): column 38, rows A-B.
+  - A38: LED data out
+   - B38: LED ground companion (same net as LED power ground)
+
+- J_LED_B_OUT (2-way, rings 1-3 power): column 38, rows C-D.
+- J_LED_C_OUT (2-way, rings 4-6 power): column 38, rows E-F.
+- J_LED_D_OUT (2-way, rings 7-8 power): column 38, rows G-H.
+
 - J_MIDI (DIN wiring terminal, 3-way): column 38, rows I-K.
   - I38: DIN pin 5 path
   - J38: DIN pin 4 path
   - K38: DIN pin 2 (GND)
 
-- J_LED_DATA (2-way): column 38, rows M-N.
-  - M38: LED data out
-  - N38: LED ground reference
-
-- J_LED_B_OUT (2-way, rings 1-3 power): column 38, rows R-S.
-- J_LED_C_OUT (2-way, rings 4-6 power): column 38, rows T-U.
-- J_LED_D_OUT (2-way, rings 7-8 power): column 38, rows W-X.
-
 - STAR_GND lug/pad: Y20 (single star node for all buck grounds and branch returns).
 
-### 3.4 TFT, touch, and SD connectors (isolated edge pads)
+### 3.4 TFT, touch, and SD connectors
 
-- J_TFT (9-way): column 40, rows A-I.
-   - A40: TFT_VCC
-   - B40: TFT_GND
-   - C40: TFT_SCLK (PA5)
-   - D40: TFT_MOSI (PA7)
-   - E40: TFT_MISO (PA6)
-   - F40: TFT_CS (PA1)
-   - G40: TFT_DC (PA2)
-   - H40: TFT_RST (PA3)
-   - I40: TFT_BL optional
+- J_TFT (9-way): column 40, rows L-T.
+   - L40: TFT_CS (PA1)
+   - M40: TFT_DC (PA2)
+   - N40: TFT_RST (PA3)
+   - O40: TFT_BL optional
+   - P40: TFT_SCLK (PA5)
+   - Q40: TFT_MISO (PA6)
+   - R40: TFT_MOSI (PA7)
+   - S40: TFT_VCC
+   - T40: TFT_GND
 
 - J_TOUCH (2-way): column 40, rows J-K.
    - J40: TOUCH_CS (PB10)
    - K40: TOUCH_IRQ (PB2)
 
-- J_SD (6-way): column 40, rows L-Q.
-   - L40: SD_VCC
-   - M40: SD_GND
-   - N40: SD_SCLK (PA5)
-   - O40: SD_MOSI (PA7)
-   - P40: SD_MISO (PA6)
-   - Q40: SD_CS (PA4)
+- J_SD (6-way): column 36, rows O-T.
+   - O36: SD_CS (PA4)
+   - P36: SD_SCLK (PA5)
+   - Q36: SD_MISO (PA6)
+   - R36: SD_MOSI (PA7)
+   - S36: SD_VCC
+   - T36: SD_GND
 
-All right-edge connector pads above are isolated from the main strip using a cut at column 39 on the same row.
+All TFT, touch, and SD connector pads are isolated by cuts. The moved TFT/SD placement keeps related SPI rows grouped together, but U1 row cuts at H-N prevent direct strip routing from the MCU header to the edge connectors.
 
 ### 3.5 Rotary encoder connector (isolated edge pads)
 
@@ -170,7 +175,7 @@ Required cuts for Black Pill left/right header separation:
 - U11
 - V11
 
-These twenty cuts split each MCU row between `J_BP_L` at column 8 and `J_BP_R` at column 17 so opposite-side pins do not short through strip copper.
+These twenty cuts split each MCU row between `J_BP_L` at column 8 and `J_BP_R` at column 16 so opposite-side pins do not short through strip copper.
 
 Required cuts for U1-to-MCU row isolation:
 
@@ -184,17 +189,24 @@ Required cuts for U1-to-MCU row isolation:
 
 These seven cuts stop accidental direct row connections from MCU header rows into U1 rows. Without them, U1 inputs may land on the wrong MCU pin by row alignment.
 
-Required cuts for right-edge isolated pads (TFT, touch, SD):
+Required cuts for isolated column-38 connectors:
 
-- A39
-- B39
-- C39
-- D39
-- E39
-- F39
-- G39
-- H39
-- I39
+- A37
+- B37
+- C37
+- D37
+- E37
+- F37
+- G37
+- H37
+- I37
+- J37
+- K37
+
+These cuts isolate the column-38 connectors from the main strip so they only connect through their intended jumper or power link.
+
+Required cuts for isolated TFT and touch pads:
+
 - J39
 - K39
 - L39
@@ -203,8 +215,22 @@ Required cuts for right-edge isolated pads (TFT, touch, SD):
 - O39
 - P39
 - Q39
+- R39
+- S39
+- T39
 
-These cuts isolate pads at column 40 so each connector pin only connects through its intended jumper.
+These cuts isolate all TFT and touch connector pads at column 40 so each connection is made only by its intended jumper or power link.
+
+Required cuts for isolated SD pads:
+
+- O35
+- P35
+- Q35
+- R35
+- S35
+- T35
+
+These cuts isolate all SD pads at column 36 so each connection is made only by its intended jumper or power link.
 
 Required cuts for left-edge isolated pads (encoder):
 
@@ -218,17 +244,17 @@ These cuts isolate pads at column 1 so each encoder pin only connects through it
 
 ## 6. Jumper and Net List
 
-No-inference rule: every pad on an isolated connector (column 40 pads and column 1 encoder pads) must be wired by an explicit jumper from its source net. If a jumper is not listed below, do not assume it is connected.
+No-inference rule: every isolated connector pad must be wired by an explicit jumper or power link from its source net. Do not assume any TFT, touch, or SD signal reaches the connector by strip continuity.
 
 ### 6.1 Control and signal jumpers
 
 - Important: install the U1-to-MCU row isolation cuts (H20-N20) before these jumpers.
-- J_BP_L pin labeled PB6 -> I24 (U1 pin 2).
-- J_BP_R pin labeled PA0 -> L24 (U1 pin 5).
+- (PB6) P6 -> I24 (U1 pin 2).
+- (PA0) Q18 -> L24 (U1 pin 5).
 - J24 (U1 pin 3) -> J31 (R1 top).
 - K31 (R1 bottom) -> I38 (J_MIDI DIN5).
 - M24 (U1 pin 6) -> M31 (R3 top).
-- N31 (R3 bottom) -> M38 (J_LED_DATA data).
+- N31 (R3 bottom) -> A38 (J_LED_DATA data).
 
 ### 6.2 MIDI supply and ground
 
@@ -247,112 +273,106 @@ No-inference rule: every pad on an isolated connector (column 40 pads and column
 - STAR_GND -> M27 (U1 pin 9).
 - STAR_GND -> J27 (U1 pin 12).
 
-### 6.4 Ground reference for LED data
+### 6.4 LED data companion ground
 
-- STAR_GND -> N38 (J_LED_DATA ground).
+- STAR_GND -> B38 (J_LED_DATA ground companion).
 
-This keeps data reference common while LED power is split across branches.
+The LED rings do not use a separate data-reference ground pin. B38 is the same LED ground net, provided only as an optional companion conductor alongside the data wire if you want the data cable to travel with a local ground.
 
 ### 6.5 TFT connector wiring
 
-- Logic +5V (or 3V3, per TFT module requirement) -> A40.
-- STAR_GND -> B40.
-- J_BP pin labeled PA5 -> C40.
-- J_BP pin labeled PA7 -> D40.
-- J_BP pin labeled PA6 -> E40.
-- J_BP pin labeled PA1 -> F40.
-- J_BP pin labeled PA2 -> G40.
-- J_BP pin labeled PA3 -> H40.
-- Optional backlight feed or PWM-controlled feed -> I40.
+- (PA1) P18 -> L40.
+- (PA2) O18 -> M40.
+- (PA3) N18 -> N40.
+- (PA5) L18 -> P40.
+- (PA6) K18 -> Q40.
+- (PA7) J18 -> R40.
+- Logic +5V (or 3V3, per TFT module requirement) -> S40.
+- STAR_GND -> T40.
+- Optional backlight feed or PWM-controlled feed -> O40.
 
-Important: C40 is isolated by cut C39, so it will not auto-connect through strip rows. Run a dedicated jumper from the Black Pill header hole labeled PA5 to C40.
+All TFT pads are isolated by cuts and require explicit links.
 
 ### 6.6 Touch connector wiring
 
-- J_BP pin labeled PB10 -> J40.
-- J_BP pin labeled PB2 -> K40.
+- (PB10) F18 -> J40.
+- (PB2) G18 -> K40.
 
 ### 6.7 SD connector wiring
 
-- Logic +5V or 3V3 (per SD module requirement) -> L40.
-- STAR_GND -> M40.
-- J_BP pin labeled PA5 -> N40.
-- J_BP pin labeled PA7 -> O40.
-- J_BP pin labeled PA6 -> P40.
-- J_BP pin labeled PA4 -> Q40.
+- (PA4) M18 -> O36.
+- Logic +5V or 3V3 (per SD module requirement) -> S36.
+- STAR_GND -> T36.
 
-PA5 is shared SPI clock for TFT and SD. You can either run two separate jumpers from PA5 to C40 and N40, or run PA5 to C40 and then short C40 to N40.
+For SD SPI lines choose one option set (A or B):
+
+- Option A (direct from MCU taps):
+   - (PA5) L18 -> P36.
+   - (PA6) K18 -> Q36.
+   - (PA7) J18 -> R36.
+- Option B (branch from TFT pads):
+   - P40 -> P36.
+   - Q40 -> Q36.
+   - R40 -> R36.
 
 ### 6.8 Encoder connector wiring
 
-- J_BP pin labeled PB0 -> U1.
-- J_BP pin labeled PB1 -> V1.
-- J_BP pin labeled PB5 -> W1.
+- (PB0) I18 -> U1.
+- (PB1) H18 -> V1.
+- (PB5) O6 -> W1.
 - STAR_GND -> X1.
 - Optional 3V3 feed -> Y1.
 
 The encoder inputs in firmware use INPUT_PULLUP, so A, B, and SW are expected to switch to ground.
 
-### 6.9 Authoritative jumper manifest (build from this list)
+### 6.9 Authoritative connection manifest (build from this list)
 
-Signal jumpers:
+Wire jumpers:
 
-- J01: PB6 -> I24 (U1 pin 2, MIDI TX into buffer)
-- J02: PA0 -> L24 (U1 pin 5, LED data into buffer)
+- J01: (PB6) P6 -> I24 (U1 pin 2, MIDI TX into buffer)
+- J02: (PA0) Q18 -> L24 (U1 pin 5, LED data into buffer)
 - J03: J24 -> J31 (U1 MIDI output to R1)
 - J04: K31 -> I38 (R1 to MIDI DIN pin 5)
 - J05: M24 -> M31 (U1 LED output to R3)
-- J06: N31 -> M38 (R3 to LED data output)
-
-TFT and SD shared SPI jumpers:
-
-- J07: PA5 -> C40 (TFT SCLK)
-- J08: PA7 -> D40 (TFT MOSI)
-- J09: PA6 -> E40 (TFT MISO)
-- J10: PA1 -> F40 (TFT CS)
-- J11: PA2 -> G40 (TFT DC)
-- J12: PA3 -> H40 (TFT RST)
-- J13: PB10 -> J40 (TOUCH CS)
-- J14: PB2 -> K40 (TOUCH IRQ)
-- J15: PA4 -> Q40 (SD CS)
+- J06: N31 -> A38 (R3 to LED data output)
+- J07: (PA1) P18 -> L40 (TFT CS)
+- J08: (PA2) O18 -> M40 (TFT DC)
+- J09: (PA3) N18 -> N40 (TFT RST)
+- J10: (PA5) L18 -> P40 (TFT SCLK)
+- J11: (PA6) K18 -> Q40 (TFT MISO)
+- J12: (PA7) J18 -> R40 (TFT MOSI)
+- J13: (PB10) F18 -> J40 (TOUCH CS)
+- J14: (PB2) G18 -> K40 (TOUCH IRQ)
+- J15: (PA4) M18 -> O36 (SD CS)
+- J19: (PB0) I18 -> U1 (ENC A)
+- J20: (PB1) H18 -> V1 (ENC B)
+- J21: (PB5) O6 -> W1 (ENC SW)
+- J22: STAR_GND -> K38 (MIDI DIN2)
+- J23: STAR_GND -> B38 (LED ground companion, same LED ground net)
+- J24: STAR_GND -> T40 (TFT GND)
+- J25: STAR_GND -> T36 (SD GND)
+- J26: STAR_GND -> X1 (encoder GND)
+- J27: Logic rail (5V or 3V3 per TFT module) -> S40
+- J28: Logic rail (5V or 3V3 per SD module) -> S36
+- J29: Optional backlight feed/PWM -> O40
+- J30: Optional encoder VCC (normally not needed) -> Y1
 
 For SD SPI lines choose one option set (A or B):
 
-- Option A (direct from MCU):
-   - J16A: PA5 -> N40 (SD SCLK)
-   - J17A: PA7 -> O40 (SD MOSI)
-   - J18A: PA6 -> P40 (SD MISO)
-- Option B (short from TFT pads):
-   - J16B: C40 -> N40 (SCLK branch)
-   - J17B: D40 -> O40 (MOSI branch)
-   - J18B: E40 -> P40 (MISO branch)
-
-Encoder jumpers:
-
-- J19: PB0 -> U1 (ENC A)
-- J20: PB1 -> V1 (ENC B)
-- J21: PB5 -> W1 (ENC SW)
-
-Ground jumpers:
-
-- J22: STAR_GND -> K38 (MIDI DIN2)
-- J23: STAR_GND -> N38 (LED data reference ground)
-- J24: STAR_GND -> B40 (TFT GND)
-- J25: STAR_GND -> M40 (SD GND)
-- J26: STAR_GND -> X1 (encoder GND)
-
-Power jumpers (module-voltage dependent):
-
-- J27: Logic rail (5V or 3V3 per TFT module) -> A40
-- J28: Logic rail (5V or 3V3 per SD module) -> L40
-- J29: Optional backlight feed/PWM -> I40
-- J30: Optional encoder VCC (normally not needed) -> Y1
+- Option A (direct from MCU taps):
+   - J16A: (PA5) L18 -> P36 (SD SCLK)
+   - J17A: (PA6) K18 -> Q36 (SD MISO)
+   - J18A: (PA7) J18 -> R36 (SD MOSI)
+- Option B (branch from TFT pads):
+   - J16B: P40 -> P36 (SCLK branch)
+   - J17B: Q40 -> Q36 (MISO branch)
+   - J18B: R40 -> R36 (MOSI branch)
 
 Acceptance check before power:
 
-- Continuity exists for J01 through J26, and for any selected optional jumpers.
-- No continuity from C40/N40/O40/P40 to PA5/PA7/PA6 unless Option A or Option B jumpers are installed.
-- Exactly one SPI branch strategy is used (Option A or Option B), not both.
+- Continuity exists for J01 through J15 and J19 through J30, plus exactly one SD SPI option set.
+- No continuity from P36/Q36/R36 to PA5/PA6/PA7 unless Option A or Option B is installed.
+- J40, K40, O40, S40, T40, O36, S36, and T36 remain open until their explicit links are installed.
 
 ### 6.10 Checkbox build checklist
 
@@ -394,15 +414,17 @@ Track cuts:
 - [ ] L20
 - [ ] M20
 - [ ] N20
-- [ ] A39
-- [ ] B39
-- [ ] C39
-- [ ] D39
-- [ ] E39
-- [ ] F39
-- [ ] G39
-- [ ] H39
-- [ ] I39
+- [ ] A37
+- [ ] B37
+- [ ] C37
+- [ ] D37
+- [ ] E37
+- [ ] F37
+- [ ] G37
+- [ ] H37
+- [ ] I37
+- [ ] J37
+- [ ] K37
 - [ ] J39
 - [ ] K39
 - [ ] L39
@@ -411,39 +433,50 @@ Track cuts:
 - [ ] O39
 - [ ] P39
 - [ ] Q39
+- [ ] R39
+- [ ] S39
+- [ ] T39
+- [ ] O35
+- [ ] P35
+- [ ] Q35
+- [ ] R35
+- [ ] S35
+- [ ] T35
 - [ ] U2
 - [ ] V2
 - [ ] W2
 - [ ] X2
 - [ ] Y2
 
-Mandatory jumpers:
+Mandatory build connections:
 
-- [ ] J01
-- [ ] J02
-- [ ] J03
-- [ ] J04
-- [ ] J05
-- [ ] J06
-- [ ] J07
-- [ ] J08
-- [ ] J09
-- [ ] J10
-- [ ] J11
-- [ ] J12
-- [ ] J13
-- [ ] J14
-- [ ] J15
-- [ ] J19
-- [ ] J20
-- [ ] J21
-- [ ] J22
-- [ ] J23
-- [ ] J24
-- [ ] J25
-- [ ] J26
+- Note: J16 uses exactly one SD SPI option set, either A or B.
 
-SD SPI branch selection (pick exactly one set):
+- [ ] J01: (PB6) P6 -> I24
+- [ ] J02: (PA0) Q18 -> L24
+- [ ] J03: J24 -> J31
+- [ ] J04: K31 -> I38
+- [ ] J05: M24 -> M31
+- [ ] J06: N31 -> A38
+- [ ] J07: (PA1) P18 -> L40
+- [ ] J08: (PA2) O18 -> M40
+- [ ] J09: (PA3) N18 -> N40
+- [ ] J10: (PA5) L18 -> P40
+- [ ] J11: (PA6) K18 -> Q40
+- [ ] J12: (PA7) J18 -> R40
+- [ ] J13: (PB10) F18 -> J40
+- [ ] J14: (PB2) G18 -> K40
+- [ ] J15: (PA4) M18 -> O36
+- [ ] J19: (PB0) I18 -> U1
+- [ ] J20: (PB1) H18 -> V1
+- [ ] J21: (PB5) O6 -> W1
+- [ ] J22: (STAR_GND) Y20 -> K38
+- [ ] J23: (STAR_GND) Y20 -> B38
+- [ ] J24: (STAR_GND) Y20 -> T40
+- [ ] J25: (STAR_GND) Y20 -> T36
+- [ ] J26: (STAR_GND) Y20 -> X1
+
+SD SPI option selection (pick exactly one set):
 
 - [ ] Option A: J16A, J17A, J18A
 - [ ] Option B: J16B, J17B, J18B
@@ -459,7 +492,8 @@ Pre-power continuity checks:
 
 - [ ] No short between logic rail and STAR_GND
 - [ ] H20-N20 are open
-- [ ] C40/N40/O40/P40 are isolated unless selected SPI jumpers are installed
+- [ ] No continuity from P36/Q36/R36 to PA5/PA6/PA7 unless the selected SD SPI option is installed
+- [ ] J40, K40, O40, S40, T40, O36, S36, and T36 are open unless linked
 - [ ] PA0 to L24 continuity (J02)
 - [ ] PB6 to I24 continuity (J01)
 - [ ] U1 pin 14 to logic rail continuity
@@ -491,8 +525,8 @@ Keep thermal and startup headroom. Target at least 25 percent margin on branch h
 1. Mechanical check: verify Black Pill can plug in and USB-C is unobstructed.
 2. Continuity check: verify all seven U1 cuts are open.
    - Verify H20-N20 are open (no direct continuity between MCU header rows and U1 rows until jumpers are added).
-   - Verify C40 has continuity to PA5 only after jumper installation.
-   - Verify N40 has continuity to PA5 only after jumper installation.
+   - Verify each TFT, touch, and SD signal pad only gains continuity to its MCU pin after its jumper is installed.
+   - Verify O40/S40/T40/O36/S36/T36 remain open until their explicit links are installed.
 3. No-power resistance check: verify no short between logic +5V and STAR_GND.
 4. Apply Buck A only (logic):
    - Confirm +5V at U1 pin 14 and GND at pin 7.
@@ -525,17 +559,19 @@ Bench use only. This is the short-form build card.
 - [ ] U1 split cuts: H25, I25, J25, K25, L25, M25, N25
 - [ ] MCU side-separation cuts: C11 through V11
 - [ ] U1-to-MCU isolation cuts: H20, I20, J20, K20, L20, M20, N20
-- [ ] Right-edge isolated pads: A39 through Q39
+- [ ] Column-38 isolated connector cuts: A37 through K37
+- [ ] TFT/touch isolated pads: J39, K39, L39, M39, N39, O39, P39, Q39, R39, S39, T39
+- [ ] SD isolated pads: O35, P35, Q35, R35, S35, T35
 - [ ] Left-edge encoder isolated pads: U2, V2, W2, X2, Y2
 
-### 11.2 Mandatory Jumpers
+### 11.2 Mandatory Connections
 
 - [ ] J01 J02 J03 J04 J05 J06
 - [ ] J07 J08 J09 J10 J11 J12 J13 J14 J15
 - [ ] J19 J20 J21
 - [ ] J22 J23 J24 J25 J26
 
-### 11.3 SPI Branch Choice (pick one)
+### 11.3 SD SPI Choice (pick one)
 
 - [ ] Option A: J16A J17A J18A
 - [ ] Option B: J16B J17B J18B
@@ -555,7 +591,8 @@ Bench use only. This is the short-form build card.
 - [ ] PB6 to I24 continuity (J01)
 - [ ] U1 pin 14 to logic rail continuity
 - [ ] U1 pin 7 to STAR_GND continuity
-- [ ] C40/N40/O40/P40 only connected to SPI nets through selected jumpers
+- [ ] P36/Q36/R36 only connected through the selected SD SPI option
+- [ ] J40/K40/O40/S40/T40/O36/S36/T36 only connected through their explicit links
 
 ## 12. Single-Page Build Card (Ultra-Compact)
 
@@ -566,7 +603,7 @@ Print this section only.
 - [ ] H25 I25 J25 K25 L25 M25 N25
 - [ ] C11 D11 E11 F11 G11 H11 I11 J11 K11 L11 M11 N11 O11 P11 Q11 R11 S11 T11 U11 V11
 - [ ] H20 I20 J20 K20 L20 M20 N20
-- [ ] A39 B39 C39 D39 E39 F39 G39 H39 I39 J39 K39 L39 M39 N39 O39 P39 Q39
+- [ ] A37 B37 C37 D37 E37 F37 G37 H37 I37 J37 K37 J39 K39 L39 M39 N39 O39 P39 Q39 R39 S39 T39 O35 P35 Q35 R35 S35 T35
 - [ ] U2 V2 W2 X2 Y2
 
 ### 12.2 Jumpers
@@ -579,7 +616,7 @@ Print this section only.
 - [ ] J29 (optional)
 - [ ] J30 (optional)
 
-### 12.3 SPI Option (Choose One)
+### 12.3 SD Option (Choose One)
 
 - [ ] A: J16A J17A J18A
 - [ ] B: J16B J17B J18B
@@ -592,4 +629,5 @@ Print this section only.
 - [ ] PB6 <-> I24 (J01)
 - [ ] U1 pin 14 <-> logic rail
 - [ ] U1 pin 7 <-> STAR_GND
-- [ ] C40/N40/O40/P40 only connected through selected SPI jumpers
+- [ ] P36/Q36/R36 only connected through selected SD option
+- [ ] J40/K40/O40/S40/T40/O36/S36/T36 only connected through explicit links
