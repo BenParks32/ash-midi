@@ -1,7 +1,6 @@
 #include "SettingsStore.h"
 
-#include <EEPROM.h>
-
+#include "Resources.h"
 #include "RingManager.h"
 
 namespace
@@ -9,7 +8,7 @@ namespace
 constexpr uint8_t kDefaultMidiChannel = 1;
 }
 
-SettingsStore::SettingsStore() {}
+SettingsStore::SettingsStore(Resources* resources) : _resources(resources) {}
 
 AppSettings SettingsStore::defaults()
 {
@@ -111,28 +110,22 @@ AppSettings SettingsStore::sanitize(const AppSettings& settings)
 
 bool SettingsStore::readStored(StoredSettings& outStored) const
 {
-    uint8_t* target = reinterpret_cast<uint8_t*>(&outStored);
-
-    for (size_t i = 0; i < sizeof(StoredSettings); ++i)
+    if (_resources == nullptr)
     {
-        target[i] = EEPROM.read(kBaseAddress + static_cast<int>(i));
+        return false;
     }
 
-    return true;
+    uint8_t* target = reinterpret_cast<uint8_t*>(&outStored);
+    return _resources->readSmallFile(kSettingsPath, target, sizeof(StoredSettings));
 }
 
 bool SettingsStore::writeStored(const StoredSettings& stored) const
 {
-    const uint8_t* source = reinterpret_cast<const uint8_t*>(&stored);
-
-    for (size_t i = 0; i < sizeof(StoredSettings); ++i)
+    if (_resources == nullptr)
     {
-        const int address = kBaseAddress + static_cast<int>(i);
-        if (EEPROM.read(address) != source[i])
-        {
-            EEPROM.write(address, source[i]);
-        }
+        return false;
     }
 
-    return true;
+    const uint8_t* source = reinterpret_cast<const uint8_t*>(&stored);
+    return _resources->writeSmallFile(kSettingsPath, source, sizeof(StoredSettings));
 }

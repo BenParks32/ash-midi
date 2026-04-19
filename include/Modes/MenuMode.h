@@ -30,7 +30,7 @@ class MenuMode : public FunctionModeBase
         Brightness = 0,
         MidiChannel = 1,
         SdCard = 2,
-      ButtonDiagnostics = 3,
+        ButtonDiagnostics = 3,
         Count,
     };
 
@@ -42,7 +42,7 @@ class MenuMode : public FunctionModeBase
     void renderMenuItem(MenuItem item, bool hasLeftFocus);
     void renderValuePanel(bool hasRightFocus);
     void renderValueLabel(bool hasRightFocus);
-    void renderSavingIndicator(bool visible);
+    void renderSavingIndicator(const char* label = nullptr, uint16_t textColour = TFT_WHITE);
     int32_t menuListStartY() const;
     int32_t menuRowY(MenuItem item) const;
     void moveSelection(int16_t steps);
@@ -59,4 +59,5 @@ class MenuMode : public FunctionModeBase
     AppSettings& _settings;
     MenuItem _selectedItem;
     bool _isEditMode;
+    char _savingIndicatorLabel[16];
 };

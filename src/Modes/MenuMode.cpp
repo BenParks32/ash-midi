@@ -115,7 +115,7 @@ MenuMode::MenuMode(TouchButtonManager& touchButtonManager, RingManager& ringMana
                    ISettingsStore& settingsStore, ISdCardManager& sdCardManager, AppSettings& settings)
     : FunctionModeBase(touchButtonManager, ringManager, screenUi, midiManager, transitionDelegate),
       _settingsStore(settingsStore), _sdCardManager(sdCardManager), _settings(settings),
-      _selectedItem(MenuItem::Brightness), _isEditMode(false)
+      _selectedItem(MenuItem::Brightness), _isEditMode(false), _savingIndicatorLabel{'\0'}
 {
     setupFunctions();
 }
@@ -206,11 +206,16 @@ void MenuMode::encoderPressed()
         _isEditMode = false;
         renderMenuItem(_selectedItem, true);
         renderValuePanel(false);
-        renderSavingIndicator(true);
+        renderSavingIndicator("Saving...", TFT_WHITE);
 
-        _settingsStore.save(_settings);
+        if (!_settingsStore.save(_settings))
+        {
+            renderSavingIndicator("Failed", TFT_RED);
+            Serial.println("Menu: settings save failed.");
+            return;
+        }
 
-        renderSavingIndicator(false);
+        renderSavingIndicator();
         return;
     }
 
@@ -429,7 +434,7 @@ void MenuMode::clearMenu()
     const int32_t valueY = layout.valuePanelY + ((layout.valuePanelHeight - valueTextHeight) / 2);
 
     _screenUi.drawCenteredText(valueFont, MenuValueScale, valueLabel, valueCenterX, valueY, TFT_BLACK, TFT_BLACK);
-    renderSavingIndicator(false);
+    renderSavingIndicator();
 }
 
 void MenuMode::renderStaticMenuPanels()
@@ -503,12 +508,25 @@ void MenuMode::renderValueLabel(bool hasRightFocus)
                                hasRightFocus ? TFT_BLACK : TFT_WHITE, hasRightFocus ? TFT_WHITE : TFT_BLACK);
 }
 
-void MenuMode::renderSavingIndicator(bool visible)
+void MenuMode::renderSavingIndicator(const char* label, uint16_t textColour)
 {
     const MenuLayout layout = buildMenuLayout(_screenUi);
     const int32_t indicatorX = layout.valuePanelX + ((layout.valuePanelWidth - SavingIndicatorWidth) / 2);
     const int32_t indicatorY = layout.valuePanelY + layout.valuePanelHeight - SavingIndicatorHeight - 8;
-    _screenUi.drawSmallText("Saving..", indicatorX, indicatorY + 2, visible ? TFT_WHITE : TFT_BLACK, TFT_BLACK);
+
+    if (_savingIndicatorLabel[0] != '\0')
+    {
+        _screenUi.drawSmallText(_savingIndicatorLabel, indicatorX, indicatorY + 2, TFT_BLACK, TFT_BLACK);
+    }
+
+    if (label != nullptr && label[0] != '\0')
+    {
+        std::snprintf(_savingIndicatorLabel, sizeof(_savingIndicatorLabel), "%s", label);
+        _screenUi.drawSmallText(_savingIndicatorLabel, indicatorX, indicatorY + 2, textColour, TFT_BLACK);
+        return;
+    }
+
+    _savingIndicatorLabel[0] = '\0';
 }
 
 uint8_t MenuMode::ringBrightnessForButton(byte number) const

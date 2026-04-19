@@ -57,7 +57,7 @@ IMode* activeMode = nullptr;
 ButtonHandler buttonHandler(activeMode, ringManager);
 TouchButtonManager touchButtonManager(screenUi, &buttonHandler);
 MidiManager midiManager;
-SettingsStore settingsStore;
+SettingsStore settingsStore(&resources);
 AppSettings appSettings = SettingsStore::defaults();
 IMode* modeRegistry[ModeCount] = {nullptr};
 ModeManager modeManager(activeMode, modeRegistry);

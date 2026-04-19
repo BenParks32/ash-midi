@@ -95,6 +95,8 @@ class Resources : public ISdCardManager
     bool mount() override;
     bool unmount() override;
     bool isMounted() const override { return _isMounted; }
+    bool readSmallFile(const char* path, uint8_t* buffer, size_t expectedSize) const;
+    bool writeSmallFile(const char* path, const uint8_t* data, size_t size);
     const Icon& footSwitchIcon() const { return *FootSwitchIcon; }
 
   private:

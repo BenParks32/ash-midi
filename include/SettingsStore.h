@@ -2,6 +2,8 @@
 
 #include <Arduino.h>
 
+class Resources;
+
 struct AppSettings
 {
     uint8_t masterBrightness;
@@ -20,7 +22,7 @@ class ISettingsStore
 class SettingsStore : public ISettingsStore
 {
   public:
-    SettingsStore();
+    explicit SettingsStore(Resources* resources = nullptr);
 
     bool load(AppSettings& outSettings) override;
     bool save(const AppSettings& settings) override;
@@ -30,7 +32,7 @@ class SettingsStore : public ISettingsStore
   private:
     static constexpr uint16_t kMagic = 0xA541;
     static constexpr uint8_t kVersion = 1;
-    static constexpr int kBaseAddress = 0;
+    static constexpr const char* kSettingsPath = "/settings.bin";
 
   private:
     struct StoredSettings
@@ -50,4 +52,7 @@ class SettingsStore : public ISettingsStore
 
     bool readStored(StoredSettings& outStored) const;
     bool writeStored(const StoredSettings& stored) const;
+
+  private:
+    Resources* _resources;
 };

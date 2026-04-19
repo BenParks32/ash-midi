@@ -141,6 +141,86 @@ bool Resources::openFileForRead(const char* path, SdFile& file) const
     return file.open(const_cast<SdFile*>(&_root), normalizedPath, O_READ);
 }
 
+bool Resources::readSmallFile(const char* path, uint8_t* buffer, size_t expectedSize) const
+{
+    if (!_isMounted || buffer == nullptr || expectedSize == 0)
+    {
+        return false;
+    }
+
+    SdFile file;
+    if (!openFileForRead(path, file) || !file.isOpen())
+    {
+        return false;
+    }
+
+    if (static_cast<size_t>(file.fileSize()) != expectedSize)
+    {
+        file.close();
+        return false;
+    }
+
+    size_t bytesRead = 0;
+    while (bytesRead < expectedSize)
+    {
+        const size_t remaining = expectedSize - bytesRead;
+        const size_t chunkSize = remaining > 64 ? 64 : remaining;
+        const int chunkRead = file.read(buffer + bytesRead, chunkSize);
+        if (chunkRead <= 0)
+        {
+            file.close();
+            return false;
+        }
+        bytesRead += static_cast<size_t>(chunkRead);
+    }
+
+    file.close();
+    return true;
+}
+
+bool Resources::writeSmallFile(const char* path, const uint8_t* data, size_t size)
+{
+    if (!_isMounted || data == nullptr || size == 0)
+    {
+        return false;
+    }
+
+    const char* normalizedPath = path;
+    while (*normalizedPath == '/')
+    {
+        ++normalizedPath;
+    }
+
+    if (*normalizedPath == '\0' || !_root.isOpen())
+    {
+        return false;
+    }
+
+    SdFile file;
+    if (!file.open(&_root, normalizedPath, O_WRITE | O_CREAT | O_TRUNC))
+    {
+        return false;
+    }
+
+    size_t bytesWritten = 0;
+    while (bytesWritten < size)
+    {
+        const size_t remaining = size - bytesWritten;
+        const size_t chunkSize = remaining > 64 ? 64 : remaining;
+        const int chunkWritten = file.write(data + bytesWritten, chunkSize);
+        if (chunkWritten <= 0)
+        {
+            file.close();
+            return false;
+        }
+        bytesWritten += static_cast<size_t>(chunkWritten);
+    }
+
+    file.sync();
+    file.close();
+    return true;
+}
+
 const uint16_t* Resources::readFile(const char* path, const size_t expectedSizeBytes) const
 {
     Serial.printf("Loading resource from path: %s\n", path);
