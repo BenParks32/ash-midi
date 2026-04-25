@@ -23,7 +23,9 @@
 
 // Touch controller pins
 #define TOUCH_CS PB10
+#ifdef USE_TOUCH_IRQ
 #define TOUCH_IRQ PB2
+#endif
 
 // SPI frequency
 #define SPI_FREQUENCY 40000000

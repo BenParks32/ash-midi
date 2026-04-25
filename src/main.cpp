@@ -104,9 +104,9 @@ void setup()
     }
     buttonHandler.begin();
 
-    tft.setTouch(calData);
     tft.init();
     tft.setRotation(1);
+    tft.setTouch(calData);
     ringManager.begin();
 
     settingsStore.load(appSettings);
@@ -159,7 +159,8 @@ void HandleEncoder()
 
 void HandleTouch()
 {
-    uint16_t x, y;
+    uint16_t x = 0;
+    uint16_t y = 0;
     if (tft.getTouch(&x, &y))
     {
         touchButtonManager.handleTouch(x, y);
