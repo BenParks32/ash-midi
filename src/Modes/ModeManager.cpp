@@ -2,7 +2,7 @@
 
 ModeManager::ModeManager(IMode*& activeMode, IMode* (&modes)[ModeCount]) : _activeMode(activeMode), _modes(modes) {}
 
-void ModeManager::enterMode(Modes mode, byte transitionValue)
+void ModeManager::enterMode(Modes mode, ModeTransitionValue transitionValue)
 {
     const uint8_t index = static_cast<uint8_t>(mode);
     if (index >= ModeCount)

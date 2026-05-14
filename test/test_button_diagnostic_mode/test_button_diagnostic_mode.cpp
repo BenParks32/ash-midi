@@ -48,7 +48,7 @@ class MockMidiManager : public IMidiManager
 class MockTransitionDelegate : public IModeTransistionDelegate
 {
   public:
-    void enterMode(Modes mode, byte transitionValue) override
+    void enterMode(Modes mode, ModeTransitionValue transitionValue) override
     {
         ++calls;
         lastMode = mode;
@@ -57,7 +57,7 @@ class MockTransitionDelegate : public IModeTransistionDelegate
 
     int calls = 0;
     Modes lastMode = Modes::ButtonDiagnostic;
-    byte lastTransitionValue = 0xFF;
+    ModeTransitionValue lastTransitionValue = ModeTransitionNone;
 };
 
 class ButtonDiagnosticModeFixture
@@ -132,7 +132,7 @@ void test_encoder_press_exits_to_menu_mode()
     TEST_ASSERT_EQUAL_INT(1, fixture.transitionDelegate.calls);
     TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(Modes::Menu),
                             static_cast<uint8_t>(fixture.transitionDelegate.lastMode));
-    TEST_ASSERT_EQUAL_UINT8(ModeTransitionNone, fixture.transitionDelegate.lastTransitionValue);
+    TEST_ASSERT_EQUAL_UINT16(ModeTransitionNone, fixture.transitionDelegate.lastTransitionValue);
 }
 } // namespace
 

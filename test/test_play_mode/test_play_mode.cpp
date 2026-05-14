@@ -2,7 +2,6 @@
 #include <TFT_eSPI.h>
 #include <unity.h>
 
-#include "HxStompMidi.h"
 #include "Modes/PlayMode.h"
 
 // Pull in implementation units required by PlayMode without linking app main.cpp.
@@ -47,7 +46,7 @@ class MockMidiManager : public IMidiManager
 class MockTransitionDelegate : public IModeTransistionDelegate
 {
   public:
-    void enterMode(Modes mode, byte transitionValue) override
+    void enterMode(Modes mode, ModeTransitionValue transitionValue) override
     {
         ++calls;
         lastMode = mode;
@@ -56,7 +55,50 @@ class MockTransitionDelegate : public IModeTransistionDelegate
 
     int calls = 0;
     Modes lastMode = Modes::Play;
-    byte lastTransitionValue = 0xFF;
+    ModeTransitionValue lastTransitionValue = ModeTransitionNone;
+};
+
+class MockMidiProvider : public IMidiProvider
+{
+  public:
+    enum class CallType : uint8_t
+    {
+        RecallPreset,
+        SelectScene,
+        SetTuner,
+    };
+
+    byte maxPresetIndex() const override { return 127; }
+
+    void recallPreset(byte presetIndex) override
+    {
+        ++recallPresetCalls;
+        lastRecallPreset = presetIndex;
+        callOrder[callCount++] = CallType::RecallPreset;
+    }
+
+    void selectScene(byte sceneIndex) override
+    {
+        ++selectSceneCalls;
+        lastSceneIndex = sceneIndex;
+        callOrder[callCount++] = CallType::SelectScene;
+    }
+
+    void setTunerEnabled(bool enabled) override
+    {
+        ++setTunerCalls;
+        lastTunerEnabled = enabled;
+        callOrder[callCount++] = CallType::SetTuner;
+    }
+
+    int recallPresetCalls = 0;
+    int selectSceneCalls = 0;
+    int setTunerCalls = 0;
+    byte lastRecallPreset = 0;
+    byte lastSceneIndex = 0;
+    bool lastTunerEnabled = false;
+    CallType callOrder[8] = {};
+    int callCount = 0;
 };
 
 class PlayModeFixture
@@ -64,8 +106,8 @@ class PlayModeFixture
   public:
     PlayModeFixture()
         : screenSize{480, 320}, ui(tft, screenSize), strip(RingManager::LedCount, 0, NEO_GRB + NEO_KHZ800),
-          ringManager(strip), touchButtonManager(ui), midiManager(), transitionDelegate(),
-          mode(touchButtonManager, ringManager, ui, midiManager, transitionDelegate)
+          ringManager(strip), touchButtonManager(ui), midiManager(), midiProvider(), transitionDelegate(),
+          mode(touchButtonManager, ringManager, ui, midiManager, midiProvider, transitionDelegate)
     {
     }
 
@@ -76,6 +118,7 @@ class PlayModeFixture
     RingManager ringManager;
     TouchButtonManager touchButtonManager;
     MockMidiManager midiManager;
+    MockMidiProvider midiProvider;
     MockTransitionDelegate transitionDelegate;
     PlayMode mode;
 };
@@ -86,13 +129,13 @@ void test_activate_sets_play_labels()
 
     fixture.mode.activate();
 
-    TEST_ASSERT_EQUAL_STRING("Clean", fixture.touchButtonManager.getButton(0)->label());
-    TEST_ASSERT_EQUAL_STRING("Crunch", fixture.touchButtonManager.getButton(1)->label());
-    TEST_ASSERT_EQUAL_STRING("Lead", fixture.touchButtonManager.getButton(2)->label());
+    TEST_ASSERT_EQUAL_STRING("Scene A", fixture.touchButtonManager.getButton(0)->label());
+    TEST_ASSERT_EQUAL_STRING("Scene B", fixture.touchButtonManager.getButton(1)->label());
+    TEST_ASSERT_EQUAL_STRING("Scene C", fixture.touchButtonManager.getButton(2)->label());
     TEST_ASSERT_EQUAL_STRING(" ", fixture.touchButtonManager.getButton(3)->label());
     TEST_ASSERT_EQUAL_STRING("Patch", fixture.touchButtonManager.getButton(4)->label());
     TEST_ASSERT_EQUAL_STRING(" ", fixture.touchButtonManager.getButton(6)->label());
-    TEST_ASSERT_EQUAL_STRING(" ", fixture.touchButtonManager.getButton(7)->label());
+    TEST_ASSERT_EQUAL_STRING("Tuner", fixture.touchButtonManager.getButton(7)->label());
 }
 
 void test_activate_selects_single_button_and_dims_others()
@@ -112,30 +155,37 @@ void test_activate_selects_single_button_and_dims_others()
     TEST_ASSERT_NOT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(1)->pillColour());
     TEST_ASSERT_NOT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(2)->pillColour());
     TEST_ASSERT_NOT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(4)->pillColour());
+    TEST_ASSERT_NOT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(7)->pillColour());
     TEST_ASSERT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(6)->pillColour());
-    TEST_ASSERT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(7)->pillColour());
 }
 
-void test_activate_sends_selected_home_program_change()
+void test_activate_recalls_selected_preset_before_scene_select()
 {
     PlayModeFixture fixture;
 
-    fixture.mode.setSelectedHomeProgramChange(6);
+    fixture.mode.setSelectedPreset(6);
     fixture.mode.activate();
 
-    TEST_ASSERT_EQUAL_INT(1, fixture.midiManager.programChangeCalls);
-    TEST_ASSERT_EQUAL_UINT8(6, fixture.midiManager.lastProgramChangeValue);
+    TEST_ASSERT_EQUAL_INT(1, fixture.midiProvider.recallPresetCalls);
+    TEST_ASSERT_EQUAL_UINT8(6, fixture.midiProvider.lastRecallPreset);
+    TEST_ASSERT_EQUAL_INT(1, fixture.midiProvider.selectSceneCalls);
+    TEST_ASSERT_EQUAL_UINT8(0, fixture.midiProvider.lastSceneIndex);
+    TEST_ASSERT_EQUAL_INT(2, fixture.midiProvider.callCount);
+    TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(MockMidiProvider::CallType::RecallPreset),
+                            static_cast<uint8_t>(fixture.midiProvider.callOrder[0]));
+    TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(MockMidiProvider::CallType::SelectScene),
+                            static_cast<uint8_t>(fixture.midiProvider.callOrder[1]));
 }
 
-void test_activate_sends_selected_home_program_change_zero()
+void test_activate_recalls_selected_preset_zero()
 {
     PlayModeFixture fixture;
 
-    fixture.mode.setSelectedHomeProgramChange(0);
+    fixture.mode.setSelectedPreset(0);
     fixture.mode.activate();
 
-    TEST_ASSERT_EQUAL_INT(1, fixture.midiManager.programChangeCalls);
-    TEST_ASSERT_EQUAL_UINT8(0, fixture.midiManager.lastProgramChangeValue);
+    TEST_ASSERT_EQUAL_INT(1, fixture.midiProvider.recallPresetCalls);
+    TEST_ASSERT_EQUAL_UINT8(0, fixture.midiProvider.lastRecallPreset);
 }
 
 void test_activate_skips_program_change_for_none_transition()
@@ -145,64 +195,87 @@ void test_activate_skips_program_change_for_none_transition()
     fixture.mode.setTransitionValue(ModeTransitionNone);
     fixture.mode.activate();
 
-    TEST_ASSERT_EQUAL_INT(0, fixture.midiManager.programChangeCalls);
+    TEST_ASSERT_EQUAL_INT(0, fixture.midiProvider.recallPresetCalls);
+    TEST_ASSERT_EQUAL_INT(1, fixture.midiProvider.selectSceneCalls);
 }
 
 void test_activate_skips_program_change_for_patch_return_transition()
 {
     PlayModeFixture fixture;
 
-    fixture.mode.setTransitionValue(static_cast<byte>(ModeTransitionPatchReturnFlag | 9));
+    fixture.mode.setTransitionValue(ModeTransitionPatchReturnFlag | 9);
     fixture.mode.activate();
 
-    TEST_ASSERT_EQUAL_INT(0, fixture.midiManager.programChangeCalls);
+    TEST_ASSERT_EQUAL_INT(0, fixture.midiProvider.recallPresetCalls);
+    TEST_ASSERT_EQUAL_INT(1, fixture.midiProvider.selectSceneCalls);
 }
 
-void test_activate_sends_selected_snapshot_control_change()
+void test_activate_selects_first_scene()
 {
     PlayModeFixture fixture;
 
     fixture.mode.activate();
 
-    TEST_ASSERT_EQUAL_INT(1, fixture.midiManager.controlChangeCalls);
-    TEST_ASSERT_EQUAL_UINT8(STOMP_SNAPSHOT_CC, fixture.midiManager.lastControlChangeNumber);
-    TEST_ASSERT_EQUAL_UINT8(0, fixture.midiManager.lastControlChangeValue);
+    TEST_ASSERT_EQUAL_INT(1, fixture.midiProvider.selectSceneCalls);
+    TEST_ASSERT_EQUAL_UINT8(0, fixture.midiProvider.lastSceneIndex);
 }
 
-void test_clean_sends_control_change_zero()
+void test_scene_a_selects_scene_zero()
 {
     PlayModeFixture fixture;
 
     fixture.mode.activate();
     fixture.mode.buttonPressed(0);
 
-    TEST_ASSERT_EQUAL_INT(2, fixture.midiManager.controlChangeCalls);
-    TEST_ASSERT_EQUAL_UINT8(STOMP_SNAPSHOT_CC, fixture.midiManager.lastControlChangeNumber);
-    TEST_ASSERT_EQUAL_UINT8(0, fixture.midiManager.lastControlChangeValue);
+    TEST_ASSERT_EQUAL_INT(2, fixture.midiProvider.selectSceneCalls);
+    TEST_ASSERT_EQUAL_UINT8(0, fixture.midiProvider.lastSceneIndex);
 }
 
-void test_crunch_sends_control_change_one()
+void test_scene_b_selects_scene_one()
 {
     PlayModeFixture fixture;
 
     fixture.mode.activate();
     fixture.mode.buttonPressed(1);
 
-    TEST_ASSERT_EQUAL_INT(2, fixture.midiManager.controlChangeCalls);
-    TEST_ASSERT_EQUAL_UINT8(STOMP_SNAPSHOT_CC, fixture.midiManager.lastControlChangeNumber);
-    TEST_ASSERT_EQUAL_UINT8(1, fixture.midiManager.lastControlChangeValue);
+    TEST_ASSERT_EQUAL_INT(2, fixture.midiProvider.selectSceneCalls);
+    TEST_ASSERT_EQUAL_UINT8(1, fixture.midiProvider.lastSceneIndex);
 }
 
-void test_lead_sends_control_change_two()
+void test_scene_c_selects_scene_two()
 {
     PlayModeFixture fixture;
 
     fixture.mode.activate();
     fixture.mode.buttonPressed(2);
 
-    TEST_ASSERT_EQUAL_INT(2, fixture.midiManager.controlChangeCalls);
-    TEST_ASSERT_EQUAL_UINT8(STOMP_SNAPSHOT_CC, fixture.midiManager.lastControlChangeNumber);
-    TEST_ASSERT_EQUAL_UINT8(2, fixture.midiManager.lastControlChangeValue);
+    TEST_ASSERT_EQUAL_INT(2, fixture.midiProvider.selectSceneCalls);
+    TEST_ASSERT_EQUAL_UINT8(2, fixture.midiProvider.lastSceneIndex);
+}
+
+void test_tuner_button_enables_tuner_without_changing_scene_selection()
+{
+    PlayModeFixture fixture;
+
+    fixture.mode.activate();
+    fixture.mode.buttonPressed(7);
+
+    TEST_ASSERT_EQUAL_INT(1, fixture.midiProvider.setTunerCalls);
+    TEST_ASSERT_TRUE(fixture.midiProvider.lastTunerEnabled);
+    TEST_ASSERT_EQUAL_INT(1, fixture.midiProvider.selectSceneCalls);
+    TEST_ASSERT_TRUE(fixture.touchButtonManager.getButton(0)->hasBorder());
+    TEST_ASSERT_FALSE(fixture.touchButtonManager.getButton(7)->hasBorder());
+}
+
+void test_tuner_button_long_press_disables_tuner()
+{
+    PlayModeFixture fixture;
+
+    fixture.mode.activate();
+    fixture.mode.buttonLongPressed(7);
+
+    TEST_ASSERT_EQUAL_INT(1, fixture.midiProvider.setTunerCalls);
+    TEST_ASSERT_FALSE(fixture.midiProvider.lastTunerEnabled);
 }
 
 void test_button_press_changes_selection_to_single_button()
@@ -227,7 +300,7 @@ void test_button_pressed_ignores_disabled_button()
     fixture.mode.activate();
     fixture.mode.buttonPressed(5);
 
-    TEST_ASSERT_EQUAL_INT(1, fixture.midiManager.controlChangeCalls);
+    TEST_ASSERT_EQUAL_INT(1, fixture.midiProvider.selectSceneCalls);
 }
 
 void test_long_press_is_noop()
@@ -237,7 +310,7 @@ void test_long_press_is_noop()
     fixture.mode.activate();
     fixture.mode.buttonLongPressed(0);
 
-    TEST_ASSERT_EQUAL_INT(1, fixture.midiManager.controlChangeCalls);
+    TEST_ASSERT_EQUAL_INT(1, fixture.midiProvider.selectSceneCalls);
     TEST_ASSERT_EQUAL_INT(0, fixture.transitionDelegate.calls);
 }
 
@@ -251,7 +324,7 @@ void test_button_five_long_press_transitions_to_home()
     TEST_ASSERT_EQUAL_INT(1, fixture.transitionDelegate.calls);
     TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(Modes::Home),
                             static_cast<uint8_t>(fixture.transitionDelegate.lastMode));
-    TEST_ASSERT_EQUAL_UINT8(ModeTransitionNone, fixture.transitionDelegate.lastTransitionValue);
+    TEST_ASSERT_EQUAL_UINT16(ModeTransitionNone, fixture.transitionDelegate.lastTransitionValue);
 }
 
 void test_button_eight_is_disabled_in_play_mode()
@@ -262,35 +335,35 @@ void test_button_eight_is_disabled_in_play_mode()
     fixture.mode.buttonPressed(7);
 
     TEST_ASSERT_EQUAL_INT(0, fixture.transitionDelegate.calls);
-    TEST_ASSERT_EQUAL_INT(1, fixture.midiManager.controlChangeCalls);
+    TEST_ASSERT_EQUAL_INT(1, fixture.midiProvider.selectSceneCalls);
 }
 
 void test_button_five_transitions_to_patch_mode()
 {
     PlayModeFixture fixture;
 
-    fixture.mode.setSelectedHomeProgramChange(6);
+    fixture.mode.setSelectedPreset(6);
     fixture.mode.activate();
     fixture.mode.buttonPressed(4);
 
     TEST_ASSERT_EQUAL_INT(1, fixture.transitionDelegate.calls);
     TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(Modes::Patch),
                             static_cast<uint8_t>(fixture.transitionDelegate.lastMode));
-    TEST_ASSERT_EQUAL_UINT8(6, fixture.transitionDelegate.lastTransitionValue);
+    TEST_ASSERT_EQUAL_UINT16(6, fixture.transitionDelegate.lastTransitionValue);
 }
 
 void test_button_five_uses_patch_return_value_for_next_patch_entry()
 {
     PlayModeFixture fixture;
 
-    fixture.mode.setTransitionValue(static_cast<byte>(ModeTransitionPatchReturnFlag | 11));
+    fixture.mode.setTransitionValue(ModeTransitionPatchReturnFlag | 11);
     fixture.mode.activate();
     fixture.mode.buttonPressed(4);
 
     TEST_ASSERT_EQUAL_INT(1, fixture.transitionDelegate.calls);
     TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(Modes::Patch),
                             static_cast<uint8_t>(fixture.transitionDelegate.lastMode));
-    TEST_ASSERT_EQUAL_UINT8(11, fixture.transitionDelegate.lastTransitionValue);
+    TEST_ASSERT_EQUAL_UINT16(11, fixture.transitionDelegate.lastTransitionValue);
 }
 } // namespace
 
@@ -310,14 +383,16 @@ void setup()
     UNITY_BEGIN();
     RUN_TEST(test_activate_sets_play_labels);
     RUN_TEST(test_activate_selects_single_button_and_dims_others);
-    RUN_TEST(test_activate_sends_selected_home_program_change);
-    RUN_TEST(test_activate_sends_selected_home_program_change_zero);
+    RUN_TEST(test_activate_recalls_selected_preset_before_scene_select);
+    RUN_TEST(test_activate_recalls_selected_preset_zero);
     RUN_TEST(test_activate_skips_program_change_for_none_transition);
     RUN_TEST(test_activate_skips_program_change_for_patch_return_transition);
-    RUN_TEST(test_activate_sends_selected_snapshot_control_change);
-    RUN_TEST(test_clean_sends_control_change_zero);
-    RUN_TEST(test_crunch_sends_control_change_one);
-    RUN_TEST(test_lead_sends_control_change_two);
+    RUN_TEST(test_activate_selects_first_scene);
+    RUN_TEST(test_scene_a_selects_scene_zero);
+    RUN_TEST(test_scene_b_selects_scene_one);
+    RUN_TEST(test_scene_c_selects_scene_two);
+    RUN_TEST(test_tuner_button_enables_tuner_without_changing_scene_selection);
+    RUN_TEST(test_tuner_button_long_press_disables_tuner);
     RUN_TEST(test_button_press_changes_selection_to_single_button);
     RUN_TEST(test_button_pressed_ignores_disabled_button);
     RUN_TEST(test_long_press_is_noop);

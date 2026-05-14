@@ -12,15 +12,16 @@ enum class Modes : uint8_t
 };
 
 static constexpr uint8_t ModeCount = static_cast<uint8_t>(Modes::Count);
-static constexpr byte ModeTransitionNone = 0xFF;
-static constexpr byte ModeTransitionPatchReturnFlag = 0x80;
-static constexpr byte ModeTransitionPatchValueMask = 0x3F;
+using ModeTransitionValue = uint16_t;
+static constexpr ModeTransitionValue ModeTransitionNone = 0xFFFF;
+static constexpr ModeTransitionValue ModeTransitionPatchReturnFlag = 0x0100;
+static constexpr ModeTransitionValue ModeTransitionPatchValueMask = 0x00FF;
 
 class IModeTransistionDelegate
 {
   public:
     virtual ~IModeTransistionDelegate() = default;
-    virtual void enterMode(Modes mode, byte transitionValue) = 0;
+    virtual void enterMode(Modes mode, ModeTransitionValue transitionValue) = 0;
 };
 
 class IMode
@@ -33,7 +34,7 @@ class IMode
     virtual void buttonPressed(const byte number) = 0;
     virtual void buttonLongPressed(const byte number) = 0;
     virtual void frameTick() = 0;
-    virtual void setTransitionValue(byte transitionValue) { (void)transitionValue; }
+    virtual void setTransitionValue(ModeTransitionValue transitionValue) { (void)transitionValue; }
     virtual void encoderRotated(int16_t steps) { (void)steps; }
     virtual void encoderPressed() {}
 };

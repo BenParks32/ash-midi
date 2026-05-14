@@ -1,21 +1,22 @@
 #pragma once
 
 #include "Modes/FunctionModeBase.h"
+#include "MidiProvider.h"
 
 class PlayMode : public FunctionModeBase
 {
   public:
     PlayMode(TouchButtonManager& touchButtonManager, RingManager& ringManager, ScreenUi& screenUi,
-             IMidiManager& midiManager, IModeTransistionDelegate& transitionDelegate);
+             IMidiManager& midiManager, IMidiProvider& midiProvider, IModeTransistionDelegate& transitionDelegate);
 
-    void setSelectedHomeProgramChange(byte selectedHomeProgramChange);
+    void setSelectedPreset(byte selectedPreset);
 
     void activate() override;
     void deactivate() override;
     void buttonPressed(byte number) override;
     void buttonLongPressed(byte number) override;
     void frameTick() override;
-    void setTransitionValue(byte transitionValue) override;
+    void setTransitionValue(ModeTransitionValue transitionValue) override;
 
   private:
     struct PatchBadgeMetrics
@@ -46,7 +47,8 @@ class PlayMode : public FunctionModeBase
     void setupFunctions();
 
   private:
-    byte _selectedHomeProgramChange;
-    bool _hasSelectedHomeProgramChange;
+    IMidiProvider& _midiProvider;
+    byte _selectedPreset;
+    bool _hasSelectedPreset;
     byte _selectedButton;
 };

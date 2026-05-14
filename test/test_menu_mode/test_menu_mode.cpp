@@ -2,7 +2,9 @@
 #include <TFT_eSPI.h>
 #include <unity.h>
 
+#define private public
 #include "Modes/MenuMode.h"
+#undef private
 
 // Pull in implementation units required by MenuMode without linking app main.cpp.
 #include "../../src/Function.cpp"
@@ -48,7 +50,7 @@ class MockMidiManager : public IMidiManager
 class MockTransitionDelegate : public IModeTransistionDelegate
 {
   public:
-    void enterMode(Modes mode, byte transitionValue) override
+    void enterMode(Modes mode, ModeTransitionValue transitionValue) override
     {
         ++calls;
         lastMode = mode;
@@ -57,7 +59,7 @@ class MockTransitionDelegate : public IModeTransistionDelegate
 
     int calls = 0;
     Modes lastMode = Modes::Menu;
-    byte lastTransitionValue = 0xFF;
+    ModeTransitionValue lastTransitionValue = ModeTransitionNone;
 };
 
 class MockSettingsStore : public ISettingsStore
@@ -183,7 +185,7 @@ void test_button_five_exits_menu_to_home()
     TEST_ASSERT_EQUAL_INT(1, fixture.transitionDelegate.calls);
     TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(Modes::Home),
                             static_cast<uint8_t>(fixture.transitionDelegate.lastMode));
-    TEST_ASSERT_EQUAL_UINT8(ModeTransitionNone, fixture.transitionDelegate.lastTransitionValue);
+    TEST_ASSERT_EQUAL_UINT16(ModeTransitionNone, fixture.transitionDelegate.lastTransitionValue);
 }
 
 void test_button_eight_is_noop_in_menu_mode()
@@ -392,7 +394,7 @@ void test_button_diagnostics_item_enters_button_diagnostic_mode()
     TEST_ASSERT_EQUAL_INT(1, fixture.transitionDelegate.calls);
     TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(Modes::ButtonDiagnostic),
                             static_cast<uint8_t>(fixture.transitionDelegate.lastMode));
-    TEST_ASSERT_EQUAL_UINT8(ModeTransitionNone, fixture.transitionDelegate.lastTransitionValue);
+    TEST_ASSERT_EQUAL_UINT16(ModeTransitionNone, fixture.transitionDelegate.lastTransitionValue);
     TEST_ASSERT_EQUAL_INT(0, fixture.settingsStore.saveCalls);
 }
 } // namespace

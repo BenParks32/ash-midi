@@ -1,19 +1,20 @@
 #pragma once
 
 #include "Modes/FunctionModeBase.h"
+#include "MidiProvider.h"
 
 class PatchMode : public FunctionModeBase
 {
   public:
     PatchMode(TouchButtonManager& touchButtonManager, RingManager& ringManager, ScreenUi& screenUi,
-              IMidiManager& midiManager, IModeTransistionDelegate& transitionDelegate);
+              IMidiManager& midiManager, IMidiProvider& midiProvider, IModeTransistionDelegate& transitionDelegate);
 
     void activate() override;
     void deactivate() override;
     void buttonPressed(byte number) override;
     void buttonLongPressed(byte number) override;
     void frameTick() override;
-    void setTransitionValue(byte transitionValue) override;
+    void setTransitionValue(ModeTransitionValue transitionValue) override;
 
   private:
     void setupFunctions();
@@ -29,6 +30,7 @@ class PatchMode : public FunctionModeBase
     uint8_t ringBrightnessForButton(byte number) const override;
 
   private:
+    IMidiProvider& _midiProvider;
     byte _currentPatch;
     bool _isPlayButtonLit;
     uint32_t _nextPlayFlashToggleMs;

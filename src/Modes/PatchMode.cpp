@@ -7,7 +7,6 @@
 namespace
 {
 const byte PatchMin = 0;
-const byte PatchMax = 39;
 const byte PatchDownAction = 0;
 const byte PatchUpAction = 1;
 const byte PlayButtonIndex = 4;
@@ -23,9 +22,10 @@ const int32_t PatchTitleBorderOffset = 12;
 } // namespace
 
 PatchMode::PatchMode(TouchButtonManager& touchButtonManager, RingManager& ringManager, ScreenUi& screenUi,
-                     IMidiManager& midiManager, IModeTransistionDelegate& transitionDelegate)
-    : FunctionModeBase(touchButtonManager, ringManager, screenUi, midiManager, transitionDelegate), _currentPatch(0),
-      _isPlayButtonLit(true), _nextPlayFlashToggleMs(0)
+                     IMidiManager& midiManager, IMidiProvider& midiProvider,
+                     IModeTransistionDelegate& transitionDelegate)
+    : FunctionModeBase(touchButtonManager, ringManager, screenUi, midiManager, transitionDelegate),
+      _midiProvider(midiProvider), _currentPatch(0), _isPlayButtonLit(true), _nextPlayFlashToggleMs(0)
 {
     setupFunctions();
 }
@@ -173,7 +173,7 @@ void PatchMode::renderPatchNumber(byte patchNumber, uint16_t textColour)
 {
     const int32_t centerX = _screenUi.boxWidth() * 2;
 
-    char patchLabel[3] = {'0', '0', '\0'};
+    char patchLabel[4] = {'0', '0', '\0', '\0'};
     formatPatchLabel(patchNumber, patchLabel, sizeof(patchLabel));
     _screenUi.drawCenteredText(FF32, PatchNumberScale, patchLabel, centerX, patchNumberY(), textColour, TFT_BLACK);
 }
@@ -198,20 +198,21 @@ void PatchMode::formatPatchLabel(byte patchNumber, char* buffer, size_t bufferSi
     std::snprintf(buffer, bufferSize, "%02u", static_cast<unsigned int>(patchNumber));
 }
 
-void PatchMode::setTransitionValue(byte transitionValue)
+void PatchMode::setTransitionValue(ModeTransitionValue transitionValue)
 {
     if (transitionValue == ModeTransitionNone)
     {
         return;
     }
 
-    if (transitionValue <= PatchMax)
+    const byte maxPresetIndex = _midiProvider.maxPresetIndex();
+    if (transitionValue <= maxPresetIndex)
     {
-        _currentPatch = transitionValue;
+        _currentPatch = static_cast<byte>(transitionValue);
         return;
     }
 
-    _currentPatch = static_cast<byte>(transitionValue % (PatchMax + 1));
+    _currentPatch = static_cast<byte>(transitionValue % (static_cast<ModeTransitionValue>(maxPresetIndex) + 1U));
 }
 
 uint8_t PatchMode::ringBrightnessForButton(byte number) const
@@ -242,8 +243,7 @@ void PatchMode::executeAction(ActionType action, byte actionValue)
         }
         else if (actionValue == static_cast<byte>(Modes::Play))
         {
-            _transitionDelegate.enterMode(Modes::Play,
-                                          static_cast<byte>(ModeTransitionPatchReturnFlag | _currentPatch));
+            _transitionDelegate.enterMode(Modes::Play, ModeTransitionPatchReturnFlag | _currentPatch);
         }
         break;
     }
@@ -252,14 +252,15 @@ void PatchMode::executeAction(ActionType action, byte actionValue)
 void PatchMode::changePatch(int8_t delta)
 {
     const byte previousPatch = _currentPatch;
+    const byte maxPresetIndex = _midiProvider.maxPresetIndex();
 
     if (delta > 0)
     {
-        _currentPatch = (_currentPatch >= PatchMax) ? PatchMin : static_cast<byte>(_currentPatch + 1);
+        _currentPatch = (_currentPatch >= maxPresetIndex) ? PatchMin : static_cast<byte>(_currentPatch + 1);
     }
     else if (delta < 0)
     {
-        _currentPatch = (_currentPatch <= PatchMin) ? PatchMax : static_cast<byte>(_currentPatch - 1);
+        _currentPatch = (_currentPatch <= PatchMin) ? maxPresetIndex : static_cast<byte>(_currentPatch - 1);
     }
 
     if (_currentPatch == previousPatch)
@@ -269,6 +270,6 @@ void PatchMode::changePatch(int8_t delta)
 
     renderPatchNumber(previousPatch, TFT_BLACK);
 
-    _midiManager.sendProgramChange(_currentPatch);
+    _midiProvider.recallPreset(_currentPatch);
     renderPatchNumber(_currentPatch, TFT_WHITE);
 }

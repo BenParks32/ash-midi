@@ -1,6 +1,5 @@
 #include "Modes/PlayMode.h"
 #include "ColorUtils.h"
-#include "HxStompMidi.h"
 
 #include <cctype>
 #include <cstdio>
@@ -23,59 +22,62 @@ const int32_t PlayPatchBadgeNumberOffset = 22;
 const int32_t PlaySnapshotLabelLeftX = 40;
 const byte FirstSnapshotButtonIndex = 0;
 const byte LastSnapshotButtonIndex = 2;
+const byte PatchButtonIndex = 4;
+const byte TunerButtonIndex = 7;
+const uint16_t TunerButtonColour = 0x801F;
 } // namespace
 
 PlayMode::PlayMode(TouchButtonManager& touchButtonManager, RingManager& ringManager, ScreenUi& screenUi,
-                   IMidiManager& midiManager, IModeTransistionDelegate& transitionDelegate)
+                   IMidiManager& midiManager, IMidiProvider& midiProvider, IModeTransistionDelegate& transitionDelegate)
     : FunctionModeBase(touchButtonManager, ringManager, screenUi, midiManager, transitionDelegate),
-      _selectedHomeProgramChange(0), _hasSelectedHomeProgramChange(false), _selectedButton(0)
+      _midiProvider(midiProvider), _selectedPreset(0), _hasSelectedPreset(false), _selectedButton(0)
 {
     setupFunctions();
 }
 
-void PlayMode::setSelectedHomeProgramChange(byte selectedHomeProgramChange)
+void PlayMode::setSelectedPreset(byte selectedPreset)
 {
-    _selectedHomeProgramChange = selectedHomeProgramChange;
-    _hasSelectedHomeProgramChange = true;
+    _selectedPreset = selectedPreset;
+    _hasSelectedPreset = true;
 }
 
-void PlayMode::setTransitionValue(byte transitionValue)
+void PlayMode::setTransitionValue(ModeTransitionValue transitionValue)
 {
     if (transitionValue == ModeTransitionNone)
     {
-        _hasSelectedHomeProgramChange = false;
+        _hasSelectedPreset = false;
         return;
     }
 
     if ((transitionValue & ModeTransitionPatchReturnFlag) != 0)
     {
-        _selectedHomeProgramChange = static_cast<byte>(transitionValue & ModeTransitionPatchValueMask);
-        _hasSelectedHomeProgramChange = false;
+        _selectedPreset = static_cast<byte>(transitionValue & ModeTransitionPatchValueMask);
+        _hasSelectedPreset = false;
         return;
     }
 
-    setSelectedHomeProgramChange(transitionValue);
+    setSelectedPreset(static_cast<byte>(transitionValue));
 }
 
 void PlayMode::setupFunctions()
 {
-    _functions[0] = Function("Clean", 0x07E0, ActionType::SendMidiControlChange, 0, ActionType::None, 0);
-    _functions[1] = Function("Crunch", 0xFD20, ActionType::SendMidiControlChange, 1, ActionType::None, 0);
-    _functions[2] = Function("Lead", 0xF800, ActionType::SendMidiControlChange, 2, ActionType::None, 0);
+    _functions[0] = Function("Scene A", 0x07E0, ActionType::SelectScene, 0, ActionType::None, 0);
+    _functions[1] = Function("Scene B", 0xFD20, ActionType::SelectScene, 1, ActionType::None, 0);
+    _functions[2] = Function("Scene C", 0xF800, ActionType::SelectScene, 2, ActionType::None, 0);
 
     _functions[3] = Function();
     _functions[4] = Function("Patch", 0xFFE0, ActionType::ChangeMode, static_cast<byte>(Modes::Patch),
                              ActionType::ChangeMode, static_cast<byte>(Modes::Home));
     _functions[5] = Function();
     _functions[6] = Function();
-    _functions[7] = Function();
+    _functions[7] = Function("Tuner", TunerButtonColour, ActionType::SetTuner, 1, ActionType::SetTuner, 0);
 }
 
 void PlayMode::activate()
 {
-    if (_hasSelectedHomeProgramChange)
+    if (_hasSelectedPreset)
     {
-        _midiManager.sendProgramChange(_selectedHomeProgramChange);
+        _midiProvider.recallPreset(_selectedPreset);
     }
 
     if (!isButtonEnabled(_selectedButton))
@@ -83,7 +85,7 @@ void PlayMode::activate()
         _selectedButton = 0;
     }
 
-    _midiManager.sendControlChange(STOMP_SNAPSHOT_CC, _selectedButton);
+    _midiProvider.selectScene(_selectedButton);
 
     updateVisuals();
     renderPlayCenterUi();
@@ -112,7 +114,7 @@ void PlayMode::renderPatchBadge()
                                 PlayPatchBadgeFrameRadius);
     _screenUi.drawCenteredText(FF22, PlayPatchBadgeTitleScale, PlayPatchBadgeTitle, metrics.frameCenterX,
                                metrics.titleY, TFT_WHITE, TFT_BLACK);
-    renderPatchBadgeNumber(_selectedHomeProgramChange, TFT_WHITE);
+    renderPatchBadgeNumber(_selectedPreset, TFT_WHITE);
 }
 
 void PlayMode::clearPatchBadge()
@@ -124,7 +126,7 @@ void PlayMode::clearPatchBadge()
                                 PlayPatchBadgeFrameRadius, TFT_BLACK, TFT_BLACK);
     _screenUi.drawCenteredText(FF22, PlayPatchBadgeTitleScale, PlayPatchBadgeTitle, metrics.frameCenterX,
                                metrics.titleY, TFT_BLACK, TFT_BLACK);
-    renderPatchBadgeNumber(_selectedHomeProgramChange, TFT_BLACK);
+    renderPatchBadgeNumber(_selectedPreset, TFT_BLACK);
 }
 
 void PlayMode::renderPatchBadgeNumber(byte patchNumber, uint16_t textColour)
@@ -132,7 +134,7 @@ void PlayMode::renderPatchBadgeNumber(byte patchNumber, uint16_t textColour)
     const int32_t frameCenterX = patchBadgeFrameCenterX();
     const int32_t numberY = patchBadgeFrameTopY() + PlayPatchBadgeNumberOffset;
 
-    char patchLabel[3] = {'0', '0', '\0'};
+    char patchLabel[4] = {'0', '0', '\0', '\0'};
     formatPatchNumberLabel(patchNumber, patchLabel, sizeof(patchLabel));
     _screenUi.drawCenteredText(FF32, PlayPatchBadgeNumberScale, patchLabel, frameCenterX, numberY, textColour,
                                TFT_BLACK);
@@ -286,9 +288,7 @@ uint8_t PlayMode::ringBrightnessForButton(byte number) const
 {
     // Snapshot buttons (0-2) are mutually exclusive: selected is bright, others are dim.
     // Patch navigation button is always bright when enabled.
-    static constexpr byte kPatchButton = 4;
-
-    if (number == kPatchButton)
+    if (number == PatchButtonIndex || number == TunerButtonIndex)
     {
         return RingManager::FullBrightness;
     }
@@ -318,6 +318,11 @@ void PlayMode::buttonPressed(byte number)
     }
 
     executeAction(func.pressAction(), func.pressActionValue());
+
+    if (func.pressAction() != ActionType::SelectScene)
+    {
+        return;
+    }
 
     const byte previousSelected = _selectedButton;
     _selectedButton = number;
@@ -352,10 +357,16 @@ void PlayMode::executeAction(ActionType action, byte actionValue)
     case ActionType::None:
         break;
     case ActionType::SendMidiProgramChange:
-        _midiManager.sendProgramChange(actionValue);
+        _midiProvider.recallPreset(actionValue);
         break;
     case ActionType::SendMidiControlChange:
-        _midiManager.sendControlChange(STOMP_SNAPSHOT_CC, actionValue);
+        _midiManager.sendControlChange(actionValue, 127);
+        break;
+    case ActionType::SelectScene:
+        _midiProvider.selectScene(actionValue);
+        break;
+    case ActionType::SetTuner:
+        _midiProvider.setTunerEnabled(actionValue != 0);
         break;
     case ActionType::ChangeMode:
     {
@@ -366,7 +377,7 @@ void PlayMode::executeAction(ActionType action, byte actionValue)
         }
         else if (targetMode == Modes::Patch)
         {
-            _transitionDelegate.enterMode(targetMode, _selectedHomeProgramChange);
+            _transitionDelegate.enterMode(targetMode, _selectedPreset);
         }
         break;
     }

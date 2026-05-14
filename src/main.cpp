@@ -8,6 +8,7 @@
 #include "Encoder.h"
 #include "Gfx.h"
 #include "MidiManager.h"
+#include "MidiProvider.h"
 #include "Modes/ButtonDiagnosticMode.h"
 #include "Modes/HomeMode.h"
 #include "Modes/MenuMode.h"
@@ -58,12 +59,13 @@ IMode* activeMode = nullptr;
 ButtonHandler buttonHandler(activeMode, ringManager);
 TouchButtonManager touchButtonManager(screenUi, &buttonHandler);
 MidiManager midiManager;
+QCMiniMidiProvider midiProvider(midiManager);
 SettingsStore settingsStore(&resources);
 AppSettings appSettings = SettingsStore::defaults();
 IMode* modeRegistry[ModeCount] = {nullptr};
 ModeManager modeManager(activeMode, modeRegistry);
-PlayMode playMode(touchButtonManager, ringManager, screenUi, midiManager, modeManager);
-PatchMode patchMode(touchButtonManager, ringManager, screenUi, midiManager, modeManager);
+PlayMode playMode(touchButtonManager, ringManager, screenUi, midiManager, midiProvider, modeManager);
+PatchMode patchMode(touchButtonManager, ringManager, screenUi, midiManager, midiProvider, modeManager);
 HomeMode homeMode(touchButtonManager, ringManager, screenUi, midiManager, modeManager);
 MenuMode menuMode(touchButtonManager, ringManager, screenUi, midiManager, modeManager, settingsStore, resources,
                   touchCalibrator, appSettings);

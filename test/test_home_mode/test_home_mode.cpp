@@ -48,7 +48,7 @@ class MockMidiManager : public IMidiManager
 class MockTransitionDelegate : public IModeTransistionDelegate
 {
   public:
-    void enterMode(Modes mode, byte transitionValue) override
+    void enterMode(Modes mode, ModeTransitionValue transitionValue) override
     {
         ++calls;
         lastMode = mode;
@@ -57,7 +57,7 @@ class MockTransitionDelegate : public IModeTransistionDelegate
 
     int calls = 0;
     Modes lastMode = Modes::Home;
-    byte lastTransitionValue = 0;
+    ModeTransitionValue lastTransitionValue = 0;
 };
 
 class HomeModeFixture
@@ -89,7 +89,7 @@ class TestModeSlot : public IMode
     void buttonLongPressed(const byte) override {}
     void frameTick() override {}
 
-    void setTransitionValue(byte transitionValue) override
+    void setTransitionValue(ModeTransitionValue transitionValue) override
     {
         ++setTransitionValueCalls;
         lastTransitionValue = transitionValue;
@@ -97,7 +97,7 @@ class TestModeSlot : public IMode
 
     int activateCalls = 0;
     int setTransitionValueCalls = 0;
-    byte lastTransitionValue = 0;
+    ModeTransitionValue lastTransitionValue = 0;
 };
 
 void test_activate_sets_home_labels_and_ring_matched_visuals()
@@ -131,7 +131,7 @@ void test_button_pressed_selects_requested_button_when_valid()
     TEST_ASSERT_EQUAL_INT(1, fixture.transitionDelegate.calls);
     TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(Modes::Play),
                             static_cast<uint8_t>(fixture.transitionDelegate.lastMode));
-    TEST_ASSERT_EQUAL_UINT8(6, fixture.transitionDelegate.lastTransitionValue);
+    TEST_ASSERT_EQUAL_UINT16(6, fixture.transitionDelegate.lastTransitionValue);
     TEST_ASSERT_EQUAL_INT(0, fixture.midiManager.programChangeCalls);
 }
 
@@ -144,7 +144,7 @@ void test_button_pressed_selects_amp_home_program_for_play_mode()
     TEST_ASSERT_EQUAL_INT(1, fixture.transitionDelegate.calls);
     TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(Modes::Play),
                             static_cast<uint8_t>(fixture.transitionDelegate.lastMode));
-    TEST_ASSERT_EQUAL_UINT8(0, fixture.transitionDelegate.lastTransitionValue);
+    TEST_ASSERT_EQUAL_UINT16(0, fixture.transitionDelegate.lastTransitionValue);
     TEST_ASSERT_EQUAL_INT(0, fixture.midiManager.programChangeCalls);
 }
 
@@ -157,7 +157,7 @@ void test_button_pressed_selects_code_red_home_program_for_play_mode()
     TEST_ASSERT_EQUAL_INT(1, fixture.transitionDelegate.calls);
     TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(Modes::Play),
                             static_cast<uint8_t>(fixture.transitionDelegate.lastMode));
-    TEST_ASSERT_EQUAL_UINT8(20, fixture.transitionDelegate.lastTransitionValue);
+    TEST_ASSERT_EQUAL_UINT16(20, fixture.transitionDelegate.lastTransitionValue);
     TEST_ASSERT_EQUAL_INT(0, fixture.midiManager.programChangeCalls);
 }
 
@@ -170,7 +170,7 @@ void test_button_eight_transitions_to_menu_mode()
     TEST_ASSERT_EQUAL_INT(1, fixture.transitionDelegate.calls);
     TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(Modes::Menu),
                             static_cast<uint8_t>(fixture.transitionDelegate.lastMode));
-    TEST_ASSERT_EQUAL_UINT8(ModeTransitionNone, fixture.transitionDelegate.lastTransitionValue);
+    TEST_ASSERT_EQUAL_UINT16(ModeTransitionNone, fixture.transitionDelegate.lastTransitionValue);
 }
 
 void test_button_five_transitions_to_play_mode_with_patch_zero()
@@ -182,7 +182,7 @@ void test_button_five_transitions_to_play_mode_with_patch_zero()
     TEST_ASSERT_EQUAL_INT(1, fixture.transitionDelegate.calls);
     TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(Modes::Play),
                             static_cast<uint8_t>(fixture.transitionDelegate.lastMode));
-    TEST_ASSERT_EQUAL_UINT8(0, fixture.transitionDelegate.lastTransitionValue);
+    TEST_ASSERT_EQUAL_UINT16(0, fixture.transitionDelegate.lastTransitionValue);
 }
 
 void test_button_six_transitions_to_patch_mode_with_no_transition_override()
@@ -194,7 +194,7 @@ void test_button_six_transitions_to_patch_mode_with_no_transition_override()
     TEST_ASSERT_EQUAL_INT(1, fixture.transitionDelegate.calls);
     TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(Modes::Patch),
                             static_cast<uint8_t>(fixture.transitionDelegate.lastMode));
-    TEST_ASSERT_EQUAL_UINT8(ModeTransitionNone, fixture.transitionDelegate.lastTransitionValue);
+    TEST_ASSERT_EQUAL_UINT16(ModeTransitionNone, fixture.transitionDelegate.lastTransitionValue);
 }
 
 void test_button_pressed_ignores_disabled_button()
@@ -270,7 +270,7 @@ void test_button_press_transitions_via_mode_manager_to_play_slot()
 
     TEST_ASSERT_EQUAL_PTR(&playSlot, activeMode);
     TEST_ASSERT_EQUAL_INT(1, playSlot.setTransitionValueCalls);
-    TEST_ASSERT_EQUAL_UINT8(20, playSlot.lastTransitionValue);
+    TEST_ASSERT_EQUAL_UINT16(20, playSlot.lastTransitionValue);
     TEST_ASSERT_EQUAL_INT(1, playSlot.activateCalls);
     TEST_ASSERT_EQUAL_INT(0, midiManager.programChangeCalls);
 }
@@ -300,7 +300,7 @@ void test_button_six_transitions_via_mode_manager_to_patch_slot()
 
     TEST_ASSERT_EQUAL_PTR(&patchSlot, activeMode);
     TEST_ASSERT_EQUAL_INT(1, patchSlot.setTransitionValueCalls);
-    TEST_ASSERT_EQUAL_UINT8(ModeTransitionNone, patchSlot.lastTransitionValue);
+    TEST_ASSERT_EQUAL_UINT16(ModeTransitionNone, patchSlot.lastTransitionValue);
     TEST_ASSERT_EQUAL_INT(1, patchSlot.activateCalls);
     TEST_ASSERT_EQUAL_INT(0, midiManager.programChangeCalls);
 }

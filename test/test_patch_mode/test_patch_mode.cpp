@@ -2,6 +2,7 @@
 #include <TFT_eSPI.h>
 #include <unity.h>
 
+#include "MidiProvider.h"
 #include "Modes/ModeManager.h"
 #include "Modes/PatchMode.h"
 
@@ -48,7 +49,7 @@ class MockMidiManager : public IMidiManager
 class MockTransitionDelegate : public IModeTransistionDelegate
 {
   public:
-    void enterMode(Modes mode, byte transitionValue) override
+    void enterMode(Modes mode, ModeTransitionValue transitionValue) override
     {
         ++calls;
         lastMode = mode;
@@ -57,7 +58,38 @@ class MockTransitionDelegate : public IModeTransistionDelegate
 
     int calls = 0;
     Modes lastMode = Modes::Patch;
-    byte lastTransitionValue = 0;
+    ModeTransitionValue lastTransitionValue = 0;
+};
+
+class MockMidiProvider : public IMidiProvider
+{
+  public:
+    byte maxPresetIndex() const override { return 127; }
+
+    void recallPreset(byte presetIndex) override
+    {
+        ++recallPresetCalls;
+        lastRecallPreset = presetIndex;
+    }
+
+    void selectScene(byte sceneIndex) override
+    {
+        ++selectSceneCalls;
+        lastSceneIndex = sceneIndex;
+    }
+
+    void setTunerEnabled(bool enabled) override
+    {
+        ++setTunerCalls;
+        lastTunerEnabled = enabled;
+    }
+
+    int recallPresetCalls = 0;
+    int selectSceneCalls = 0;
+    int setTunerCalls = 0;
+    byte lastRecallPreset = 0;
+    byte lastSceneIndex = 0;
+    bool lastTunerEnabled = false;
 };
 
 class PatchModeFixture
@@ -65,8 +97,8 @@ class PatchModeFixture
   public:
     PatchModeFixture()
         : screenSize{480, 320}, ui(tft, screenSize), strip(RingManager::LedCount, 0, NEO_GRB + NEO_KHZ800),
-          ringManager(strip), touchButtonManager(ui), midiManager(), transitionDelegate(),
-          mode(touchButtonManager, ringManager, ui, midiManager, transitionDelegate)
+          ringManager(strip), touchButtonManager(ui), midiManager(), midiProvider(), transitionDelegate(),
+          mode(touchButtonManager, ringManager, ui, midiManager, midiProvider, transitionDelegate)
     {
     }
 
@@ -77,6 +109,7 @@ class PatchModeFixture
     RingManager ringManager;
     TouchButtonManager touchButtonManager;
     MockMidiManager midiManager;
+    MockMidiProvider midiProvider;
     MockTransitionDelegate transitionDelegate;
     PatchMode mode;
 };
@@ -114,7 +147,7 @@ void test_buttons_one_two_three_are_noop()
     fixture.mode.buttonPressed(1);
     fixture.mode.buttonPressed(2);
 
-    TEST_ASSERT_EQUAL_INT(0, fixture.midiManager.programChangeCalls);
+    TEST_ASSERT_EQUAL_INT(0, fixture.midiProvider.recallPresetCalls);
     TEST_ASSERT_EQUAL_INT(0, fixture.transitionDelegate.calls);
 }
 
@@ -125,32 +158,32 @@ void test_button_eight_increments_patch_and_sends_program_change()
     fixture.mode.activate();
     fixture.mode.buttonPressed(7);
 
-    TEST_ASSERT_EQUAL_INT(1, fixture.midiManager.programChangeCalls);
-    TEST_ASSERT_EQUAL_UINT8(1, fixture.midiManager.lastProgramChangeValue);
+    TEST_ASSERT_EQUAL_INT(1, fixture.midiProvider.recallPresetCalls);
+    TEST_ASSERT_EQUAL_UINT8(1, fixture.midiProvider.lastRecallPreset);
 }
 
-void test_button_eight_wraps_patch_from_39_to_0()
+void test_button_eight_wraps_patch_from_127_to_0()
 {
     PatchModeFixture fixture;
 
-    fixture.mode.setTransitionValue(39);
+    fixture.mode.setTransitionValue(127);
     fixture.mode.activate();
 
     fixture.mode.buttonPressed(7);
 
-    TEST_ASSERT_EQUAL_INT(1, fixture.midiManager.programChangeCalls);
-    TEST_ASSERT_EQUAL_UINT8(0, fixture.midiManager.lastProgramChangeValue);
+    TEST_ASSERT_EQUAL_INT(1, fixture.midiProvider.recallPresetCalls);
+    TEST_ASSERT_EQUAL_UINT8(0, fixture.midiProvider.lastRecallPreset);
 }
 
-void test_button_four_decrements_patch_and_wraps_from_0_to_39()
+void test_button_four_decrements_patch_and_wraps_from_0_to_127()
 {
     PatchModeFixture fixture;
 
     fixture.mode.activate();
     fixture.mode.buttonPressed(3);
 
-    TEST_ASSERT_EQUAL_INT(1, fixture.midiManager.programChangeCalls);
-    TEST_ASSERT_EQUAL_UINT8(39, fixture.midiManager.lastProgramChangeValue);
+    TEST_ASSERT_EQUAL_INT(1, fixture.midiProvider.recallPresetCalls);
+    TEST_ASSERT_EQUAL_UINT8(127, fixture.midiProvider.lastRecallPreset);
 }
 
 void test_transition_value_sets_starting_patch_number()
@@ -161,8 +194,8 @@ void test_transition_value_sets_starting_patch_number()
     fixture.mode.activate();
     fixture.mode.buttonPressed(7);
 
-    TEST_ASSERT_EQUAL_INT(1, fixture.midiManager.programChangeCalls);
-    TEST_ASSERT_EQUAL_UINT8(7, fixture.midiManager.lastProgramChangeValue);
+    TEST_ASSERT_EQUAL_INT(1, fixture.midiProvider.recallPresetCalls);
+    TEST_ASSERT_EQUAL_UINT8(7, fixture.midiProvider.lastRecallPreset);
 }
 
 void test_button_five_transitions_to_play_without_program_change()
@@ -175,8 +208,8 @@ void test_button_five_transitions_to_play_without_program_change()
     TEST_ASSERT_EQUAL_INT(1, fixture.transitionDelegate.calls);
     TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(Modes::Play),
                             static_cast<uint8_t>(fixture.transitionDelegate.lastMode));
-    TEST_ASSERT_EQUAL_UINT8(ModeTransitionPatchReturnFlag, fixture.transitionDelegate.lastTransitionValue);
-    TEST_ASSERT_EQUAL_INT(0, fixture.midiManager.programChangeCalls);
+    TEST_ASSERT_EQUAL_UINT16(ModeTransitionPatchReturnFlag, fixture.transitionDelegate.lastTransitionValue);
+    TEST_ASSERT_EQUAL_INT(0, fixture.midiProvider.recallPresetCalls);
 }
 
 void test_button_seven_is_disabled_in_patch_mode()
@@ -187,7 +220,7 @@ void test_button_seven_is_disabled_in_patch_mode()
     fixture.mode.buttonPressed(6);
 
     TEST_ASSERT_EQUAL_INT(0, fixture.transitionDelegate.calls);
-    TEST_ASSERT_EQUAL_INT(0, fixture.midiManager.programChangeCalls);
+    TEST_ASSERT_EQUAL_INT(0, fixture.midiProvider.recallPresetCalls);
 }
 
 void test_button_five_long_press_transitions_to_home()
@@ -200,8 +233,8 @@ void test_button_five_long_press_transitions_to_home()
     TEST_ASSERT_EQUAL_INT(1, fixture.transitionDelegate.calls);
     TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(Modes::Home),
                             static_cast<uint8_t>(fixture.transitionDelegate.lastMode));
-    TEST_ASSERT_EQUAL_UINT8(ModeTransitionNone, fixture.transitionDelegate.lastTransitionValue);
-    TEST_ASSERT_EQUAL_INT(0, fixture.midiManager.programChangeCalls);
+    TEST_ASSERT_EQUAL_UINT16(ModeTransitionNone, fixture.transitionDelegate.lastTransitionValue);
+    TEST_ASSERT_EQUAL_INT(0, fixture.midiProvider.recallPresetCalls);
 }
 
 void test_long_press_non_home_button_is_noop()
@@ -212,7 +245,7 @@ void test_long_press_non_home_button_is_noop()
     fixture.mode.buttonLongPressed(7);
 
     TEST_ASSERT_EQUAL_INT(0, fixture.transitionDelegate.calls);
-    TEST_ASSERT_EQUAL_INT(0, fixture.midiManager.programChangeCalls);
+    TEST_ASSERT_EQUAL_INT(0, fixture.midiProvider.recallPresetCalls);
 }
 
 void test_patch_mode_transitions_via_mode_manager_to_play_slot()
@@ -233,7 +266,7 @@ void test_patch_mode_transitions_via_mode_manager_to_play_slot()
         void buttonLongPressed(const byte) override {}
         void frameTick() override {}
 
-        void setTransitionValue(byte transitionValue) override
+        void setTransitionValue(ModeTransitionValue transitionValue) override
         {
             ++setTransitionValueCalls;
             lastTransitionValue = transitionValue;
@@ -241,7 +274,7 @@ void test_patch_mode_transitions_via_mode_manager_to_play_slot()
 
         int activateCalls = 0;
         int setTransitionValueCalls = 0;
-        byte lastTransitionValue = 0;
+        ModeTransitionValue lastTransitionValue = 0;
     };
 
     TestModeSlot homeSlot;
@@ -253,13 +286,14 @@ void test_patch_mode_transitions_via_mode_manager_to_play_slot()
     IMode* activeMode = &patchSlot;
     IMode* modes[ModeCount] = {&homeSlot, &playSlot, &patchSlot, menuSlot, buttonDiagnosticSlot};
     ModeManager modeManager(activeMode, modes);
-    PatchMode mode(touchButtonManager, ringManager, ui, midiManager, modeManager);
+    MockMidiProvider midiProvider;
+    PatchMode mode(touchButtonManager, ringManager, ui, midiManager, midiProvider, modeManager);
 
     mode.buttonPressed(4);
 
     TEST_ASSERT_EQUAL_PTR(&playSlot, activeMode);
     TEST_ASSERT_EQUAL_INT(1, playSlot.setTransitionValueCalls);
-    TEST_ASSERT_EQUAL_UINT8(ModeTransitionPatchReturnFlag, playSlot.lastTransitionValue);
+    TEST_ASSERT_EQUAL_UINT16(ModeTransitionPatchReturnFlag, playSlot.lastTransitionValue);
     TEST_ASSERT_EQUAL_INT(1, playSlot.activateCalls);
 }
 } // namespace
@@ -281,8 +315,8 @@ void setup()
     RUN_TEST(test_activate_sets_patch_labels_and_disables_unused_buttons);
     RUN_TEST(test_buttons_one_two_three_are_noop);
     RUN_TEST(test_button_eight_increments_patch_and_sends_program_change);
-    RUN_TEST(test_button_eight_wraps_patch_from_39_to_0);
-    RUN_TEST(test_button_four_decrements_patch_and_wraps_from_0_to_39);
+    RUN_TEST(test_button_eight_wraps_patch_from_127_to_0);
+    RUN_TEST(test_button_four_decrements_patch_and_wraps_from_0_to_127);
     RUN_TEST(test_transition_value_sets_starting_patch_number);
     RUN_TEST(test_button_five_transitions_to_play_without_program_change);
     RUN_TEST(test_button_seven_is_disabled_in_patch_mode);

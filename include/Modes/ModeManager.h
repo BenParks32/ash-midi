@@ -7,7 +7,7 @@ class ModeManager : public IModeTransistionDelegate
   public:
     ModeManager(IMode*& activeMode, IMode* (&modes)[ModeCount]);
 
-    void enterMode(Modes mode, byte transitionValue) override;
+    void enterMode(Modes mode, ModeTransitionValue transitionValue) override;
 
   private:
     ModeManager();
