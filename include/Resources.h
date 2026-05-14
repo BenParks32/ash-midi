@@ -1,5 +1,6 @@
 #pragma once
 #include "Gfx.h"
+#include "SmallFileStore.h"
 #include <Arduino.h>
 #include <SD.h>
 #include <stddef.h>
@@ -63,7 +64,7 @@ class Icon : public Resource
     const Size _iconSize;
 };
 
-class Resources : public ISdCardManager
+class Resources : public ISdCardManager, public ISmallFileStore
 {
   public:
     Resources(const byte sdPin);
@@ -91,8 +92,8 @@ class Resources : public ISdCardManager
     bool mount() override;
     bool unmount() override;
     bool isMounted() const override { return _isMounted; }
-    bool readSmallFile(const char* path, uint8_t* buffer, size_t expectedSize) const;
-    bool writeSmallFile(const char* path, const uint8_t* data, size_t size);
+    bool readSmallFile(const char* path, uint8_t* buffer, size_t expectedSize) const override;
+    bool writeSmallFile(const char* path, const uint8_t* data, size_t size) override;
     const Icon& footSwitchIcon() const { return *FootSwitchIcon; }
 
   private:

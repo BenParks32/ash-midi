@@ -79,7 +79,7 @@ class MockSettingsStore : public ISettingsStore
 
     int loadCalls = 0;
     int saveCalls = 0;
-    AppSettings stored = {RingManager::DefaultBrightness, 1};
+    AppSettings stored = {RingManager::DefaultBrightness, 1, {{254, 3649, 281, 3563, 7}}};
 };
 
 class MockSdCardManager : public ISdCardManager
@@ -106,14 +106,43 @@ class MockSdCardManager : public ISdCardManager
     bool mounted = true;
 };
 
+class MockTouchCalibrator : public ITouchCalibrator
+{
+  public:
+    bool calibrate(TouchCalibrationData& outCalibration) override
+    {
+        ++calibrateCalls;
+        if (!shouldSucceed)
+        {
+            return false;
+        }
+
+        outCalibration = calibrationToReturn;
+        return true;
+    }
+
+    void apply(const TouchCalibrationData& calibration) override
+    {
+        ++applyCalls;
+        lastApplied = calibration;
+    }
+
+    int calibrateCalls = 0;
+    int applyCalls = 0;
+    bool shouldSucceed = true;
+    TouchCalibrationData calibrationToReturn = {{101, 202, 303, 404, 5}};
+    TouchCalibrationData lastApplied = {{0, 0, 0, 0, 0}};
+};
+
 class MenuModeFixture
 {
   public:
     MenuModeFixture()
         : screenSize{480, 320}, ui(tft, screenSize), strip(RingManager::LedCount, 0, NEO_GRB + NEO_KHZ800),
           ringManager(strip), touchButtonManager(ui), midiManager(), transitionDelegate(), settingsStore(),
-          sdCardManager(), settings{120, 3}, mode(touchButtonManager, ringManager, ui, midiManager, transitionDelegate,
-                                                  settingsStore, sdCardManager, settings)
+          sdCardManager(), touchCalibrator(), settings{120, 3, {{254, 3649, 281, 3563, 7}}},
+          mode(touchButtonManager, ringManager, ui, midiManager, transitionDelegate, settingsStore, sdCardManager,
+               touchCalibrator, settings)
     {
     }
 
@@ -127,6 +156,7 @@ class MenuModeFixture
     MockTransitionDelegate transitionDelegate;
     MockSettingsStore settingsStore;
     MockSdCardManager sdCardManager;
+    MockTouchCalibrator touchCalibrator;
     AppSettings settings;
     MenuMode mode;
 };
@@ -196,6 +226,42 @@ void test_edit_brightness_applies_immediately_and_saves_on_confirm()
 
     TEST_ASSERT_EQUAL_INT(1, fixture.settingsStore.saveCalls);
     TEST_ASSERT_EQUAL_UINT8(136, fixture.settingsStore.stored.masterBrightness);
+}
+
+void test_menu_layout_is_inset_within_center_space()
+{
+    MenuModeFixture fixture;
+
+    const MenuLayout layout = buildMenuLayout(fixture.ui);
+    const int32_t rowWidth = layout.leftPanelWidth - (RowHorizontalPadding * 2);
+    const int32_t rightMargin = layout.screenWidth - (layout.rightPanelX + layout.rightPanelWidth);
+
+    TEST_ASSERT_EQUAL_INT(MenuHorizontalInset, layout.leftPanelX);
+    TEST_ASSERT_EQUAL_INT(MenuHorizontalInset, rightMargin);
+    TEST_ASSERT_TRUE(rowWidth <= 224);
+    TEST_ASSERT_TRUE(layout.valuePanelX > layout.rightPanelX);
+    TEST_ASSERT_TRUE((layout.valuePanelX + layout.valuePanelWidth) <
+                     (layout.rightPanelX + layout.rightPanelWidth));
+}
+
+void test_menu_row_gap_is_reduced_by_seven_pixels()
+{
+    MenuModeFixture fixture;
+
+    const MenuLayout layout = buildMenuLayout(fixture.ui);
+    const int32_t baselineGap =
+        (layout.centerHeight - (static_cast<int32_t>(MenuMode::MenuItem::Count) * RowHeight)) /
+        (static_cast<int32_t>(MenuMode::MenuItem::Count) - 1);
+
+    TEST_ASSERT_EQUAL_INT(baselineGap - 7, menuRowGapForLayout(layout, static_cast<uint8_t>(MenuMode::MenuItem::Count)));
+}
+
+void test_first_menu_item_is_offset_two_pixels_lower()
+{
+    MenuModeFixture fixture;
+
+    TEST_ASSERT_EQUAL_INT(fixture.mode.menuListStartY() + 2,
+                          fixture.mode.menuRowY(static_cast<MenuMode::MenuItem>(0)));
 }
 
 void test_random_ring_colours_are_assigned_on_activate_and_stable_during_midi_edit()
@@ -285,12 +351,42 @@ void test_sd_card_item_toggles_unmount_and_mount()
     TEST_ASSERT_EQUAL_INT(0, fixture.settingsStore.saveCalls);
 }
 
-void test_button_diagnostics_item_enters_button_diagnostic_mode()
+void test_touch_calibration_item_runs_calibrator_and_saves_result()
 {
     MenuModeFixture fixture;
 
     fixture.mode.activate();
     fixture.mode.encoderRotated(3);
+    fixture.mode.encoderPressed();
+
+    TEST_ASSERT_EQUAL_INT(1, fixture.touchCalibrator.calibrateCalls);
+    TEST_ASSERT_EQUAL_INT(1, fixture.touchCalibrator.applyCalls);
+    TEST_ASSERT_EQUAL_INT(1, fixture.settingsStore.saveCalls);
+    TEST_ASSERT_EQUAL_UINT16(101, fixture.settings.touchCalibration.values[0]);
+    TEST_ASSERT_EQUAL_UINT16(404, fixture.settingsStore.stored.touchCalibration.values[3]);
+}
+
+void test_touch_calibration_failure_does_not_apply_or_save()
+{
+    MenuModeFixture fixture;
+    fixture.touchCalibrator.shouldSucceed = false;
+
+    fixture.mode.activate();
+    fixture.mode.encoderRotated(3);
+    fixture.mode.encoderPressed();
+
+    TEST_ASSERT_EQUAL_INT(1, fixture.touchCalibrator.calibrateCalls);
+    TEST_ASSERT_EQUAL_INT(0, fixture.touchCalibrator.applyCalls);
+    TEST_ASSERT_EQUAL_INT(0, fixture.settingsStore.saveCalls);
+    TEST_ASSERT_EQUAL_UINT16(254, fixture.settings.touchCalibration.values[0]);
+}
+
+void test_button_diagnostics_item_enters_button_diagnostic_mode()
+{
+    MenuModeFixture fixture;
+
+    fixture.mode.activate();
+    fixture.mode.encoderRotated(4);
     fixture.mode.encoderPressed();
 
     TEST_ASSERT_EQUAL_INT(1, fixture.transitionDelegate.calls);
@@ -320,10 +416,15 @@ void setup()
     RUN_TEST(test_button_eight_is_noop_in_menu_mode);
     RUN_TEST(test_encoder_rotate_in_navigation_mode_does_not_change_values);
     RUN_TEST(test_edit_brightness_applies_immediately_and_saves_on_confirm);
+    RUN_TEST(test_menu_layout_is_inset_within_center_space);
+    RUN_TEST(test_menu_row_gap_is_reduced_by_seven_pixels);
+    RUN_TEST(test_first_menu_item_is_offset_two_pixels_lower);
     RUN_TEST(test_random_ring_colours_are_assigned_on_activate_and_stable_during_midi_edit);
     RUN_TEST(test_edit_midi_channel_applies_immediately_and_clamps);
     RUN_TEST(test_edit_mode_toggle_saves_only_when_leaving_edit_mode);
     RUN_TEST(test_sd_card_item_toggles_unmount_and_mount);
+    RUN_TEST(test_touch_calibration_item_runs_calibrator_and_saves_result);
+    RUN_TEST(test_touch_calibration_failure_does_not_apply_or_save);
     RUN_TEST(test_button_diagnostics_item_enters_button_diagnostic_mode);
     UNITY_END();
 }

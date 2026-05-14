@@ -9,15 +9,17 @@ constexpr uint8_t MenuValueScale = 1;
 constexpr byte MenuExitButtonIndex = 4;
 constexpr uint32_t MenuExitRingColour = 0xFFFFFF;
 constexpr uint8_t BrightnessStep = 8;
+constexpr int32_t MenuHorizontalInset = 18;
+constexpr int32_t LeftPanelWidthPercent = 58;
 constexpr int32_t PanelPadding = 8;
 constexpr int32_t SplitLineWidth = 2;
 constexpr int32_t RowHeight = 32;
 constexpr int32_t MaxRowGap = 16;
 constexpr int32_t MinRowGap = 4;
-constexpr int32_t FirstRowTopInset = 1;
-constexpr int32_t RowHorizontalPadding = 8;
-constexpr int32_t ValuePanelHorizontalPadding = 12;
-constexpr int32_t ValuePanelSizePercent = 105;
+constexpr int32_t FirstRowTopInset = 2;
+constexpr int32_t RowHorizontalPadding = 14;
+constexpr int32_t ValuePanelHorizontalPadding = 16;
+constexpr int32_t ValuePanelSizePercent = 96;
 constexpr int32_t SavingIndicatorWidth = 94;
 constexpr int32_t SavingIndicatorHeight = 18;
 
@@ -52,15 +54,19 @@ MenuLayout buildMenuLayout(const ScreenUi& screenUi)
     layout.centerBottomY = screenUi.bottomRowY();
     layout.centerHeight = layout.centerBottomY - layout.centerTopY;
 
-    layout.splitX = (layout.screenWidth * 2) / 3;
+    const int32_t contentLeftX = MenuHorizontalInset;
+    const int32_t contentRightX = layout.screenWidth - MenuHorizontalInset;
+    const int32_t contentWidth = contentRightX - contentLeftX;
 
-    layout.leftPanelX = PanelPadding;
+    layout.splitX = contentLeftX + ((contentWidth * LeftPanelWidthPercent) / 100);
+
+    layout.leftPanelX = contentLeftX;
     layout.leftPanelY = layout.centerTopY + PanelPadding;
     layout.leftPanelWidth = layout.splitX - layout.leftPanelX - PanelPadding;
     layout.panelHeight = layout.centerHeight - (PanelPadding * 2);
 
     layout.rightPanelX = layout.splitX + SplitLineWidth + PanelPadding;
-    layout.rightPanelWidth = layout.screenWidth - layout.rightPanelX - PanelPadding;
+    layout.rightPanelWidth = contentRightX - layout.rightPanelX;
 
     const int32_t baseValuePanelX = layout.rightPanelX + ValuePanelHorizontalPadding;
     const int32_t baseValuePanelY = layout.centerTopY + 26;
@@ -91,19 +97,28 @@ int32_t menuRowGapForLayout(const MenuLayout& layout, uint8_t itemCount)
     }
 
     const int32_t availableGapSpace = layout.centerHeight - (static_cast<int32_t>(itemCount) * RowHeight);
-    if (availableGapSpace <= 0)
+    int32_t gap = MinRowGap;
+
+    if (availableGapSpace > 0)
     {
-        return MinRowGap;
+        gap = availableGapSpace / (static_cast<int32_t>(itemCount) - 1);
+        if (gap > MaxRowGap)
+        {
+            gap = MaxRowGap;
+        }
+        if (gap < MinRowGap)
+        {
+            gap = MinRowGap;
+        }
     }
 
-    int32_t gap = availableGapSpace / (static_cast<int32_t>(itemCount) - 1);
-    if (gap > MaxRowGap)
+    if (gap > 6)
     {
-        gap = MaxRowGap;
+        gap -= 7;
     }
-    if (gap < MinRowGap)
+    else if (gap > 0)
     {
-        gap = MinRowGap;
+        gap = 0;
     }
 
     return gap;
@@ -112,9 +127,10 @@ int32_t menuRowGapForLayout(const MenuLayout& layout, uint8_t itemCount)
 
 MenuMode::MenuMode(TouchButtonManager& touchButtonManager, RingManager& ringManager, ScreenUi& screenUi,
                    IMidiManager& midiManager, IModeTransistionDelegate& transitionDelegate,
-                   ISettingsStore& settingsStore, ISdCardManager& sdCardManager, AppSettings& settings)
+                   ISettingsStore& settingsStore, ISdCardManager& sdCardManager, ITouchCalibrator& touchCalibrator,
+                   AppSettings& settings)
     : FunctionModeBase(touchButtonManager, ringManager, screenUi, midiManager, transitionDelegate),
-      _settingsStore(settingsStore), _sdCardManager(sdCardManager), _settings(settings),
+      _settingsStore(settingsStore), _sdCardManager(sdCardManager), _touchCalibrator(touchCalibrator), _settings(settings),
       _selectedItem(MenuItem::Brightness), _isEditMode(false), _savingIndicatorLabel{'\0'}
 {
     setupFunctions();
@@ -198,6 +214,13 @@ void MenuMode::encoderPressed()
     {
         _isEditMode = false;
         handleSdCardAction();
+        return;
+    }
+
+    if (_selectedItem == MenuItem::TouchCalibration)
+    {
+        _isEditMode = false;
+        handleTouchCalibrationAction();
         return;
     }
 
@@ -349,6 +372,8 @@ const char* MenuMode::menuItemLabel(MenuMode::MenuItem item)
         return "MIDI Channel";
     case MenuItem::SdCard:
         return "SD Card";
+    case MenuItem::TouchCalibration:
+        return "Touch Cal";
     case MenuItem::ButtonDiagnostics:
         return "Button Diag";
     case MenuItem::Count:
@@ -378,6 +403,9 @@ void MenuMode::formatSelectedValue(MenuMode::MenuItem item, char* buffer, size_t
         break;
     case MenuItem::SdCard:
         std::snprintf(buffer, bufferSize, "%s", _sdCardManager.isMounted() ? "Unmount" : "Mount");
+        break;
+    case MenuItem::TouchCalibration:
+        std::snprintf(buffer, bufferSize, "%s", "Run");
         break;
     case MenuItem::ButtonDiagnostics:
         std::snprintf(buffer, bufferSize, "%s", "Run");
@@ -428,7 +456,8 @@ void MenuMode::clearMenu()
     formatSelectedValue(_selectedItem, valueLabel, sizeof(valueLabel));
 
     const int32_t valueCenterX = layout.valuePanelX + (layout.valuePanelWidth / 2);
-    const bool compactValueText = (_selectedItem == MenuItem::SdCard || _selectedItem == MenuItem::ButtonDiagnostics);
+    const bool compactValueText = (_selectedItem == MenuItem::SdCard || _selectedItem == MenuItem::TouchCalibration ||
+                                   _selectedItem == MenuItem::ButtonDiagnostics);
     const GFXfont* valueFont = compactValueText ? FF22 : FF32;
     const int32_t valueTextHeight = compactValueText ? 16 : 24;
     const int32_t valueY = layout.valuePanelY + ((layout.valuePanelHeight - valueTextHeight) / 2);
@@ -499,7 +528,8 @@ void MenuMode::renderValueLabel(bool hasRightFocus)
     formatSelectedValue(_selectedItem, valueLabel, sizeof(valueLabel));
 
     const int32_t valueCenterX = layout.valuePanelX + (layout.valuePanelWidth / 2);
-    const bool compactValueText = (_selectedItem == MenuItem::SdCard || _selectedItem == MenuItem::ButtonDiagnostics);
+    const bool compactValueText = (_selectedItem == MenuItem::SdCard || _selectedItem == MenuItem::TouchCalibration ||
+                                   _selectedItem == MenuItem::ButtonDiagnostics);
     const GFXfont* valueFont = compactValueText ? FF22 : FF32;
     const int32_t valueTextHeight = compactValueText ? 16 : 24;
     const int32_t valueY = layout.valuePanelY + ((layout.valuePanelHeight - valueTextHeight) / 2);
@@ -537,4 +567,40 @@ uint8_t MenuMode::ringBrightnessForButton(byte number) const
     }
 
     return 0;
+}
+
+void MenuMode::handleTouchCalibrationAction()
+{
+    TouchCalibrationData calibration = _settings.touchCalibration;
+    const bool calibrationCompleted = _touchCalibrator.calibrate(calibration);
+
+    restoreMenuAfterFullscreenAction();
+
+    if (!calibrationCompleted)
+    {
+        Serial.println("Menu: touch calibration failed.");
+        renderSavingIndicator("Cal failed", TFT_RED);
+        return;
+    }
+
+    _settings.touchCalibration = calibration;
+    _touchCalibrator.apply(_settings.touchCalibration);
+
+    if (!_settingsStore.save(_settings))
+    {
+        Serial.println("Menu: touch calibration save failed.");
+        renderSavingIndicator("Save failed", TFT_RED);
+        return;
+    }
+
+    Serial.println("Menu: touch calibration saved.");
+    renderSavingIndicator("Cal saved", TFT_GREEN);
+}
+
+void MenuMode::restoreMenuAfterFullscreenAction()
+{
+    _screenUi.drawBackgroundAndBorder();
+    _screenUi.hideSdStatus();
+    renderAllButtons();
+    renderMenu();
 }

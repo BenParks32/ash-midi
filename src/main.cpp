@@ -20,6 +20,7 @@
 #include "ScreenUi.h"
 #include "SettingsStore.h"
 #include "TFT_Setup.h"
+#include "TouchCalibration.h"
 #include "Touch/TouchButtonManager.h"
 
 #define LED_PIN PA0
@@ -32,7 +33,6 @@
 #define ENCODER_BUTTON_PIN PB5
 
 const Size screenSize = {480, 320};
-uint16_t calData[5] = {254, 3649, 281, 3563, 7};
 
 namespace
 {
@@ -45,6 +45,7 @@ void HandleSerialDiagnosticsCommands();
 Adafruit_NeoPixel strip(LED_COUNT, LED_PIN, NEO_GRB + NEO_KHZ800);
 TFT_eSPI tft = TFT_eSPI();
 ScreenUi screenUi(tft, screenSize);
+TftTouchCalibrator touchCalibrator(tft);
 RotaryEncoder encoder(ENCODER_PIN_A, ENCODER_PIN_B, ENCODER_BUTTON_PIN);
 RingManager ringManager(strip);
 
@@ -65,7 +66,7 @@ PlayMode playMode(touchButtonManager, ringManager, screenUi, midiManager, modeMa
 PatchMode patchMode(touchButtonManager, ringManager, screenUi, midiManager, modeManager);
 HomeMode homeMode(touchButtonManager, ringManager, screenUi, midiManager, modeManager);
 MenuMode menuMode(touchButtonManager, ringManager, screenUi, midiManager, modeManager, settingsStore, resources,
-                  appSettings);
+                  touchCalibrator, appSettings);
 ButtonDiagnosticMode buttonDiagnosticMode(touchButtonManager, ringManager, screenUi, midiManager, modeManager);
 
 bool initResourcesSD()
@@ -106,10 +107,9 @@ void setup()
 
     tft.init();
     tft.setRotation(1);
-    tft.setTouch(calData);
-    ringManager.begin();
-
     settingsStore.load(appSettings);
+    touchCalibrator.apply(appSettings.touchCalibration);
+    ringManager.begin();
     ringManager.setMasterBrightness(appSettings.masterBrightness);
     midiManager.setChannel(appSettings.midiChannel);
 

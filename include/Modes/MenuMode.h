@@ -3,13 +3,14 @@
 #include "Modes/FunctionModeBase.h"
 #include "Resources.h"
 #include "SettingsStore.h"
+#include "TouchCalibration.h"
 
 class MenuMode : public FunctionModeBase
 {
   public:
     MenuMode(TouchButtonManager& touchButtonManager, RingManager& ringManager, ScreenUi& screenUi,
              IMidiManager& midiManager, IModeTransistionDelegate& transitionDelegate, ISettingsStore& settingsStore,
-             ISdCardManager& sdCardManager, AppSettings& settings);
+             ISdCardManager& sdCardManager, ITouchCalibrator& touchCalibrator, AppSettings& settings);
 
     void activate() override;
     void deactivate() override;
@@ -30,7 +31,8 @@ class MenuMode : public FunctionModeBase
         Brightness = 0,
         MidiChannel = 1,
         SdCard = 2,
-        ButtonDiagnostics = 3,
+        TouchCalibration = 3,
+        ButtonDiagnostics = 4,
         Count,
     };
 
@@ -48,6 +50,8 @@ class MenuMode : public FunctionModeBase
     void moveSelection(int16_t steps);
     void applyEditDelta(int16_t steps);
     void handleSdCardAction();
+    void handleTouchCalibrationAction();
+    void restoreMenuAfterFullscreenAction();
     void applyRandomRingColours();
     static const char* menuItemLabel(MenuItem item);
     void formatSelectedValue(MenuItem item, char* buffer, size_t bufferSize) const;
@@ -56,6 +60,7 @@ class MenuMode : public FunctionModeBase
   private:
     ISettingsStore& _settingsStore;
     ISdCardManager& _sdCardManager;
+    ITouchCalibrator& _touchCalibrator;
     AppSettings& _settings;
     MenuItem _selectedItem;
     bool _isEditMode;

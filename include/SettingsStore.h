@@ -2,12 +2,20 @@
 
 #include <Arduino.h>
 
-class Resources;
+class ISmallFileStore;
+
+struct TouchCalibrationData
+{
+    static constexpr uint8_t WordCount = 5;
+
+    uint16_t values[WordCount];
+};
 
 struct AppSettings
 {
     uint8_t masterBrightness;
     uint8_t midiChannel;
+    TouchCalibrationData touchCalibration;
 };
 
 class ISettingsStore
@@ -22,16 +30,17 @@ class ISettingsStore
 class SettingsStore : public ISettingsStore
 {
   public:
-    explicit SettingsStore(Resources* resources = nullptr);
+    explicit SettingsStore(ISmallFileStore* fileStore = nullptr);
 
     bool load(AppSettings& outSettings) override;
     bool save(const AppSettings& settings) override;
 
     static AppSettings defaults();
+    static TouchCalibrationData defaultTouchCalibration();
 
   private:
     static constexpr uint16_t kMagic = 0xA541;
-    static constexpr uint8_t kVersion = 1;
+    static constexpr uint8_t kVersion = 2;
     static constexpr const char* kSettingsPath = "/settings.bin";
 
   private:
@@ -41,6 +50,7 @@ class SettingsStore : public ISettingsStore
         uint8_t version;
         uint8_t masterBrightness;
         uint8_t midiChannel;
+        uint16_t touchCalibration[TouchCalibrationData::WordCount];
         uint8_t checksum;
     };
 
@@ -54,5 +64,5 @@ class SettingsStore : public ISettingsStore
     bool writeStored(const StoredSettings& stored) const;
 
   private:
-    Resources* _resources;
+    ISmallFileStore* _fileStore;
 };
