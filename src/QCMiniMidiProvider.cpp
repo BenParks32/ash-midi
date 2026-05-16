@@ -10,12 +10,29 @@ constexpr byte QCMiniTunerCc = 45;
 constexpr byte QCMiniMyPresetsFolder = 1;
 constexpr byte QCMiniPresetGroupSize = 128;
 constexpr byte QCMiniMaxPresetIndex = 127;
+constexpr byte QCMiniMaxPlaylistIndex = 12;
 constexpr byte QCMiniMaxSceneIndex = 7;
 } // namespace
 
-QCMiniMidiProvider::QCMiniMidiProvider(IMidiManager& midiManager) : _midiManager(midiManager) {}
+QCMiniMidiProvider::QCMiniMidiProvider(IMidiManager& midiManager)
+    : _midiManager(midiManager), _selectedPlaylist(QCMiniMyPresetsFolder)
+{
+}
 
 byte QCMiniMidiProvider::maxPresetIndex() const { return QCMiniMaxPresetIndex; }
+
+byte QCMiniMidiProvider::defaultPlaylistIndex() const { return QCMiniMyPresetsFolder; }
+
+void QCMiniMidiProvider::selectPlaylist(byte playlistIndex)
+{
+    if (playlistIndex > QCMiniMaxPlaylistIndex)
+    {
+        Serial.printf("QC Mini: playlist %u out of range\n", playlistIndex);
+        return;
+    }
+
+    _selectedPlaylist = playlistIndex;
+}
 
 void QCMiniMidiProvider::recallPreset(byte presetIndex)
 {
@@ -29,10 +46,11 @@ void QCMiniMidiProvider::recallPreset(byte presetIndex)
     const byte programChangeValue = static_cast<byte>(presetIndex % QCMiniPresetGroupSize);
 
     _midiManager.sendControlChange(QCMiniPresetBankMsbCc, presetGroup);
-    _midiManager.sendControlChange(QCMiniPresetFolderLsbCc, QCMiniMyPresetsFolder);
+    _midiManager.sendControlChange(QCMiniPresetFolderLsbCc, _selectedPlaylist);
     _midiManager.sendProgramChange(programChangeValue);
 
-    Serial.printf("QC Mini: recalled preset %u (group %u, folder %u)\n", presetIndex, presetGroup, QCMiniMyPresetsFolder);
+    Serial.printf("QC Mini: recalled preset %u (group %u, playlist %u)\n", presetIndex, presetGroup,
+                  _selectedPlaylist);
 }
 
 void QCMiniMidiProvider::selectScene(byte sceneIndex)

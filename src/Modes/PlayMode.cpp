@@ -25,12 +25,18 @@ const byte LastSnapshotButtonIndex = 2;
 const byte PatchButtonIndex = 4;
 const byte TunerButtonIndex = 7;
 const uint16_t TunerButtonColour = 0x801F;
+
+bool isHomePlaylistTransition(ModeTransitionValue transitionValue)
+{
+    return (transitionValue & ModeTransitionHomePlaylistFlag) != 0;
+}
 } // namespace
 
 PlayMode::PlayMode(TouchButtonManager& touchButtonManager, RingManager& ringManager, ScreenUi& screenUi,
                    IMidiManager& midiManager, IMidiProvider& midiProvider, IModeTransistionDelegate& transitionDelegate)
     : FunctionModeBase(touchButtonManager, ringManager, screenUi, midiManager, transitionDelegate),
-      _midiProvider(midiProvider), _selectedPreset(0), _hasSelectedPreset(false), _selectedButton(0)
+      _midiProvider(midiProvider), _selectedPreset(0), _selectedPlaylist(midiProvider.defaultPlaylistIndex()),
+      _hasSelectedPreset(false), _selectedButton(0)
 {
     setupFunctions();
 }
@@ -45,6 +51,7 @@ void PlayMode::setTransitionValue(ModeTransitionValue transitionValue)
 {
     if (transitionValue == ModeTransitionNone)
     {
+        _selectedPlaylist = _midiProvider.defaultPlaylistIndex();
         _hasSelectedPreset = false;
         return;
     }
@@ -56,6 +63,14 @@ void PlayMode::setTransitionValue(ModeTransitionValue transitionValue)
         return;
     }
 
+    if (isHomePlaylistTransition(transitionValue))
+    {
+        _selectedPlaylist = static_cast<byte>(transitionValue & ModeTransitionHomePlaylistValueMask);
+        setSelectedPreset(0);
+        return;
+    }
+
+    _selectedPlaylist = _midiProvider.defaultPlaylistIndex();
     setSelectedPreset(static_cast<byte>(transitionValue));
 }
 
@@ -75,6 +90,8 @@ void PlayMode::setupFunctions()
 
 void PlayMode::activate()
 {
+    _midiProvider.selectPlaylist(_selectedPlaylist);
+
     if (_hasSelectedPreset)
     {
         _midiProvider.recallPreset(_selectedPreset);
@@ -367,6 +384,8 @@ void PlayMode::executeAction(ActionType action, byte actionValue)
         break;
     case ActionType::SetTuner:
         _midiProvider.setTunerEnabled(actionValue != 0);
+        break;
+    case ActionType::SelectHomePlaylist:
         break;
     case ActionType::ChangeMode:
     {

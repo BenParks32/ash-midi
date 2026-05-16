@@ -66,6 +66,22 @@ void test_recall_preset_sends_bank_folder_then_program_change()
     TEST_ASSERT_EQUAL_UINT8(6, midiManager.firstValues[2]);
 }
 
+void test_select_playlist_changes_setlist_used_for_preset_recall()
+{
+    MockMidiManager midiManager;
+    QCMiniMidiProvider provider(midiManager);
+
+    provider.selectPlaylist(4);
+    provider.recallPreset(0);
+
+    TEST_ASSERT_EQUAL_INT(3, midiManager.messageCount);
+    TEST_ASSERT_EQUAL_UINT8(0, midiManager.firstValues[0]);
+    TEST_ASSERT_EQUAL_UINT8(0, midiManager.secondValues[0]);
+    TEST_ASSERT_EQUAL_UINT8(32, midiManager.firstValues[1]);
+    TEST_ASSERT_EQUAL_UINT8(4, midiManager.secondValues[1]);
+    TEST_ASSERT_EQUAL_UINT8(0, midiManager.firstValues[2]);
+}
+
 void test_recall_preset_127_stays_in_first_group()
 {
     MockMidiManager midiManager;
@@ -136,6 +152,7 @@ void setup()
 
     UNITY_BEGIN();
     RUN_TEST(test_recall_preset_sends_bank_folder_then_program_change);
+    RUN_TEST(test_select_playlist_changes_setlist_used_for_preset_recall);
     RUN_TEST(test_recall_preset_127_stays_in_first_group);
     RUN_TEST(test_select_scene_sends_qc_scene_control_change);
     RUN_TEST(test_enable_tuner_sends_qc_tuner_control_change);

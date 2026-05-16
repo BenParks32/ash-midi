@@ -9,7 +9,8 @@ enum class ActionType : uint8_t
     SendMidiControlChange = 2,
     ChangeMode = 3,
     SelectScene = 4,
-    SetTuner = 5
+    SetTuner = 5,
+    SelectHomePlaylist = 6
 };
 
 // Data-only class describing a button function

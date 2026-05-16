@@ -65,6 +65,8 @@ class MockMidiProvider : public IMidiProvider
 {
   public:
     byte maxPresetIndex() const override { return 127; }
+    byte defaultPlaylistIndex() const override { return 1; }
+    void selectPlaylist(byte playlistIndex) override { lastPlaylistIndex = playlistIndex; }
 
     void recallPreset(byte presetIndex) override
     {
@@ -88,6 +90,7 @@ class MockMidiProvider : public IMidiProvider
     int selectSceneCalls = 0;
     int setTunerCalls = 0;
     byte lastRecallPreset = 0;
+    byte lastPlaylistIndex = 1;
     byte lastSceneIndex = 0;
     bool lastTunerEnabled = false;
 };

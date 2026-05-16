@@ -1,8 +1,8 @@
 #include "Modes/HomeMode.h"
 
-const uint8_t STOMP_PATCH_AMP = 0;
-const uint8_t STOMP_PATCH_AMPLESS = 6;
-const uint8_t STOMP_PATCH_CODERED = 20;
+const uint8_t HOME_PLAYLIST_V40 = 2;
+const uint8_t HOME_PLAYLIST_AMPLESS = 3;
+const uint8_t HOME_PLAYLIST_CODERED = 4;
 const uint8_t HOME_MENU_MODE_VALUE = static_cast<uint8_t>(Modes::Menu);
 const uint8_t HOME_PATCH_MODE_VALUE = 0xFE;
 const uint8_t HOME_PLAY_PATCH_DEFAULT = 0;
@@ -13,6 +13,11 @@ const uint8_t HomeLogoSubtitleScale = 1;
 const char* HomeLogoTitleText = "ASH";
 const char* HomeLogoSubtitleText = "guitars";
 
+ModeTransitionValue homePlaylistTransitionValue(byte playlistIndex)
+{
+    return static_cast<ModeTransitionValue>(ModeTransitionHomePlaylistFlag | playlistIndex);
+}
+
 HomeMode::HomeMode(TouchButtonManager& touchButtonManager, RingManager& ringManager, ScreenUi& screenUi,
                    IMidiManager& midiManager, IModeTransistionDelegate& transitionDelegate)
     : FunctionModeBase(touchButtonManager, ringManager, screenUi, midiManager, transitionDelegate)
@@ -22,14 +27,16 @@ HomeMode::HomeMode(TouchButtonManager& touchButtonManager, RingManager& ringMana
 
 void HomeMode::setupFunctions()
 {
-    // Button 0: Amp (Green) -> enter Play and select Home Program 0
-    _functions[0] = Function("Amp", 0x07E0, ActionType::ChangeMode, STOMP_PATCH_AMP, ActionType::None, 0);
+    // Button 0: V40 (Green) -> enter Play and select playlist 2 preset 1A
+    _functions[0] = Function("V40", 0x07E0, ActionType::SelectHomePlaylist, HOME_PLAYLIST_V40, ActionType::None, 0);
 
-    // Button 1: Ampless (Blue) -> enter Play and select Home Program 6
-    _functions[1] = Function("Ampless", 0x001F, ActionType::ChangeMode, STOMP_PATCH_AMPLESS, ActionType::None, 0);
+    // Button 1: Ampless (Blue) -> enter Play and select playlist 3 preset 1A
+    _functions[1] =
+        Function("Ampless", 0x001F, ActionType::SelectHomePlaylist, HOME_PLAYLIST_AMPLESS, ActionType::None, 0);
 
-    // Button 2: CodeRed (Red) -> enter Play and select Home Program 20
-    _functions[2] = Function("CodeRed", 0xF800, ActionType::ChangeMode, STOMP_PATCH_CODERED, ActionType::None, 0);
+    // Button 2: CodeRed (Red) -> enter Play and select playlist 4 preset 1A
+    _functions[2] = Function("CodeRed", 0xF800, ActionType::SelectHomePlaylist, HOME_PLAYLIST_CODERED,
+                             ActionType::None, 0);
 
     // Button 3: Disabled slot uses Function default constructor values.
     _functions[3] = Function();
@@ -147,6 +154,9 @@ void HomeMode::executeAction(ActionType action, byte actionValue)
         {
             _transitionDelegate.enterMode(Modes::Play, actionValue);
         }
+        break;
+    case ActionType::SelectHomePlaylist:
+        _transitionDelegate.enterMode(Modes::Play, homePlaylistTransitionValue(actionValue));
         break;
     }
 }

@@ -49,6 +49,7 @@ class PlayMode : public FunctionModeBase
   private:
     IMidiProvider& _midiProvider;
     byte _selectedPreset;
+    byte _selectedPlaylist;
     bool _hasSelectedPreset;
     byte _selectedButton;
 };

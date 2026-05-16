@@ -16,6 +16,17 @@
 
 namespace
 {
+constexpr ModeTransitionValue HomePlaylistTransitionFlag = 0x0200;
+constexpr byte DefaultPlaylistIndex = 1;
+constexpr byte V40PlaylistIndex = 2;
+constexpr byte AmplessPlaylistIndex = 3;
+constexpr byte CodeRedPlaylistIndex = 4;
+
+constexpr ModeTransitionValue homePlaylistTransitionValue(byte playlistIndex)
+{
+    return static_cast<ModeTransitionValue>(HomePlaylistTransitionFlag | playlistIndex);
+}
+
 class MockMidiManager : public IMidiManager
 {
   public:
@@ -63,12 +74,21 @@ class MockMidiProvider : public IMidiProvider
   public:
     enum class CallType : uint8_t
     {
+        SelectPlaylist,
         RecallPreset,
         SelectScene,
         SetTuner,
     };
 
     byte maxPresetIndex() const override { return 127; }
+    byte defaultPlaylistIndex() const override { return DefaultPlaylistIndex; }
+
+    void selectPlaylist(byte playlistIndex) override
+    {
+        ++selectPlaylistCalls;
+        lastPlaylistIndex = playlistIndex;
+        callOrder[callCount++] = CallType::SelectPlaylist;
+    }
 
     void recallPreset(byte presetIndex) override
     {
@@ -91,9 +111,11 @@ class MockMidiProvider : public IMidiProvider
         callOrder[callCount++] = CallType::SetTuner;
     }
 
+    int selectPlaylistCalls = 0;
     int recallPresetCalls = 0;
     int selectSceneCalls = 0;
     int setTunerCalls = 0;
+    byte lastPlaylistIndex = DefaultPlaylistIndex;
     byte lastRecallPreset = 0;
     byte lastSceneIndex = 0;
     bool lastTunerEnabled = false;
@@ -166,15 +188,19 @@ void test_activate_recalls_selected_preset_before_scene_select()
     fixture.mode.setSelectedPreset(6);
     fixture.mode.activate();
 
+    TEST_ASSERT_EQUAL_INT(1, fixture.midiProvider.selectPlaylistCalls);
+    TEST_ASSERT_EQUAL_UINT8(DefaultPlaylistIndex, fixture.midiProvider.lastPlaylistIndex);
     TEST_ASSERT_EQUAL_INT(1, fixture.midiProvider.recallPresetCalls);
     TEST_ASSERT_EQUAL_UINT8(6, fixture.midiProvider.lastRecallPreset);
     TEST_ASSERT_EQUAL_INT(1, fixture.midiProvider.selectSceneCalls);
     TEST_ASSERT_EQUAL_UINT8(0, fixture.midiProvider.lastSceneIndex);
-    TEST_ASSERT_EQUAL_INT(2, fixture.midiProvider.callCount);
-    TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(MockMidiProvider::CallType::RecallPreset),
+    TEST_ASSERT_EQUAL_INT(3, fixture.midiProvider.callCount);
+    TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(MockMidiProvider::CallType::SelectPlaylist),
                             static_cast<uint8_t>(fixture.midiProvider.callOrder[0]));
-    TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(MockMidiProvider::CallType::SelectScene),
+    TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(MockMidiProvider::CallType::RecallPreset),
                             static_cast<uint8_t>(fixture.midiProvider.callOrder[1]));
+    TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(MockMidiProvider::CallType::SelectScene),
+                            static_cast<uint8_t>(fixture.midiProvider.callOrder[2]));
 }
 
 void test_activate_recalls_selected_preset_zero()
@@ -184,8 +210,52 @@ void test_activate_recalls_selected_preset_zero()
     fixture.mode.setSelectedPreset(0);
     fixture.mode.activate();
 
+    TEST_ASSERT_EQUAL_INT(1, fixture.midiProvider.selectPlaylistCalls);
+    TEST_ASSERT_EQUAL_UINT8(DefaultPlaylistIndex, fixture.midiProvider.lastPlaylistIndex);
     TEST_ASSERT_EQUAL_INT(1, fixture.midiProvider.recallPresetCalls);
     TEST_ASSERT_EQUAL_UINT8(0, fixture.midiProvider.lastRecallPreset);
+}
+
+void test_activate_recalls_v40_playlist_preset_1a()
+{
+    PlayModeFixture fixture;
+
+    fixture.mode.setTransitionValue(homePlaylistTransitionValue(V40PlaylistIndex));
+    fixture.mode.activate();
+
+    TEST_ASSERT_EQUAL_INT(1, fixture.midiProvider.selectPlaylistCalls);
+    TEST_ASSERT_EQUAL_UINT8(V40PlaylistIndex, fixture.midiProvider.lastPlaylistIndex);
+    TEST_ASSERT_EQUAL_INT(1, fixture.midiProvider.recallPresetCalls);
+    TEST_ASSERT_EQUAL_UINT8(0, fixture.midiProvider.lastRecallPreset);
+    TEST_ASSERT_EQUAL_INT(1, fixture.midiProvider.selectSceneCalls);
+}
+
+void test_activate_recalls_ampless_playlist_preset_1a()
+{
+    PlayModeFixture fixture;
+
+    fixture.mode.setTransitionValue(homePlaylistTransitionValue(AmplessPlaylistIndex));
+    fixture.mode.activate();
+
+    TEST_ASSERT_EQUAL_INT(1, fixture.midiProvider.selectPlaylistCalls);
+    TEST_ASSERT_EQUAL_UINT8(AmplessPlaylistIndex, fixture.midiProvider.lastPlaylistIndex);
+    TEST_ASSERT_EQUAL_INT(1, fixture.midiProvider.recallPresetCalls);
+    TEST_ASSERT_EQUAL_UINT8(0, fixture.midiProvider.lastRecallPreset);
+    TEST_ASSERT_EQUAL_INT(1, fixture.midiProvider.selectSceneCalls);
+}
+
+void test_activate_recalls_code_red_playlist_preset_1a()
+{
+    PlayModeFixture fixture;
+
+    fixture.mode.setTransitionValue(homePlaylistTransitionValue(CodeRedPlaylistIndex));
+    fixture.mode.activate();
+
+    TEST_ASSERT_EQUAL_INT(1, fixture.midiProvider.selectPlaylistCalls);
+    TEST_ASSERT_EQUAL_UINT8(CodeRedPlaylistIndex, fixture.midiProvider.lastPlaylistIndex);
+    TEST_ASSERT_EQUAL_INT(1, fixture.midiProvider.recallPresetCalls);
+    TEST_ASSERT_EQUAL_UINT8(0, fixture.midiProvider.lastRecallPreset);
+    TEST_ASSERT_EQUAL_INT(1, fixture.midiProvider.selectSceneCalls);
 }
 
 void test_activate_skips_program_change_for_none_transition()
@@ -195,6 +265,8 @@ void test_activate_skips_program_change_for_none_transition()
     fixture.mode.setTransitionValue(ModeTransitionNone);
     fixture.mode.activate();
 
+    TEST_ASSERT_EQUAL_INT(1, fixture.midiProvider.selectPlaylistCalls);
+    TEST_ASSERT_EQUAL_UINT8(DefaultPlaylistIndex, fixture.midiProvider.lastPlaylistIndex);
     TEST_ASSERT_EQUAL_INT(0, fixture.midiProvider.recallPresetCalls);
     TEST_ASSERT_EQUAL_INT(1, fixture.midiProvider.selectSceneCalls);
 }
@@ -206,6 +278,8 @@ void test_activate_skips_program_change_for_patch_return_transition()
     fixture.mode.setTransitionValue(ModeTransitionPatchReturnFlag | 9);
     fixture.mode.activate();
 
+    TEST_ASSERT_EQUAL_INT(1, fixture.midiProvider.selectPlaylistCalls);
+    TEST_ASSERT_EQUAL_UINT8(DefaultPlaylistIndex, fixture.midiProvider.lastPlaylistIndex);
     TEST_ASSERT_EQUAL_INT(0, fixture.midiProvider.recallPresetCalls);
     TEST_ASSERT_EQUAL_INT(1, fixture.midiProvider.selectSceneCalls);
 }
@@ -216,6 +290,8 @@ void test_activate_selects_first_scene()
 
     fixture.mode.activate();
 
+    TEST_ASSERT_EQUAL_INT(1, fixture.midiProvider.selectPlaylistCalls);
+    TEST_ASSERT_EQUAL_UINT8(DefaultPlaylistIndex, fixture.midiProvider.lastPlaylistIndex);
     TEST_ASSERT_EQUAL_INT(1, fixture.midiProvider.selectSceneCalls);
     TEST_ASSERT_EQUAL_UINT8(0, fixture.midiProvider.lastSceneIndex);
 }
@@ -365,6 +441,20 @@ void test_button_five_uses_patch_return_value_for_next_patch_entry()
                             static_cast<uint8_t>(fixture.transitionDelegate.lastMode));
     TEST_ASSERT_EQUAL_UINT16(11, fixture.transitionDelegate.lastTransitionValue);
 }
+
+void test_button_five_uses_home_playlist_preset_zero_for_next_patch_entry()
+{
+    PlayModeFixture fixture;
+
+    fixture.mode.setTransitionValue(homePlaylistTransitionValue(CodeRedPlaylistIndex));
+    fixture.mode.activate();
+    fixture.mode.buttonPressed(4);
+
+    TEST_ASSERT_EQUAL_INT(1, fixture.transitionDelegate.calls);
+    TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(Modes::Patch),
+                            static_cast<uint8_t>(fixture.transitionDelegate.lastMode));
+    TEST_ASSERT_EQUAL_UINT16(0, fixture.transitionDelegate.lastTransitionValue);
+}
 } // namespace
 
 void setUp() {}
@@ -385,6 +475,9 @@ void setup()
     RUN_TEST(test_activate_selects_single_button_and_dims_others);
     RUN_TEST(test_activate_recalls_selected_preset_before_scene_select);
     RUN_TEST(test_activate_recalls_selected_preset_zero);
+    RUN_TEST(test_activate_recalls_v40_playlist_preset_1a);
+    RUN_TEST(test_activate_recalls_ampless_playlist_preset_1a);
+    RUN_TEST(test_activate_recalls_code_red_playlist_preset_1a);
     RUN_TEST(test_activate_skips_program_change_for_none_transition);
     RUN_TEST(test_activate_skips_program_change_for_patch_return_transition);
     RUN_TEST(test_activate_selects_first_scene);
@@ -400,6 +493,7 @@ void setup()
     RUN_TEST(test_button_eight_is_disabled_in_play_mode);
     RUN_TEST(test_button_five_transitions_to_patch_mode);
     RUN_TEST(test_button_five_uses_patch_return_value_for_next_patch_entry);
+    RUN_TEST(test_button_five_uses_home_playlist_preset_zero_for_next_patch_entry);
     UNITY_END();
 }
 

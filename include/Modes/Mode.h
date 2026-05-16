@@ -15,7 +15,9 @@ static constexpr uint8_t ModeCount = static_cast<uint8_t>(Modes::Count);
 using ModeTransitionValue = uint16_t;
 static constexpr ModeTransitionValue ModeTransitionNone = 0xFFFF;
 static constexpr ModeTransitionValue ModeTransitionPatchReturnFlag = 0x0100;
+static constexpr ModeTransitionValue ModeTransitionHomePlaylistFlag = 0x0200;
 static constexpr ModeTransitionValue ModeTransitionPatchValueMask = 0x00FF;
+static constexpr ModeTransitionValue ModeTransitionHomePlaylistValueMask = 0x00FF;
 
 class IModeTransistionDelegate
 {

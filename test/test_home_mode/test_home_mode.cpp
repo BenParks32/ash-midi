@@ -18,6 +18,16 @@
 
 namespace
 {
+constexpr ModeTransitionValue HomePlaylistTransitionFlag = 0x0200;
+constexpr byte V40PlaylistIndex = 2;
+constexpr byte AmplessPlaylistIndex = 3;
+constexpr byte CodeRedPlaylistIndex = 4;
+
+constexpr ModeTransitionValue homePlaylistTransitionValue(byte playlistIndex)
+{
+    return static_cast<ModeTransitionValue>(HomePlaylistTransitionFlag | playlistIndex);
+}
+
 class MockMidiManager : public IMidiManager
 {
   public:
@@ -106,7 +116,7 @@ void test_activate_sets_home_labels_and_ring_matched_visuals()
 
     fixture.mode.activate();
 
-    TEST_ASSERT_EQUAL_STRING("Amp", fixture.touchButtonManager.getButton(0)->label());
+    TEST_ASSERT_EQUAL_STRING("V40", fixture.touchButtonManager.getButton(0)->label());
     TEST_ASSERT_EQUAL_STRING("Ampless", fixture.touchButtonManager.getButton(1)->label());
     TEST_ASSERT_EQUAL_STRING("CodeRed", fixture.touchButtonManager.getButton(2)->label());
     TEST_ASSERT_EQUAL_STRING(" ", fixture.touchButtonManager.getButton(3)->label());
@@ -122,7 +132,7 @@ void test_activate_sets_home_labels_and_ring_matched_visuals()
     TEST_ASSERT_EQUAL_UINT32(0, fixture.strip.getPixelColor(RingManager::LedsPerRing * 6));
 }
 
-void test_button_pressed_selects_requested_button_when_valid()
+void test_button_pressed_selects_ampless_home_playlist_for_play_mode()
 {
     HomeModeFixture fixture;
 
@@ -131,11 +141,12 @@ void test_button_pressed_selects_requested_button_when_valid()
     TEST_ASSERT_EQUAL_INT(1, fixture.transitionDelegate.calls);
     TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(Modes::Play),
                             static_cast<uint8_t>(fixture.transitionDelegate.lastMode));
-    TEST_ASSERT_EQUAL_UINT16(6, fixture.transitionDelegate.lastTransitionValue);
+    TEST_ASSERT_EQUAL_UINT16(homePlaylistTransitionValue(AmplessPlaylistIndex),
+                             fixture.transitionDelegate.lastTransitionValue);
     TEST_ASSERT_EQUAL_INT(0, fixture.midiManager.programChangeCalls);
 }
 
-void test_button_pressed_selects_amp_home_program_for_play_mode()
+void test_button_pressed_selects_v40_home_playlist_for_play_mode()
 {
     HomeModeFixture fixture;
 
@@ -144,11 +155,12 @@ void test_button_pressed_selects_amp_home_program_for_play_mode()
     TEST_ASSERT_EQUAL_INT(1, fixture.transitionDelegate.calls);
     TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(Modes::Play),
                             static_cast<uint8_t>(fixture.transitionDelegate.lastMode));
-    TEST_ASSERT_EQUAL_UINT16(0, fixture.transitionDelegate.lastTransitionValue);
+    TEST_ASSERT_EQUAL_UINT16(homePlaylistTransitionValue(V40PlaylistIndex),
+                             fixture.transitionDelegate.lastTransitionValue);
     TEST_ASSERT_EQUAL_INT(0, fixture.midiManager.programChangeCalls);
 }
 
-void test_button_pressed_selects_code_red_home_program_for_play_mode()
+void test_button_pressed_selects_code_red_home_playlist_for_play_mode()
 {
     HomeModeFixture fixture;
 
@@ -157,7 +169,8 @@ void test_button_pressed_selects_code_red_home_program_for_play_mode()
     TEST_ASSERT_EQUAL_INT(1, fixture.transitionDelegate.calls);
     TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(Modes::Play),
                             static_cast<uint8_t>(fixture.transitionDelegate.lastMode));
-    TEST_ASSERT_EQUAL_UINT16(20, fixture.transitionDelegate.lastTransitionValue);
+    TEST_ASSERT_EQUAL_UINT16(homePlaylistTransitionValue(CodeRedPlaylistIndex),
+                             fixture.transitionDelegate.lastTransitionValue);
     TEST_ASSERT_EQUAL_INT(0, fixture.midiManager.programChangeCalls);
 }
 
@@ -270,7 +283,7 @@ void test_button_press_transitions_via_mode_manager_to_play_slot()
 
     TEST_ASSERT_EQUAL_PTR(&playSlot, activeMode);
     TEST_ASSERT_EQUAL_INT(1, playSlot.setTransitionValueCalls);
-    TEST_ASSERT_EQUAL_UINT16(20, playSlot.lastTransitionValue);
+    TEST_ASSERT_EQUAL_UINT16(homePlaylistTransitionValue(CodeRedPlaylistIndex), playSlot.lastTransitionValue);
     TEST_ASSERT_EQUAL_INT(1, playSlot.activateCalls);
     TEST_ASSERT_EQUAL_INT(0, midiManager.programChangeCalls);
 }
@@ -321,9 +334,9 @@ void setup()
 
     UNITY_BEGIN();
     RUN_TEST(test_activate_sets_home_labels_and_ring_matched_visuals);
-    RUN_TEST(test_button_pressed_selects_requested_button_when_valid);
-    RUN_TEST(test_button_pressed_selects_amp_home_program_for_play_mode);
-    RUN_TEST(test_button_pressed_selects_code_red_home_program_for_play_mode);
+    RUN_TEST(test_button_pressed_selects_ampless_home_playlist_for_play_mode);
+    RUN_TEST(test_button_pressed_selects_v40_home_playlist_for_play_mode);
+    RUN_TEST(test_button_pressed_selects_code_red_home_playlist_for_play_mode);
     RUN_TEST(test_button_eight_transitions_to_menu_mode);
     RUN_TEST(test_button_five_transitions_to_play_mode_with_patch_zero);
     RUN_TEST(test_button_six_transitions_to_patch_mode_with_no_transition_override);

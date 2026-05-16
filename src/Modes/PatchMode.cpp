@@ -236,6 +236,8 @@ void PatchMode::executeAction(ActionType action, byte actionValue)
         break;
     case ActionType::SendMidiControlChange:
         break;
+    case ActionType::SelectHomePlaylist:
+        break;
     case ActionType::ChangeMode:
         if (actionValue == static_cast<byte>(Modes::Home))
         {
