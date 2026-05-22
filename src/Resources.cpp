@@ -12,6 +12,40 @@ constexpr uint8_t SdIdleClockBytes = 20;
 constexpr uint32_t SdRetryDelayMs = 50;
 constexpr uint32_t SdBusSettleDelayMs = 10;
 constexpr uint32_t SdPowerSettleDelayMs = 250;
+
+const char* alternateSdPath(const char* path)
+{
+    if (path == nullptr || path[0] != '/' || path[1] == '\0')
+    {
+        return nullptr;
+    }
+
+    return path + 1;
+}
+
+bool resolveExistingSdPath(const char* requestedPath, const char*& resolvedPath)
+{
+    resolvedPath = requestedPath;
+    if (requestedPath != nullptr && SD.exists(requestedPath))
+    {
+        return true;
+    }
+
+    const char* alternatePath = alternateSdPath(requestedPath);
+    if (alternatePath != nullptr && SD.exists(alternatePath))
+    {
+        resolvedPath = alternatePath;
+        return true;
+    }
+
+    return false;
+}
+
+const char* preferredWritableSdPath(const char* path)
+{
+    const char* alternatePath = alternateSdPath(path);
+    return (alternatePath != nullptr) ? alternatePath : path;
+}
 } // namespace
 
 Resources::Resources(const byte sdPin) : _sdPin(sdPin), FootSwitchIcon(nullptr), _isMounted(false) {}
@@ -98,19 +132,25 @@ bool Resources::readSmallFile(const char* path, uint8_t* buffer, size_t expected
         return false;
     }
 
-    if (!SD.exists(path))
+    const char* resolvedPath = nullptr;
+    if (!resolveExistingSdPath(path, resolvedPath))
     {
+        Serial.printf("SD small-file read: '%s' not found (alternate '%s').\n", path,
+                      alternateSdPath(path) != nullptr ? alternateSdPath(path) : "<none>");
         return false;
     }
 
-    File file = SD.open(path, FILE_READ);
+    File file = SD.open(resolvedPath, FILE_READ);
     if (!file)
     {
+        Serial.printf("SD small-file read: failed to open '%s'.\n", resolvedPath);
         return false;
     }
 
     if (static_cast<size_t>(file.size()) != expectedSize)
     {
+        Serial.printf("SD small-file read: size mismatch for '%s' (expected %u, actual %u).\n", resolvedPath,
+                      static_cast<unsigned int>(expectedSize), static_cast<unsigned int>(file.size()));
         file.close();
         return false;
     }
@@ -123,12 +163,66 @@ bool Resources::readSmallFile(const char* path, uint8_t* buffer, size_t expected
         const int chunkRead = file.read(buffer + bytesRead, chunkSize);
         if (chunkRead <= 0)
         {
+            Serial.printf("SD small-file read: failed while reading '%s' at offset %u.\n", resolvedPath,
+                          static_cast<unsigned int>(bytesRead));
             file.close();
             return false;
         }
         bytesRead += static_cast<size_t>(chunkRead);
     }
 
+    file.close();
+    return true;
+}
+
+bool Resources::readTextFile(const char* path, char* buffer, size_t bufferSize) const
+{
+    if (!_isMounted || path == nullptr || *path == '\0' || buffer == nullptr || bufferSize < 2)
+    {
+        return false;
+    }
+
+    const char* resolvedPath = nullptr;
+    if (!resolveExistingSdPath(path, resolvedPath))
+    {
+        Serial.printf("SD text read: '%s' not found (alternate '%s').\n", path,
+                      alternateSdPath(path) != nullptr ? alternateSdPath(path) : "<none>");
+        return false;
+    }
+
+    File file = SD.open(resolvedPath, FILE_READ);
+    if (!file)
+    {
+        Serial.printf("SD text read: failed to open '%s'.\n", resolvedPath);
+        return false;
+    }
+
+    const size_t fileSize = static_cast<size_t>(file.size());
+    if (fileSize >= bufferSize)
+    {
+        Serial.printf("SD text read: '%s' too large for buffer (size %u, capacity %u).\n", resolvedPath,
+                      static_cast<unsigned int>(fileSize), static_cast<unsigned int>(bufferSize));
+        file.close();
+        return false;
+    }
+
+    size_t bytesRead = 0;
+    while (bytesRead < fileSize)
+    {
+        const size_t remaining = fileSize - bytesRead;
+        const size_t chunkSize = remaining > 64 ? 64 : remaining;
+        const int chunkRead = file.read(reinterpret_cast<uint8_t*>(buffer) + bytesRead, chunkSize);
+        if (chunkRead <= 0)
+        {
+            Serial.printf("SD text read: failed while reading '%s' at offset %u.\n", resolvedPath,
+                          static_cast<unsigned int>(bytesRead));
+            file.close();
+            return false;
+        }
+        bytesRead += static_cast<size_t>(chunkRead);
+    }
+
+    buffer[bytesRead] = '\0';
     file.close();
     return true;
 }
@@ -145,14 +239,18 @@ bool Resources::writeSmallFile(const char* path, const uint8_t* data, size_t siz
         return false;
     }
 
-    if (SD.exists(path) && !SD.remove(path))
+    const char* resolvedPath = preferredWritableSdPath(path);
+
+    if (SD.exists(resolvedPath) && !SD.remove(resolvedPath))
     {
+        Serial.printf("SD small-file write: failed to remove '%s'.\n", resolvedPath);
         return false;
     }
 
-    File file = SD.open(path, FILE_WRITE);
+    File file = SD.open(resolvedPath, FILE_WRITE);
     if (!file)
     {
+        Serial.printf("SD small-file write: failed to open '%s' for writing.\n", resolvedPath);
         return false;
     }
 
@@ -164,6 +262,8 @@ bool Resources::writeSmallFile(const char* path, const uint8_t* data, size_t siz
         const int chunkWritten = file.write(data + bytesWritten, chunkSize);
         if (chunkWritten <= 0)
         {
+            Serial.printf("SD small-file write: failed while writing '%s' at offset %u.\n", resolvedPath,
+                          static_cast<unsigned int>(bytesWritten));
             file.close();
             return false;
         }
@@ -185,16 +285,18 @@ const uint16_t* Resources::readFile(const char* path, const size_t expectedSizeB
         return nullptr;
     }
 
-    if (!SD.exists(path))
+    const char* resolvedPath = nullptr;
+    if (!resolveExistingSdPath(path, resolvedPath))
     {
-        Serial.printf("File not found: %s\n", path);
+        Serial.printf("File not found: %s (alternate '%s')\n", path,
+                      alternateSdPath(path) != nullptr ? alternateSdPath(path) : "<none>");
         return nullptr;
     }
 
-    File file = SD.open(path, FILE_READ);
+    File file = SD.open(resolvedPath, FILE_READ);
     if (!file)
     {
-        Serial.printf("Failed to open file: %s\n", path);
+        Serial.printf("Failed to open file: %s\n", resolvedPath);
         return nullptr;
     }
 

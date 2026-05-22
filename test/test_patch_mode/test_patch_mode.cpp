@@ -86,13 +86,21 @@ class MockMidiProvider : public IMidiProvider
         lastTunerEnabled = enabled;
     }
 
+    void setGigViewEnabled(bool enabled) override
+    {
+        ++setGigViewCalls;
+        lastGigViewEnabled = enabled;
+    }
+
     int recallPresetCalls = 0;
     int selectSceneCalls = 0;
     int setTunerCalls = 0;
+    int setGigViewCalls = 0;
     byte lastRecallPreset = 0;
     byte lastPlaylistIndex = 1;
     byte lastSceneIndex = 0;
     bool lastTunerEnabled = false;
+    bool lastGigViewEnabled = false;
 };
 
 class PatchModeFixture

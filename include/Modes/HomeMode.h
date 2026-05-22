@@ -15,7 +15,7 @@ class HomeMode : public FunctionModeBase
     void frameTick() override;
 
   private:
-    void executeAction(ActionType action, byte actionValue);
+    void executeAction(const FunctionAction& action);
     uint8_t ringBrightnessForButton(byte number) const override;
 
   private:

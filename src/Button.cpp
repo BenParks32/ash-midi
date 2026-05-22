@@ -1,7 +1,5 @@
 #include "Button.h"
 
-const uint16_t LONG_PRESS_MS = 1000;
-
 Button* ButtonManager::s_instances[ButtonManager::kMaxInterrupts] = {nullptr};
 
 void (*const ButtonManager::s_isr[ButtonManager::kMaxInterrupts])() = {
@@ -83,6 +81,7 @@ void Button::updateState()
                 _buttonDown = true;
                 _longPressed = false;
                 _chrono = now;
+                _delegate.buttonDown(_number);
             }
             else if (pinIs == HIGH)
             {
@@ -94,7 +93,7 @@ void Button::updateState()
     else
     {
         // Button is held; fire long-press as soon as duration passes, then wait for release.
-        if (!_longPressed && (now - _chrono) >= LONG_PRESS_MS)
+        if (!_longPressed && (now - _chrono) >= ButtonLongPressMs)
         {
             _longPressed = true;
             _delegate.buttonLongPressed(_number);
@@ -119,6 +118,8 @@ void Button::updateState()
                 {
                     _delegate.buttonPressed(_number);
                 }
+
+                _delegate.buttonReleased(_number);
             }
             else if (pinIs == LOW)
             {

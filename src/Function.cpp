@@ -2,38 +2,54 @@
 #include <cstring>
 
 Function::Function()
-    : _colour(0), _pressAction(ActionType::None), _pressActionValue(0), _longPressAction(ActionType::None),
-      _longPressActionValue(0)
+    : _colour(0), _actions{}
 {
     setLabel(" ");
 }
 
-Function::Function(const char* label, uint16_t colour, ActionType pressAction, ActionType longPressAction)
-    : _colour(colour), _pressAction(pressAction), _pressActionValue(0), _longPressAction(longPressAction),
-      _longPressActionValue(0)
+Function::Function(const char* label, uint16_t colour, ActionType shortPressAction, ActionType longPressAction)
+    : _colour(colour), _actions{}
 {
     setLabel(label);
+    setAction(FunctionBehaviour::ShortPress, buildLegacyAction(shortPressAction, 0));
+    setAction(FunctionBehaviour::LongPress, buildLegacyAction(longPressAction, 0));
 }
 
-Function::Function(const char* label, uint16_t colour, ActionType pressAction, uint8_t pressActionValue,
+Function::Function(const char* label, uint16_t colour, ActionType shortPressAction, uint8_t shortPressActionValue,
                    ActionType longPressAction, uint8_t longPressActionValue)
-    : _colour(colour), _pressAction(pressAction), _pressActionValue(pressActionValue),
-      _longPressAction(longPressAction), _longPressActionValue(longPressActionValue)
+    : _colour(colour), _actions{}
 {
     setLabel(label);
+    setAction(FunctionBehaviour::ShortPress, buildLegacyAction(shortPressAction, shortPressActionValue));
+    setAction(FunctionBehaviour::LongPress, buildLegacyAction(longPressAction, longPressActionValue));
+}
+
+Function::Function(const char* label, uint16_t colour, const FunctionAction& buttonDownAction,
+                   const FunctionAction& buttonReleaseAction, const FunctionAction& shortPressAction,
+                   const FunctionAction& longPressAction)
+    : _colour(colour), _actions{}
+{
+    setLabel(label);
+    setAction(FunctionBehaviour::ButtonDown, buttonDownAction);
+    setAction(FunctionBehaviour::ButtonRelease, buttonReleaseAction);
+    setAction(FunctionBehaviour::ShortPress, shortPressAction);
+    setAction(FunctionBehaviour::LongPress, longPressAction);
 }
 
 const char* Function::label() const { return _label; }
 
 uint16_t Function::colour() const { return _colour; }
 
-ActionType Function::pressAction() const { return _pressAction; }
+const FunctionAction& Function::action(FunctionBehaviour behaviour) const
+{
+    return _actions[static_cast<uint8_t>(behaviour)];
+}
 
-uint8_t Function::pressActionValue() const { return _pressActionValue; }
-
-ActionType Function::longPressAction() const { return _longPressAction; }
-
-uint8_t Function::longPressActionValue() const { return _longPressActionValue; }
+bool Function::hasMomentaryBehaviour() const
+{
+    return action(FunctionBehaviour::ButtonDown).type != ActionType::None ||
+           action(FunctionBehaviour::ButtonRelease).type != ActionType::None;
+}
 
 void Function::setLabel(const char* label)
 {
@@ -49,10 +65,12 @@ void Function::setLabel(const char* label)
 
 void Function::setColour(uint16_t colour) { _colour = colour; }
 
-void Function::setPressAction(ActionType action) { _pressAction = action; }
+void Function::setAction(FunctionBehaviour behaviour, const FunctionAction& action)
+{
+    _actions[static_cast<uint8_t>(behaviour)] = action;
+}
 
-void Function::setPressActionValue(uint8_t actionValue) { _pressActionValue = actionValue; }
-
-void Function::setLongPressAction(ActionType action) { _longPressAction = action; }
-
-void Function::setLongPressActionValue(uint8_t actionValue) { _longPressActionValue = actionValue; }
+FunctionAction Function::buildLegacyAction(ActionType action, uint8_t actionValue)
+{
+    return FunctionAction(action, actionValue, action == ActionType::SendMidiControlChange ? 127U : 0U);
+}

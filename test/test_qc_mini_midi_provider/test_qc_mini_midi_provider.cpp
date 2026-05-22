@@ -135,6 +135,34 @@ void test_disable_tuner_sends_qc_tuner_control_change_zero()
     TEST_ASSERT_EQUAL_UINT8(45, midiManager.firstValues[0]);
     TEST_ASSERT_EQUAL_UINT8(0, midiManager.secondValues[0]);
 }
+
+void test_enable_gig_view_sends_qc_gig_view_open_control_change()
+{
+    MockMidiManager midiManager;
+    QCMiniMidiProvider provider(midiManager);
+
+    provider.setGigViewEnabled(true);
+
+    TEST_ASSERT_EQUAL_INT(1, midiManager.messageCount);
+    TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(MockMidiManager::MessageType::ControlChange),
+                            static_cast<uint8_t>(midiManager.messageTypes[0]));
+    TEST_ASSERT_EQUAL_UINT8(46, midiManager.firstValues[0]);
+    TEST_ASSERT_EQUAL_UINT8(127, midiManager.secondValues[0]);
+}
+
+void test_disable_gig_view_sends_qc_gig_view_close_control_change()
+{
+    MockMidiManager midiManager;
+    QCMiniMidiProvider provider(midiManager);
+
+    provider.setGigViewEnabled(false);
+
+    TEST_ASSERT_EQUAL_INT(1, midiManager.messageCount);
+    TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(MockMidiManager::MessageType::ControlChange),
+                            static_cast<uint8_t>(midiManager.messageTypes[0]));
+    TEST_ASSERT_EQUAL_UINT8(46, midiManager.firstValues[0]);
+    TEST_ASSERT_EQUAL_UINT8(0, midiManager.secondValues[0]);
+}
 } // namespace
 
 void setUp() {}
@@ -157,6 +185,8 @@ void setup()
     RUN_TEST(test_select_scene_sends_qc_scene_control_change);
     RUN_TEST(test_enable_tuner_sends_qc_tuner_control_change);
     RUN_TEST(test_disable_tuner_sends_qc_tuner_control_change_zero);
+    RUN_TEST(test_enable_gig_view_sends_qc_gig_view_open_control_change);
+    RUN_TEST(test_disable_gig_view_sends_qc_gig_view_close_control_change);
     UNITY_END();
 }
 

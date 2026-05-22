@@ -66,7 +66,7 @@ void PatchMode::buttonPressed(byte number)
     }
 
     const Function& func = getFunction(number);
-    executeAction(func.pressAction(), func.pressActionValue());
+    executeAction(func.action(FunctionBehaviour::ShortPress));
 }
 
 void PatchMode::buttonLongPressed(byte number)
@@ -82,7 +82,7 @@ void PatchMode::buttonLongPressed(byte number)
     }
 
     const Function& func = getFunction(number);
-    executeAction(func.longPressAction(), func.longPressActionValue());
+    executeAction(func.action(FunctionBehaviour::LongPress));
 }
 
 void PatchMode::frameTick()
@@ -225,25 +225,28 @@ uint8_t PatchMode::ringBrightnessForButton(byte number) const
     return RingManager::FullBrightness;
 }
 
-void PatchMode::executeAction(ActionType action, byte actionValue)
+void PatchMode::executeAction(const FunctionAction& action)
 {
-    switch (action)
+    switch (action.type)
     {
     case ActionType::None:
         break;
     case ActionType::SendMidiProgramChange:
-        changePatch(actionValue == PatchUpAction ? 1 : -1);
+        changePatch(action.value == PatchUpAction ? 1 : -1);
         break;
     case ActionType::SendMidiControlChange:
-        break;
     case ActionType::SelectHomePlaylist:
+    case ActionType::SelectScene:
+    case ActionType::SetTuner:
+    case ActionType::TapTempo:
+    case ActionType::SetGigView:
         break;
     case ActionType::ChangeMode:
-        if (actionValue == static_cast<byte>(Modes::Home))
+        if (action.value == static_cast<byte>(Modes::Home))
         {
             _transitionDelegate.enterMode(Modes::Home, ModeTransitionNone);
         }
-        else if (actionValue == static_cast<byte>(Modes::Play))
+        else if (action.value == static_cast<byte>(Modes::Play))
         {
             _transitionDelegate.enterMode(Modes::Play, ModeTransitionPatchReturnFlag | _currentPatch);
         }

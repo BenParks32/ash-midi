@@ -18,7 +18,10 @@ class TouchButtonManager : public ITouchButtonDelegate
     FootSwitchTouchButton* getButton(uint8_t index);
 
     // ITouchButtonDelegate implementation
+    void buttonDown(const byte number) override;
     void buttonPressed(const byte number) override;
+    void buttonLongPressed(const byte number) override;
+    void buttonReleased(const byte number) override;
 
   private:
     TouchButtonManager() = delete;
@@ -30,10 +33,15 @@ class TouchButtonManager : public ITouchButtonDelegate
     FootSwitchTouchButton* buttons[BUTTON_COUNT];
     ITouchButtonDelegate* _buttonPressDelegate;
     int8_t _lastPressedButton;
+    uint32_t _pressStartedAtMs;
+    bool _longPressDispatched;
 
     const Size boxSize;
     const int32_t boxWidth;
     const int32_t bottomRowY;
 
     void createButtons();
+    bool isEnabledButton(int8_t number) const;
+    void beginTouch(int8_t buttonNumber);
+    void endTouch(bool fireShortPress);
 };

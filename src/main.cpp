@@ -4,6 +4,7 @@
 #include <TFT_eSPI.h>
 
 #include "ButtonHandler.h"
+#include "ButtonOverrideStore.h"
 #include "Do.h"
 #include "Encoder.h"
 #include "Gfx.h"
@@ -54,6 +55,7 @@ const GFXfont* DefaultUiFont = FF22;
 const uint8_t DefaultUiScale = 1;
 
 Resources resources(SD_CS);
+ButtonOverrideStore buttonOverrideStore(&resources);
 IMode* activeMode = nullptr;
 
 ButtonHandler buttonHandler(activeMode, ringManager);
@@ -64,7 +66,7 @@ SettingsStore settingsStore(&resources);
 AppSettings appSettings = SettingsStore::defaults();
 IMode* modeRegistry[ModeCount] = {nullptr};
 ModeManager modeManager(activeMode, modeRegistry);
-PlayMode playMode(touchButtonManager, ringManager, screenUi, midiManager, midiProvider, modeManager);
+PlayMode playMode(touchButtonManager, ringManager, screenUi, midiManager, midiProvider, buttonOverrideStore, modeManager);
 PatchMode patchMode(touchButtonManager, ringManager, screenUi, midiManager, midiProvider, modeManager);
 HomeMode homeMode(touchButtonManager, ringManager, screenUi, midiManager, modeManager);
 MenuMode menuMode(touchButtonManager, ringManager, screenUi, midiManager, modeManager, settingsStore, resources,

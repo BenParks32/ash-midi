@@ -11,7 +11,7 @@ bool TouchButton::handleTouch(const uint16_t x, const uint16_t y)
 {
     if (x >= location.x && x <= location.x + size.width && y >= location.y && y <= location.y + size.height)
     {
-        delegate.buttonPressed(number);
+        delegate.buttonDown(number);
         return true;
     }
     return false;

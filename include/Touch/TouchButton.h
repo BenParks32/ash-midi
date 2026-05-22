@@ -7,7 +7,10 @@
 class ITouchButtonDelegate
 {
   public:
+    virtual void buttonDown(const byte number) = 0;
     virtual void buttonPressed(const byte number) = 0;
+    virtual void buttonLongPressed(const byte number) = 0;
+    virtual void buttonReleased(const byte number) = 0;
 };
 
 class TouchButton

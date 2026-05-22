@@ -48,6 +48,14 @@ void ButtonHandler::updateButtons()
     }
 }
 
+void ButtonHandler::buttonDown(const byte number)
+{
+    if (_activeMode != nullptr)
+    {
+        _activeMode->buttonDown(number);
+    }
+}
+
 void ButtonHandler::buttonPressed(const byte number)
 {
     if (_activeMode != nullptr)
@@ -68,4 +76,12 @@ void ButtonHandler::buttonLongPressed(const byte number)
     }
 
     Serial.printf("Button %d long pressed\n", number + 1);
+}
+
+void ButtonHandler::buttonReleased(const byte number)
+{
+    if (_activeMode != nullptr)
+    {
+        _activeMode->buttonReleased(number);
+    }
 }

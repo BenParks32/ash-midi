@@ -21,6 +21,12 @@ class ModeSpy : public IMode
   public:
     void activate() override {}
 
+    void buttonDown(const byte number) override
+    {
+        lastDown = number;
+        ++downCalls;
+    }
+
     void buttonPressed(const byte number) override
     {
         lastPressed = number;
@@ -35,10 +41,20 @@ class ModeSpy : public IMode
 
     void frameTick() override {}
 
+    void buttonReleased(const byte number) override
+    {
+        lastReleased = number;
+        ++releasedCalls;
+    }
+
+    byte lastDown = 0xFF;
+    int downCalls = 0;
     byte lastPressed = 0xFF;
     int pressedCalls = 0;
     byte lastLongPressed = 0xFF;
     int longPressedCalls = 0;
+    byte lastReleased = 0xFF;
+    int releasedCalls = 0;
 };
 
 class ButtonHandlerFixture
@@ -57,6 +73,17 @@ class ButtonHandlerFixture
     ModeSpy modeSpy;
 };
 
+void test_button_down_routes_to_active_mode()
+{
+    ButtonHandlerFixture fixture;
+    fixture.activeMode = &fixture.modeSpy;
+
+    fixture.handler.buttonDown(2);
+
+    TEST_ASSERT_EQUAL_INT(1, fixture.modeSpy.downCalls);
+    TEST_ASSERT_EQUAL_UINT8(2, fixture.modeSpy.lastDown);
+}
+
 void test_button_pressed_routes_to_active_mode()
 {
     ButtonHandlerFixture fixture;
@@ -68,6 +95,17 @@ void test_button_pressed_routes_to_active_mode()
     TEST_ASSERT_EQUAL_INT(1, fixture.modeSpy.pressedCalls);
     TEST_ASSERT_EQUAL_UINT8(3, fixture.modeSpy.lastPressed);
     TEST_ASSERT_EQUAL_UINT8(0xFF, g_lastSelected);
+}
+
+void test_button_released_routes_to_active_mode()
+{
+    ButtonHandlerFixture fixture;
+    fixture.activeMode = &fixture.modeSpy;
+
+    fixture.handler.buttonReleased(7);
+
+    TEST_ASSERT_EQUAL_INT(1, fixture.modeSpy.releasedCalls);
+    TEST_ASSERT_EQUAL_UINT8(7, fixture.modeSpy.lastReleased);
 }
 
 void test_button_long_pressed_routes_to_active_mode()
@@ -136,8 +174,10 @@ void setup()
     }
 
     UNITY_BEGIN();
+    RUN_TEST(test_button_down_routes_to_active_mode);
     RUN_TEST(test_button_pressed_routes_to_active_mode);
     RUN_TEST(test_button_long_pressed_routes_to_active_mode);
+    RUN_TEST(test_button_released_routes_to_active_mode);
     RUN_TEST(test_button_pressed_does_nothing_when_no_active_mode);
     RUN_TEST(test_button_long_pressed_no_mode_does_not_select_touch_button);
     RUN_TEST(test_button_handler_reads_active_mode_pointer_by_reference);

@@ -25,7 +25,7 @@ class PatchMode : public FunctionModeBase
     int32_t patchFrameTopY() const;
     int32_t patchNumberY() const;
     static void formatPatchLabel(byte patchNumber, char* buffer, size_t bufferSize);
-    void executeAction(ActionType action, byte actionValue);
+    void executeAction(const FunctionAction& action);
     void changePatch(int8_t delta);
     uint8_t ringBrightnessForButton(byte number) const override;
 

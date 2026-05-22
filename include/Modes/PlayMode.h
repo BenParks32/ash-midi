@@ -1,20 +1,24 @@
 #pragma once
 
 #include "Modes/FunctionModeBase.h"
+#include "ButtonOverrideStore.h"
 #include "MidiProvider.h"
 
 class PlayMode : public FunctionModeBase
 {
   public:
     PlayMode(TouchButtonManager& touchButtonManager, RingManager& ringManager, ScreenUi& screenUi,
-             IMidiManager& midiManager, IMidiProvider& midiProvider, IModeTransistionDelegate& transitionDelegate);
+             IMidiManager& midiManager, IMidiProvider& midiProvider, IButtonOverrideStore& buttonOverrideStore,
+             IModeTransistionDelegate& transitionDelegate);
 
     void setSelectedPreset(byte selectedPreset);
 
     void activate() override;
     void deactivate() override;
+    void buttonDown(byte number) override;
     void buttonPressed(byte number) override;
     void buttonLongPressed(byte number) override;
+    void buttonReleased(byte number) override;
     void frameTick() override;
     void setTransitionValue(ModeTransitionValue transitionValue) override;
 
@@ -27,7 +31,9 @@ class PlayMode : public FunctionModeBase
     };
 
   private:
-    void executeAction(ActionType action, byte actionValue);
+    void executeAction(const FunctionAction& action);
+    void registerTapTempoPress(uint32_t pressedAtMs);
+    void renderTapTempoPill();
     void renderPlayCenterUi();
     void clearPlayCenterUi();
     void renderPatchBadge();
@@ -42,14 +48,24 @@ class PlayMode : public FunctionModeBase
     void renderButton(byte number);
     void updateSnapshotSelectionVisuals(byte previousSelected, byte currentSelected);
     void updateVisuals();
+    int8_t firstSceneSelectionButton() const;
+    bool isSceneSelectionButton(byte number) const;
     bool usesSelectionBorder(byte number) const override;
     uint8_t ringBrightnessForButton(byte number) const override;
     void setupFunctions();
 
   private:
     IMidiProvider& _midiProvider;
+    IButtonOverrideStore& _buttonOverrideStore;
     byte _selectedPreset;
     byte _selectedPlaylist;
     bool _hasSelectedPreset;
     byte _selectedButton;
+    uint32_t _tapTempoPressTimes[3];
+    uint8_t _tapTempoPressCount;
+    uint32_t _tapTempoFlashHalfPeriodMs;
+    uint32_t _nextTapTempoFlashToggleMs;
+    uint32_t _tapTempoFlashUntilMs;
+    bool _hasTapTempoFlashInterval;
+    bool _isTapTempoLit;
 };

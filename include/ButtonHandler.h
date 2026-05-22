@@ -19,8 +19,10 @@ class ButtonHandler : public IButtonDelegate, public ITouchButtonDelegate
     void begin();
     void updateButtons();
 
+    void buttonDown(const byte number) override;
     void buttonPressed(const byte number) override;
     void buttonLongPressed(const byte number) override;
+    void buttonReleased(const byte number) override;
 
   private:
     IMode*& _activeMode;

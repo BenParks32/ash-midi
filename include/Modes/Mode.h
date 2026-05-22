@@ -33,8 +33,10 @@ class IMode
 
     virtual void activate() = 0;
     virtual void deactivate() {}
+    virtual void buttonDown(const byte number) { (void)number; }
     virtual void buttonPressed(const byte number) = 0;
     virtual void buttonLongPressed(const byte number) = 0;
+    virtual void buttonReleased(const byte number) { (void)number; }
     virtual void frameTick() = 0;
     virtual void setTransitionValue(ModeTransitionValue transitionValue) { (void)transitionValue; }
     virtual void encoderRotated(int16_t steps) { (void)steps; }

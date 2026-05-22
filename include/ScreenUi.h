@@ -68,6 +68,7 @@ class ScreenUi : public ITouchButtonLayout
     void drawSdStatusNotMounted();
     void hideSdStatus();
     void redrawSdStatus();
+    uint16_t touchButtonPillBorderColour() const { return _borderColour; }
 
     int32_t boxWidth() const override;
     int32_t boxHeight() const;

@@ -1,8 +1,11 @@
 #include "Touch/TouchButtonManager.h"
 
+#include "Button.h"
+
 TouchButtonManager::TouchButtonManager(ITouchButtonLayout& screenUi, ITouchButtonDelegate* buttonPressDelegate)
-    : screenUi(screenUi), _buttonPressDelegate(buttonPressDelegate), _lastPressedButton(-1),
-      boxSize(screenUi.boxSize()), boxWidth(screenUi.boxWidth()), bottomRowY(screenUi.bottomRowY())
+    : screenUi(screenUi), _buttonPressDelegate(buttonPressDelegate), _lastPressedButton(-1), _pressStartedAtMs(0),
+      _longPressDispatched(false), boxSize(screenUi.boxSize()), boxWidth(screenUi.boxWidth()),
+      bottomRowY(screenUi.bottomRowY())
 {
     createButtons();
 }
@@ -61,39 +64,121 @@ void TouchButtonManager::handleTouch(uint16_t x, uint16_t y)
         }
     }
 
-    // Only trigger press event if the pressed button changed
+    // Only trigger lifecycle events if the pressed button changed.
     if (currentlyPressedButton != _lastPressedButton)
     {
-        if (currentlyPressedButton != -1 && _buttonPressDelegate != nullptr)
+        if (_lastPressedButton != -1)
         {
-            _buttonPressDelegate->buttonPressed(currentlyPressedButton);
+            endTouch(false);
         }
+
+        if (currentlyPressedButton != -1)
+        {
+            beginTouch(currentlyPressedButton);
+        }
+
         _lastPressedButton = currentlyPressedButton;
-    }
-}
-
-void TouchButtonManager::handleTouchRelease() { _lastPressedButton = -1; }
-
-void TouchButtonManager::buttonPressed(const byte number)
-{
-    FootSwitchTouchButton* pressedButton = nullptr;
-    for (int i = 0; i < BUTTON_COUNT; ++i)
-    {
-        if (buttons[i]->buttonNumber() == number)
-        {
-            pressedButton = buttons[i];
-            break;
-        }
+        return;
     }
 
-    if (pressedButton == nullptr || !pressedButton->isEnabled())
+    if (currentlyPressedButton == -1 || _longPressDispatched)
     {
         return;
     }
 
-    if (_buttonPressDelegate != nullptr)
+    if ((millis() - _pressStartedAtMs) >= ButtonLongPressMs)
+    {
+        _longPressDispatched = true;
+        if (_buttonPressDelegate != nullptr)
+        {
+            _buttonPressDelegate->buttonLongPressed(static_cast<byte>(currentlyPressedButton));
+        }
+    }
+}
+
+void TouchButtonManager::handleTouchRelease()
+{
+    if (_lastPressedButton == -1)
+    {
+        return;
+    }
+
+    endTouch(true);
+    _lastPressedButton = -1;
+}
+
+void TouchButtonManager::buttonDown(const byte number)
+{
+    if (!isEnabledButton(static_cast<int8_t>(number)))
+    {
+        return;
+    }
+
+    beginTouch(static_cast<int8_t>(number));
+    _lastPressedButton = static_cast<int8_t>(number);
+}
+
+void TouchButtonManager::buttonPressed(const byte number)
+{
+    if (isEnabledButton(static_cast<int8_t>(number)) && _buttonPressDelegate != nullptr)
     {
         _buttonPressDelegate->buttonPressed(number);
+    }
+}
+
+void TouchButtonManager::buttonLongPressed(const byte number)
+{
+    if (isEnabledButton(static_cast<int8_t>(number)) && _buttonPressDelegate != nullptr)
+    {
+        _buttonPressDelegate->buttonLongPressed(number);
+    }
+}
+
+void TouchButtonManager::buttonReleased(const byte number)
+{
+    if (isEnabledButton(static_cast<int8_t>(number)) && _buttonPressDelegate != nullptr)
+    {
+        _buttonPressDelegate->buttonReleased(number);
+    }
+}
+
+bool TouchButtonManager::isEnabledButton(int8_t number) const
+{
+    return number >= 0 && number < BUTTON_COUNT && buttons[number] != nullptr && buttons[number]->isEnabled();
+}
+
+void TouchButtonManager::beginTouch(int8_t buttonNumber)
+{
+    _pressStartedAtMs = millis();
+    _longPressDispatched = false;
+
+    if (_buttonPressDelegate != nullptr)
+    {
+        _buttonPressDelegate->buttonDown(static_cast<byte>(buttonNumber));
+    }
+}
+
+void TouchButtonManager::endTouch(bool fireShortPress)
+{
+    if (_lastPressedButton == -1)
+    {
+        return;
+    }
+
+    const byte releasedButton = static_cast<byte>(_lastPressedButton);
+    const bool shouldFireShortPress = fireShortPress && !_longPressDispatched;
+
+    _pressStartedAtMs = 0;
+    _longPressDispatched = false;
+
+    if (_buttonPressDelegate != nullptr)
+    {
+        if (shouldFireShortPress)
+        {
+            _buttonPressDelegate->buttonPressed(releasedButton);
+        }
+
+        _buttonPressDelegate->buttonReleased(releasedButton);
     }
 }
 

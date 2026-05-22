@@ -2,6 +2,7 @@
 #include <TFT_eSPI.h>
 #include <unity.h>
 
+#include "ButtonOverrideStore.h"
 #include "Modes/PlayMode.h"
 
 // Pull in implementation units required by PlayMode without linking app main.cpp.
@@ -69,6 +70,40 @@ class MockTransitionDelegate : public IModeTransistionDelegate
     ModeTransitionValue lastTransitionValue = ModeTransitionNone;
 };
 
+class MockButtonOverrideStore : public IButtonOverrideStore
+{
+  public:
+    bool refresh() override
+    {
+        ++refreshCalls;
+        return refreshResult;
+    }
+
+    void applyOverrides(byte playlistIndex, byte patchNumber, Function* functions, size_t functionCount) const override
+    {
+        ++applyCalls;
+        lastPlaylistIndex = playlistIndex;
+        lastPatchNumber = patchNumber;
+
+        if (!enableMomentaryOverride || functions == nullptr || functionCount <= 5)
+        {
+            return;
+        }
+
+        functions[5] = Function("Hold", 0xF81F, FunctionAction(ActionType::SendMidiControlChange, 21, 127),
+                                FunctionAction(ActionType::SendMidiControlChange, 21, 0),
+                                FunctionAction(ActionType::SelectScene, 2, 0),
+                                FunctionAction(ActionType::ChangeMode, static_cast<byte>(Modes::Home), 0));
+    }
+
+    mutable int applyCalls = 0;
+    mutable byte lastPlaylistIndex = 0;
+    mutable byte lastPatchNumber = 0;
+    int refreshCalls = 0;
+    bool refreshResult = true;
+    bool enableMomentaryOverride = false;
+};
+
 class MockMidiProvider : public IMidiProvider
 {
   public:
@@ -78,6 +113,7 @@ class MockMidiProvider : public IMidiProvider
         RecallPreset,
         SelectScene,
         SetTuner,
+        SetGigView,
     };
 
     byte maxPresetIndex() const override { return 127; }
@@ -111,14 +147,23 @@ class MockMidiProvider : public IMidiProvider
         callOrder[callCount++] = CallType::SetTuner;
     }
 
+    void setGigViewEnabled(bool enabled) override
+    {
+        ++setGigViewCalls;
+        lastGigViewEnabled = enabled;
+        callOrder[callCount++] = CallType::SetGigView;
+    }
+
     int selectPlaylistCalls = 0;
     int recallPresetCalls = 0;
     int selectSceneCalls = 0;
     int setTunerCalls = 0;
+    int setGigViewCalls = 0;
     byte lastPlaylistIndex = DefaultPlaylistIndex;
     byte lastRecallPreset = 0;
     byte lastSceneIndex = 0;
     bool lastTunerEnabled = false;
+    bool lastGigViewEnabled = false;
     CallType callOrder[8] = {};
     int callCount = 0;
 };
@@ -129,7 +174,8 @@ class PlayModeFixture
     PlayModeFixture()
         : screenSize{480, 320}, ui(tft, screenSize), strip(RingManager::LedCount, 0, NEO_GRB + NEO_KHZ800),
           ringManager(strip), touchButtonManager(ui), midiManager(), midiProvider(), transitionDelegate(),
-          mode(touchButtonManager, ringManager, ui, midiManager, midiProvider, transitionDelegate)
+          overrideStore(), mode(touchButtonManager, ringManager, ui, midiManager, midiProvider, overrideStore,
+                                transitionDelegate)
     {
     }
 
@@ -142,6 +188,7 @@ class PlayModeFixture
     MockMidiManager midiManager;
     MockMidiProvider midiProvider;
     MockTransitionDelegate transitionDelegate;
+    MockButtonOverrideStore overrideStore;
     PlayMode mode;
 };
 
@@ -151,13 +198,27 @@ void test_activate_sets_play_labels()
 
     fixture.mode.activate();
 
-    TEST_ASSERT_EQUAL_STRING("Scene A", fixture.touchButtonManager.getButton(0)->label());
-    TEST_ASSERT_EQUAL_STRING("Scene B", fixture.touchButtonManager.getButton(1)->label());
-    TEST_ASSERT_EQUAL_STRING("Scene C", fixture.touchButtonManager.getButton(2)->label());
+    TEST_ASSERT_EQUAL_STRING("Clean", fixture.touchButtonManager.getButton(0)->label());
+    TEST_ASSERT_EQUAL_STRING("Crunch", fixture.touchButtonManager.getButton(1)->label());
+    TEST_ASSERT_EQUAL_STRING("Lead", fixture.touchButtonManager.getButton(2)->label());
     TEST_ASSERT_EQUAL_STRING(" ", fixture.touchButtonManager.getButton(3)->label());
     TEST_ASSERT_EQUAL_STRING("Patch", fixture.touchButtonManager.getButton(4)->label());
-    TEST_ASSERT_EQUAL_STRING(" ", fixture.touchButtonManager.getButton(6)->label());
+    TEST_ASSERT_EQUAL_STRING("Gig", fixture.touchButtonManager.getButton(5)->label());
+    TEST_ASSERT_EQUAL_STRING("Tap", fixture.touchButtonManager.getButton(6)->label());
     TEST_ASSERT_EQUAL_STRING("Tuner", fixture.touchButtonManager.getButton(7)->label());
+}
+
+void test_activate_refreshes_button_overrides_for_selected_playlist_and_patch()
+{
+    PlayModeFixture fixture;
+
+    fixture.mode.setTransitionValue(homePlaylistTransitionValue(CodeRedPlaylistIndex));
+    fixture.mode.activate();
+
+    TEST_ASSERT_EQUAL_INT(1, fixture.overrideStore.refreshCalls);
+    TEST_ASSERT_EQUAL_INT(1, fixture.overrideStore.applyCalls);
+    TEST_ASSERT_EQUAL_UINT8(CodeRedPlaylistIndex, fixture.overrideStore.lastPlaylistIndex);
+    TEST_ASSERT_EQUAL_UINT8(0, fixture.overrideStore.lastPatchNumber);
 }
 
 void test_activate_selects_single_button_and_dims_others()
@@ -170,6 +231,7 @@ void test_activate_selects_single_button_and_dims_others()
     TEST_ASSERT_FALSE(fixture.touchButtonManager.getButton(1)->hasBorder());
     TEST_ASSERT_FALSE(fixture.touchButtonManager.getButton(2)->hasBorder());
     TEST_ASSERT_FALSE(fixture.touchButtonManager.getButton(4)->hasBorder());
+    TEST_ASSERT_FALSE(fixture.touchButtonManager.getButton(5)->hasBorder());
     TEST_ASSERT_FALSE(fixture.touchButtonManager.getButton(6)->hasBorder());
     TEST_ASSERT_FALSE(fixture.touchButtonManager.getButton(7)->hasBorder());
 
@@ -177,8 +239,9 @@ void test_activate_selects_single_button_and_dims_others()
     TEST_ASSERT_NOT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(1)->pillColour());
     TEST_ASSERT_NOT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(2)->pillColour());
     TEST_ASSERT_NOT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(4)->pillColour());
+    TEST_ASSERT_NOT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(5)->pillColour());
+    TEST_ASSERT_NOT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(6)->pillColour());
     TEST_ASSERT_NOT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(7)->pillColour());
-    TEST_ASSERT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(6)->pillColour());
 }
 
 void test_activate_recalls_selected_preset_before_scene_select()
@@ -201,6 +264,33 @@ void test_activate_recalls_selected_preset_before_scene_select()
                             static_cast<uint8_t>(fixture.midiProvider.callOrder[1]));
     TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(MockMidiProvider::CallType::SelectScene),
                             static_cast<uint8_t>(fixture.midiProvider.callOrder[2]));
+}
+
+void test_momentary_override_uses_button_down_and_release_and_suppresses_short_and_long_press()
+{
+    PlayModeFixture fixture;
+    fixture.overrideStore.enableMomentaryOverride = true;
+
+    fixture.mode.setSelectedPreset(9);
+    fixture.mode.activate();
+
+    TEST_ASSERT_EQUAL_STRING("Hold", fixture.touchButtonManager.getButton(5)->label());
+
+    const int baselineControlChanges = fixture.midiManager.controlChangeCalls;
+    fixture.mode.buttonDown(5);
+    TEST_ASSERT_EQUAL_INT(baselineControlChanges + 1, fixture.midiManager.controlChangeCalls);
+    TEST_ASSERT_EQUAL_UINT8(21, fixture.midiManager.lastControlChangeNumber);
+    TEST_ASSERT_EQUAL_UINT8(127, fixture.midiManager.lastControlChangeValue);
+
+    fixture.mode.buttonPressed(5);
+    fixture.mode.buttonLongPressed(5);
+    TEST_ASSERT_EQUAL_INT(0, fixture.transitionDelegate.calls);
+    TEST_ASSERT_EQUAL_INT(baselineControlChanges + 1, fixture.midiManager.controlChangeCalls);
+
+    fixture.mode.buttonReleased(5);
+    TEST_ASSERT_EQUAL_INT(baselineControlChanges + 2, fixture.midiManager.controlChangeCalls);
+    TEST_ASSERT_EQUAL_UINT8(21, fixture.midiManager.lastControlChangeNumber);
+    TEST_ASSERT_EQUAL_UINT8(0, fixture.midiManager.lastControlChangeValue);
 }
 
 void test_activate_recalls_selected_preset_zero()
@@ -329,6 +419,125 @@ void test_scene_c_selects_scene_two()
     TEST_ASSERT_EQUAL_UINT8(2, fixture.midiProvider.lastSceneIndex);
 }
 
+void test_gig_view_button_opens_gig_view_without_changing_scene_selection()
+{
+    PlayModeFixture fixture;
+
+    fixture.mode.activate();
+    fixture.mode.buttonPressed(5);
+
+    TEST_ASSERT_EQUAL_INT(1, fixture.midiProvider.setGigViewCalls);
+    TEST_ASSERT_TRUE(fixture.midiProvider.lastGigViewEnabled);
+    TEST_ASSERT_EQUAL_INT(1, fixture.midiProvider.selectSceneCalls);
+    TEST_ASSERT_EQUAL_INT(0, fixture.midiManager.controlChangeCalls);
+    TEST_ASSERT_TRUE(fixture.touchButtonManager.getButton(0)->hasBorder());
+    TEST_ASSERT_FALSE(fixture.touchButtonManager.getButton(5)->hasBorder());
+}
+
+void test_gig_view_button_long_press_closes_gig_view()
+{
+    PlayModeFixture fixture;
+
+    fixture.mode.activate();
+    fixture.mode.buttonLongPressed(5);
+
+    TEST_ASSERT_EQUAL_INT(1, fixture.midiProvider.setGigViewCalls);
+    TEST_ASSERT_FALSE(fixture.midiProvider.lastGigViewEnabled);
+    TEST_ASSERT_EQUAL_INT(0, fixture.midiManager.controlChangeCalls);
+}
+
+void test_tap_tempo_button_sends_cc44_value100_without_changing_scene_selection()
+{
+    PlayModeFixture fixture;
+
+    fixture.mode.activate();
+    fixture.mode.buttonPressed(6);
+
+    TEST_ASSERT_EQUAL_INT(1, fixture.midiManager.controlChangeCalls);
+    TEST_ASSERT_EQUAL_UINT8(44, fixture.midiManager.lastControlChangeNumber);
+    TEST_ASSERT_EQUAL_UINT8(100, fixture.midiManager.lastControlChangeValue);
+    TEST_ASSERT_EQUAL_INT(1, fixture.midiProvider.selectSceneCalls);
+    TEST_ASSERT_TRUE(fixture.touchButtonManager.getButton(0)->hasBorder());
+    TEST_ASSERT_FALSE(fixture.touchButtonManager.getButton(6)->hasBorder());
+}
+
+void test_tap_tempo_light_flashes_using_recent_tap_average()
+{
+    PlayModeFixture fixture;
+
+    fixture.mode.activate();
+    fixture.mode.buttonPressed(6);
+    delay(50);
+    fixture.mode.buttonPressed(6);
+    delay(50);
+    fixture.mode.buttonPressed(6);
+
+    TEST_ASSERT_NOT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(6)->pillColour());
+
+    delay(35);
+    fixture.mode.frameTick();
+    TEST_ASSERT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(6)->pillColour());
+
+    delay(35);
+    fixture.mode.frameTick();
+    TEST_ASSERT_NOT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(6)->pillColour());
+}
+
+void test_tap_tempo_light_returns_to_solid_blue_after_ten_seconds()
+{
+    PlayModeFixture fixture;
+
+    fixture.mode.activate();
+    fixture.mode.buttonPressed(6);
+    delay(50);
+    fixture.mode.buttonPressed(6);
+    delay(50);
+    fixture.mode.buttonPressed(6);
+
+    delay(35);
+    fixture.mode.frameTick();
+    TEST_ASSERT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(6)->pillColour());
+
+    delay(10020);
+    fixture.mode.frameTick();
+    TEST_ASSERT_NOT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(6)->pillColour());
+
+    delay(35);
+    fixture.mode.frameTick();
+    TEST_ASSERT_NOT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(6)->pillColour());
+}
+
+void test_tap_tempo_press_restarts_ten_second_flash_window()
+{
+    PlayModeFixture fixture;
+
+    fixture.mode.activate();
+    fixture.mode.buttonPressed(6);
+    delay(50);
+    fixture.mode.buttonPressed(6);
+    delay(50);
+    fixture.mode.buttonPressed(6);
+
+    delay(9990);
+    fixture.mode.buttonPressed(6);
+    delay(35);
+    fixture.mode.frameTick();
+
+    TEST_ASSERT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(6)->pillColour());
+}
+
+void test_tap_tempo_button_long_press_is_noop()
+{
+    PlayModeFixture fixture;
+
+    fixture.mode.activate();
+    fixture.mode.buttonLongPressed(6);
+
+    TEST_ASSERT_EQUAL_INT(0, fixture.midiManager.controlChangeCalls);
+    TEST_ASSERT_EQUAL_INT(1, fixture.midiProvider.selectSceneCalls);
+    TEST_ASSERT_EQUAL_INT(0, fixture.transitionDelegate.calls);
+}
+
 void test_tuner_button_enables_tuner_without_changing_scene_selection()
 {
     PlayModeFixture fixture;
@@ -339,6 +548,7 @@ void test_tuner_button_enables_tuner_without_changing_scene_selection()
     TEST_ASSERT_EQUAL_INT(1, fixture.midiProvider.setTunerCalls);
     TEST_ASSERT_TRUE(fixture.midiProvider.lastTunerEnabled);
     TEST_ASSERT_EQUAL_INT(1, fixture.midiProvider.selectSceneCalls);
+    TEST_ASSERT_EQUAL_INT(0, fixture.midiManager.controlChangeCalls);
     TEST_ASSERT_TRUE(fixture.touchButtonManager.getButton(0)->hasBorder());
     TEST_ASSERT_FALSE(fixture.touchButtonManager.getButton(7)->hasBorder());
 }
@@ -352,6 +562,7 @@ void test_tuner_button_long_press_disables_tuner()
 
     TEST_ASSERT_EQUAL_INT(1, fixture.midiProvider.setTunerCalls);
     TEST_ASSERT_FALSE(fixture.midiProvider.lastTunerEnabled);
+    TEST_ASSERT_EQUAL_INT(0, fixture.midiManager.controlChangeCalls);
 }
 
 void test_button_press_changes_selection_to_single_button()
@@ -365,6 +576,7 @@ void test_button_press_changes_selection_to_single_button()
     TEST_ASSERT_FALSE(fixture.touchButtonManager.getButton(1)->hasBorder());
     TEST_ASSERT_TRUE(fixture.touchButtonManager.getButton(2)->hasBorder());
     TEST_ASSERT_FALSE(fixture.touchButtonManager.getButton(4)->hasBorder());
+    TEST_ASSERT_FALSE(fixture.touchButtonManager.getButton(5)->hasBorder());
     TEST_ASSERT_FALSE(fixture.touchButtonManager.getButton(6)->hasBorder());
     TEST_ASSERT_FALSE(fixture.touchButtonManager.getButton(7)->hasBorder());
 }
@@ -374,7 +586,7 @@ void test_button_pressed_ignores_disabled_button()
     PlayModeFixture fixture;
 
     fixture.mode.activate();
-    fixture.mode.buttonPressed(5);
+    fixture.mode.buttonPressed(3);
 
     TEST_ASSERT_EQUAL_INT(1, fixture.midiProvider.selectSceneCalls);
 }
@@ -403,15 +615,16 @@ void test_button_five_long_press_transitions_to_home()
     TEST_ASSERT_EQUAL_UINT16(ModeTransitionNone, fixture.transitionDelegate.lastTransitionValue);
 }
 
-void test_button_eight_is_disabled_in_play_mode()
+void test_tap_tempo_button_does_not_change_mode()
 {
     PlayModeFixture fixture;
 
     fixture.mode.activate();
-    fixture.mode.buttonPressed(7);
+    fixture.mode.buttonPressed(6);
 
     TEST_ASSERT_EQUAL_INT(0, fixture.transitionDelegate.calls);
     TEST_ASSERT_EQUAL_INT(1, fixture.midiProvider.selectSceneCalls);
+    TEST_ASSERT_EQUAL_INT(1, fixture.midiManager.controlChangeCalls);
 }
 
 void test_button_five_transitions_to_patch_mode()
@@ -472,8 +685,10 @@ void setup()
 
     UNITY_BEGIN();
     RUN_TEST(test_activate_sets_play_labels);
+    RUN_TEST(test_activate_refreshes_button_overrides_for_selected_playlist_and_patch);
     RUN_TEST(test_activate_selects_single_button_and_dims_others);
     RUN_TEST(test_activate_recalls_selected_preset_before_scene_select);
+    RUN_TEST(test_momentary_override_uses_button_down_and_release_and_suppresses_short_and_long_press);
     RUN_TEST(test_activate_recalls_selected_preset_zero);
     RUN_TEST(test_activate_recalls_v40_playlist_preset_1a);
     RUN_TEST(test_activate_recalls_ampless_playlist_preset_1a);
@@ -484,13 +699,20 @@ void setup()
     RUN_TEST(test_scene_a_selects_scene_zero);
     RUN_TEST(test_scene_b_selects_scene_one);
     RUN_TEST(test_scene_c_selects_scene_two);
+    RUN_TEST(test_gig_view_button_opens_gig_view_without_changing_scene_selection);
+    RUN_TEST(test_gig_view_button_long_press_closes_gig_view);
+    RUN_TEST(test_tap_tempo_button_sends_cc44_value100_without_changing_scene_selection);
+    RUN_TEST(test_tap_tempo_light_flashes_using_recent_tap_average);
+    RUN_TEST(test_tap_tempo_light_returns_to_solid_blue_after_ten_seconds);
+    RUN_TEST(test_tap_tempo_press_restarts_ten_second_flash_window);
+    RUN_TEST(test_tap_tempo_button_long_press_is_noop);
     RUN_TEST(test_tuner_button_enables_tuner_without_changing_scene_selection);
     RUN_TEST(test_tuner_button_long_press_disables_tuner);
     RUN_TEST(test_button_press_changes_selection_to_single_button);
     RUN_TEST(test_button_pressed_ignores_disabled_button);
     RUN_TEST(test_long_press_is_noop);
     RUN_TEST(test_button_five_long_press_transitions_to_home);
-    RUN_TEST(test_button_eight_is_disabled_in_play_mode);
+    RUN_TEST(test_tap_tempo_button_does_not_change_mode);
     RUN_TEST(test_button_five_transitions_to_patch_mode);
     RUN_TEST(test_button_five_uses_patch_return_value_for_next_patch_entry);
     RUN_TEST(test_button_five_uses_home_playlist_preset_zero_for_next_patch_entry);

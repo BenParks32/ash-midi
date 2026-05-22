@@ -32,14 +32,61 @@ class TestTouchButtonLayout : public ITouchButtonLayout
 class TestPressDelegate : public ITouchButtonDelegate
 {
   public:
-    void buttonPressed(const byte number) override
+    enum class EventType : uint8_t
     {
-        ++pressCount;
-        lastPressed = number;
+        Down,
+        Press,
+        LongPress,
+        Release,
+    };
+
+    void buttonDown(const byte number) override
+    {
+        events[eventCount] = EventType::Down;
+        eventButtons[eventCount] = number;
+        ++eventCount;
+        lastDown = number;
+        ++downCount;
     }
 
+    void buttonPressed(const byte number) override
+    {
+        events[eventCount] = EventType::Press;
+        eventButtons[eventCount] = number;
+        ++eventCount;
+        lastPressed = number;
+        ++pressCount;
+    }
+
+    void buttonLongPressed(const byte number) override
+    {
+        events[eventCount] = EventType::LongPress;
+        eventButtons[eventCount] = number;
+        ++eventCount;
+        lastLongPressed = number;
+        ++longPressCount;
+    }
+
+    void buttonReleased(const byte number) override
+    {
+        events[eventCount] = EventType::Release;
+        eventButtons[eventCount] = number;
+        ++eventCount;
+        lastReleased = number;
+        ++releaseCount;
+    }
+
+    EventType events[8] = {};
+    byte eventButtons[8] = {0};
+    int eventCount = 0;
+    int downCount = 0;
     int pressCount = 0;
+    int longPressCount = 0;
+    int releaseCount = 0;
+    byte lastDown = 0xFF;
     byte lastPressed = 0xFF;
+    byte lastLongPressed = 0xFF;
+    byte lastReleased = 0xFF;
 };
 
 void test_touch_button_manager_buttons_start_disabled_and_blank()
@@ -57,17 +104,17 @@ void test_touch_button_manager_buttons_start_disabled_and_blank()
     }
 }
 
-void test_touch_button_manager_button_pressed_selects_button()
+void test_touch_button_manager_button_down_selects_button()
 {
     TestTouchButtonLayout screenUi;
     TestPressDelegate delegate;
     TouchButtonManager manager(screenUi, &delegate);
 
     manager.getButton(0)->setEnabled(true);
-    manager.buttonPressed(0);
+    manager.buttonDown(0);
 
-    TEST_ASSERT_EQUAL_INT(1, delegate.pressCount);
-    TEST_ASSERT_EQUAL_UINT8(0, delegate.lastPressed);
+    TEST_ASSERT_EQUAL_INT(1, delegate.downCount);
+    TEST_ASSERT_EQUAL_UINT8(0, delegate.lastDown);
 }
 
 void test_touch_button_manager_button_pressed_ignores_disabled_button()
@@ -81,20 +128,20 @@ void test_touch_button_manager_button_pressed_ignores_disabled_button()
     TEST_ASSERT_EQUAL_INT(0, delegate.pressCount);
 }
 
-void test_touch_button_manager_forwards_valid_press_to_delegate()
+void test_touch_button_manager_forwards_valid_release_to_delegate()
 {
     TestTouchButtonLayout screenUi;
     TestPressDelegate delegate;
     TouchButtonManager manager(screenUi, &delegate);
 
     manager.getButton(2)->setEnabled(true);
-    manager.buttonPressed(2);
+    manager.buttonReleased(2);
 
-    TEST_ASSERT_EQUAL_INT(1, delegate.pressCount);
-    TEST_ASSERT_EQUAL_UINT8(2, delegate.lastPressed);
+    TEST_ASSERT_EQUAL_INT(1, delegate.releaseCount);
+    TEST_ASSERT_EQUAL_UINT8(2, delegate.lastReleased);
 }
 
-void test_touch_handle_detects_button_press_from_coordinates()
+void test_touch_handle_detects_button_down_from_coordinates()
 {
     TestTouchButtonLayout screenUi;
     TestPressDelegate delegate;
@@ -104,8 +151,9 @@ void test_touch_handle_detects_button_press_from_coordinates()
     manager.getButton(0)->setEnabled(true);
     manager.handleTouch(30, 230);
 
-    TEST_ASSERT_EQUAL_INT(1, delegate.pressCount);
-    TEST_ASSERT_EQUAL_UINT8(0, delegate.lastPressed);
+    TEST_ASSERT_EQUAL_INT(1, delegate.downCount);
+    TEST_ASSERT_EQUAL_INT(0, delegate.pressCount);
+    TEST_ASSERT_EQUAL_UINT8(0, delegate.lastDown);
 }
 
 void test_touch_handle_ignores_repeated_press_same_button()
@@ -119,11 +167,11 @@ void test_touch_handle_ignores_repeated_press_same_button()
 
     // First press should trigger
     manager.handleTouch(30, 230);
-    TEST_ASSERT_EQUAL_INT(1, delegate.pressCount);
+    TEST_ASSERT_EQUAL_INT(1, delegate.downCount);
 
     // Second press at same position should NOT trigger (still touching same button)
     manager.handleTouch(30, 230);
-    TEST_ASSERT_EQUAL_INT(1, delegate.pressCount); // Should still be 1
+    TEST_ASSERT_EQUAL_INT(1, delegate.downCount);
 }
 
 void test_touch_handle_detects_new_button_press()
@@ -137,13 +185,41 @@ void test_touch_handle_detects_new_button_press()
 
     // Press button 0
     manager.handleTouch(30, 230);
-    TEST_ASSERT_EQUAL_INT(1, delegate.pressCount);
-    TEST_ASSERT_EQUAL_UINT8(0, delegate.lastPressed);
+    TEST_ASSERT_EQUAL_INT(1, delegate.downCount);
+    TEST_ASSERT_EQUAL_UINT8(0, delegate.lastDown);
 
     // Press button 1 (at x=60, y=200)
     manager.handleTouch(90, 230);
-    TEST_ASSERT_EQUAL_INT(2, delegate.pressCount);
-    TEST_ASSERT_EQUAL_UINT8(1, delegate.lastPressed);
+    TEST_ASSERT_EQUAL_INT(2, delegate.downCount);
+    TEST_ASSERT_EQUAL_INT(1, delegate.releaseCount);
+    TEST_ASSERT_EQUAL_UINT8(0, delegate.lastReleased);
+    TEST_ASSERT_EQUAL_UINT8(1, delegate.lastDown);
+}
+
+void test_touch_handle_release_fires_short_press_then_release()
+{
+    TestTouchButtonLayout screenUi;
+    TestPressDelegate delegate;
+    TouchButtonManager manager(screenUi, &delegate);
+
+    manager.getButton(7)->setEnabled(true);
+
+    manager.handleTouch(210, 30);
+    TEST_ASSERT_EQUAL_INT(1, delegate.downCount);
+    TEST_ASSERT_EQUAL_UINT8(7, delegate.lastDown);
+
+    manager.handleTouchRelease();
+
+    TEST_ASSERT_EQUAL_INT(1, delegate.pressCount);
+    TEST_ASSERT_EQUAL_UINT8(7, delegate.lastPressed);
+    TEST_ASSERT_EQUAL_INT(1, delegate.releaseCount);
+    TEST_ASSERT_EQUAL_UINT8(7, delegate.lastReleased);
+    TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(TestPressDelegate::EventType::Down),
+                            static_cast<uint8_t>(delegate.events[0]));
+    TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(TestPressDelegate::EventType::Press),
+                            static_cast<uint8_t>(delegate.events[1]));
+    TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(TestPressDelegate::EventType::Release),
+                            static_cast<uint8_t>(delegate.events[2]));
 }
 
 void test_touch_handle_allows_repeat_press_after_release()
@@ -155,14 +231,11 @@ void test_touch_handle_allows_repeat_press_after_release()
     manager.getButton(7)->setEnabled(true);
 
     manager.handleTouch(210, 30);
-    TEST_ASSERT_EQUAL_INT(1, delegate.pressCount);
-    TEST_ASSERT_EQUAL_UINT8(7, delegate.lastPressed);
-
     manager.handleTouchRelease();
     manager.handleTouch(210, 30);
 
-    TEST_ASSERT_EQUAL_INT(2, delegate.pressCount);
-    TEST_ASSERT_EQUAL_UINT8(7, delegate.lastPressed);
+    TEST_ASSERT_EQUAL_INT(2, delegate.downCount);
+    TEST_ASSERT_EQUAL_UINT8(7, delegate.lastDown);
 }
 
 void setUp() {}
@@ -180,12 +253,13 @@ void setup()
 
     UNITY_BEGIN();
     RUN_TEST(test_touch_button_manager_buttons_start_disabled_and_blank);
-    RUN_TEST(test_touch_button_manager_button_pressed_selects_button);
+    RUN_TEST(test_touch_button_manager_button_down_selects_button);
     RUN_TEST(test_touch_button_manager_button_pressed_ignores_disabled_button);
-    RUN_TEST(test_touch_button_manager_forwards_valid_press_to_delegate);
-    RUN_TEST(test_touch_handle_detects_button_press_from_coordinates);
+    RUN_TEST(test_touch_button_manager_forwards_valid_release_to_delegate);
+    RUN_TEST(test_touch_handle_detects_button_down_from_coordinates);
     RUN_TEST(test_touch_handle_ignores_repeated_press_same_button);
     RUN_TEST(test_touch_handle_detects_new_button_press);
+    RUN_TEST(test_touch_handle_release_fires_short_press_then_release);
     RUN_TEST(test_touch_handle_allows_repeat_press_after_release);
     UNITY_END();
 }

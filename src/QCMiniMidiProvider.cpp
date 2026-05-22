@@ -6,6 +6,7 @@ constexpr byte QCMiniPresetBankMsbCc = 0;
 constexpr byte QCMiniPresetFolderLsbCc = 32;
 constexpr byte QCMiniSceneCc = 43;
 constexpr byte QCMiniTunerCc = 45;
+constexpr byte QCMiniGigViewCc = 46;
 
 constexpr byte QCMiniMyPresetsFolder = 1;
 constexpr byte QCMiniPresetGroupSize = 128;
@@ -69,4 +70,10 @@ void QCMiniMidiProvider::setTunerEnabled(bool enabled)
 {
     _midiManager.sendControlChange(QCMiniTunerCc, enabled ? 127U : 0U);
     Serial.printf("QC Mini: tuner %s\n", enabled ? "on" : "off");
+}
+
+void QCMiniMidiProvider::setGigViewEnabled(bool enabled)
+{
+    _midiManager.sendControlChange(QCMiniGigViewCc, enabled ? 127U : 0U);
+    Serial.printf("QC Mini: gig view %s\n", enabled ? "open" : "closed");
 }

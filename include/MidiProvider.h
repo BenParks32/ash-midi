@@ -15,6 +15,7 @@ class IMidiProvider
     virtual void recallPreset(byte presetIndex) = 0;
     virtual void selectScene(byte sceneIndex) = 0;
     virtual void setTunerEnabled(bool enabled) = 0;
+    virtual void setGigViewEnabled(bool enabled) = 0;
 };
 
 class QCMiniMidiProvider : public IMidiProvider
@@ -28,6 +29,7 @@ class QCMiniMidiProvider : public IMidiProvider
     void recallPreset(byte presetIndex) override;
     void selectScene(byte sceneIndex) override;
     void setTunerEnabled(bool enabled) override;
+    void setGigViewEnabled(bool enabled) override;
 
   private:
     IMidiManager& _midiManager;

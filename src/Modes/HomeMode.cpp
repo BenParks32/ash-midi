@@ -1,7 +1,7 @@
 #include "Modes/HomeMode.h"
 
-const uint8_t HOME_PLAYLIST_V40 = 2;
-const uint8_t HOME_PLAYLIST_AMPLESS = 3;
+const uint8_t HOME_PLAYLIST_PROJECT7 = 2;
+const uint8_t HOME_PLAYLIST_OPR = 3;
 const uint8_t HOME_PLAYLIST_CODERED = 4;
 const uint8_t HOME_MENU_MODE_VALUE = static_cast<uint8_t>(Modes::Menu);
 const uint8_t HOME_PATCH_MODE_VALUE = 0xFE;
@@ -27,12 +27,13 @@ HomeMode::HomeMode(TouchButtonManager& touchButtonManager, RingManager& ringMana
 
 void HomeMode::setupFunctions()
 {
-    // Button 0: V40 (Green) -> enter Play and select playlist 2 preset 1A
-    _functions[0] = Function("V40", 0x07E0, ActionType::SelectHomePlaylist, HOME_PLAYLIST_V40, ActionType::None, 0);
+    // Button 0: Project7 (Green) -> enter Play and select playlist 2 preset 1A
+    _functions[0] =
+        Function("Project7", 0x07E0, ActionType::SelectHomePlaylist, HOME_PLAYLIST_PROJECT7, ActionType::None, 0);
 
-    // Button 1: Ampless (Blue) -> enter Play and select playlist 3 preset 1A
+    // Button 1: OPR (Blue) -> enter Play and select playlist 3 preset 1A
     _functions[1] =
-        Function("Ampless", 0x001F, ActionType::SelectHomePlaylist, HOME_PLAYLIST_AMPLESS, ActionType::None, 0);
+        Function("OPR", 0x001F, ActionType::SelectHomePlaylist, HOME_PLAYLIST_OPR, ActionType::None, 0);
 
     // Button 2: CodeRed (Red) -> enter Play and select playlist 4 preset 1A
     _functions[2] = Function("CodeRed", 0xF800, ActionType::SelectHomePlaylist, HOME_PLAYLIST_CODERED,
@@ -89,7 +90,7 @@ void HomeMode::buttonPressed(byte number)
         return;
     }
 
-    executeAction(func.pressAction(), func.pressActionValue());
+    executeAction(func.action(FunctionBehaviour::ShortPress));
     Serial.printf("Home mode: button %u -> %s\n", number + 1U, func.label());
 }
 
@@ -113,7 +114,7 @@ void HomeMode::buttonLongPressed(byte number)
         return;
     }
 
-    executeAction(func.longPressAction(), func.longPressActionValue());
+    executeAction(func.action(FunctionBehaviour::LongPress));
     Serial.printf("Home mode: button %u long press -> %s\n", number + 1U, func.label());
 }
 
@@ -128,35 +129,40 @@ uint8_t HomeMode::ringBrightnessForButton(byte number) const
     return RingManager::FullBrightness;
 }
 
-void HomeMode::executeAction(ActionType action, byte actionValue)
+void HomeMode::executeAction(const FunctionAction& action)
 {
-    switch (action)
+    switch (action.type)
     {
     case ActionType::None:
         break;
     case ActionType::SendMidiProgramChange:
-        _midiManager.sendProgramChange(actionValue);
+        _midiManager.sendProgramChange(action.value);
         break;
     case ActionType::SendMidiControlChange:
-        _midiManager.sendControlChange(actionValue, 127);
+        _midiManager.sendControlChange(action.value, action.secondaryValue);
         break;
     case ActionType::ChangeMode:
-        if (actionValue == HOME_MENU_MODE_VALUE)
+        if (action.value == HOME_MENU_MODE_VALUE)
         {
             _transitionDelegate.enterMode(Modes::Menu, ModeTransitionNone);
         }
-        else if (actionValue == HOME_PATCH_MODE_VALUE)
+        else if (action.value == HOME_PATCH_MODE_VALUE)
         {
             // Keep Patch mode's current selection. On startup this defaults to patch 0.
             _transitionDelegate.enterMode(Modes::Patch, ModeTransitionNone);
         }
         else
         {
-            _transitionDelegate.enterMode(Modes::Play, actionValue);
+            _transitionDelegate.enterMode(Modes::Play, action.value);
         }
         break;
     case ActionType::SelectHomePlaylist:
-        _transitionDelegate.enterMode(Modes::Play, homePlaylistTransitionValue(actionValue));
+        _transitionDelegate.enterMode(Modes::Play, homePlaylistTransitionValue(action.value));
+        break;
+    case ActionType::TapTempo:
+    case ActionType::SetGigView:
+    case ActionType::SelectScene:
+    case ActionType::SetTuner:
         break;
     }
 }

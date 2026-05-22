@@ -23,6 +23,13 @@ const int32_t PlaySnapshotLabelLeftX = 40;
 const byte FirstSnapshotButtonIndex = 0;
 const byte LastSnapshotButtonIndex = 2;
 const byte PatchButtonIndex = 4;
+const byte GigViewButtonIndex = 5;
+const uint16_t GigViewButtonColour = 0xF81F;
+const byte TapTempoButtonIndex = 6;
+const uint16_t TapTempoButtonColour = 0x001F;
+const byte TapTempoCc = 44;
+const byte TapTempoValue = 100;
+const uint32_t TapTempoFlashDurationMs = 10000;
 const byte TunerButtonIndex = 7;
 const uint16_t TunerButtonColour = 0x801F;
 
@@ -30,13 +37,65 @@ bool isHomePlaylistTransition(ModeTransitionValue transitionValue)
 {
     return (transitionValue & ModeTransitionHomePlaylistFlag) != 0;
 }
+
+const char* playPlaylistName(byte playlistIndex)
+{
+    switch (playlistIndex)
+    {
+    case 2:
+        return "Project7";
+    case 3:
+        return "OPR";
+    case 4:
+        return "CodeRed";
+    default:
+        return "Unknown";
+    }
+}
+
+const char* actionTypeName(ActionType action)
+{
+    switch (action)
+    {
+    case ActionType::None:
+        return "None";
+    case ActionType::SendMidiProgramChange:
+        return "SendMidiProgramChange";
+    case ActionType::SendMidiControlChange:
+        return "SendMidiControlChange";
+    case ActionType::ChangeMode:
+        return "ChangeMode";
+    case ActionType::SelectScene:
+        return "SelectScene";
+    case ActionType::SetTuner:
+        return "SetTuner";
+    case ActionType::SelectHomePlaylist:
+        return "SelectHomePlaylist";
+    case ActionType::TapTempo:
+        return "TapTempo";
+    case ActionType::SetGigView:
+        return "SetGigView";
+    default:
+        return "Unknown";
+    }
+}
+
+void logFunctionAction(const char* prefix, const FunctionAction& action)
+{
+    Serial.printf("%s%s(value=%u, secondary=%u)", prefix, actionTypeName(action.type),
+                  static_cast<unsigned int>(action.value), static_cast<unsigned int>(action.secondaryValue));
+}
 } // namespace
 
 PlayMode::PlayMode(TouchButtonManager& touchButtonManager, RingManager& ringManager, ScreenUi& screenUi,
-                   IMidiManager& midiManager, IMidiProvider& midiProvider, IModeTransistionDelegate& transitionDelegate)
+                   IMidiManager& midiManager, IMidiProvider& midiProvider, IButtonOverrideStore& buttonOverrideStore,
+                   IModeTransistionDelegate& transitionDelegate)
     : FunctionModeBase(touchButtonManager, ringManager, screenUi, midiManager, transitionDelegate),
-      _midiProvider(midiProvider), _selectedPreset(0), _selectedPlaylist(midiProvider.defaultPlaylistIndex()),
-      _hasSelectedPreset(false), _selectedButton(0)
+      _midiProvider(midiProvider), _buttonOverrideStore(buttonOverrideStore), _selectedPreset(0),
+      _selectedPlaylist(midiProvider.defaultPlaylistIndex()), _hasSelectedPreset(false), _selectedButton(0),
+      _tapTempoPressTimes{0, 0, 0}, _tapTempoPressCount(0),
+      _tapTempoFlashHalfPeriodMs(0), _nextTapTempoFlashToggleMs(0), _tapTempoFlashUntilMs(0),
+      _hasTapTempoFlashInterval(false), _isTapTempoLit(true)
 {
     setupFunctions();
 }
@@ -76,33 +135,71 @@ void PlayMode::setTransitionValue(ModeTransitionValue transitionValue)
 
 void PlayMode::setupFunctions()
 {
-    _functions[0] = Function("Scene A", 0x07E0, ActionType::SelectScene, 0, ActionType::None, 0);
-    _functions[1] = Function("Scene B", 0xFD20, ActionType::SelectScene, 1, ActionType::None, 0);
-    _functions[2] = Function("Scene C", 0xF800, ActionType::SelectScene, 2, ActionType::None, 0);
+    _functions[0] = Function("Clean", 0x07E0, ActionType::SelectScene, 0, ActionType::None, 0);
+    _functions[1] = Function("Crunch", 0xFD20, ActionType::SelectScene, 1, ActionType::None, 0);
+    _functions[2] = Function("Lead", 0xF800, ActionType::SelectScene, 2, ActionType::None, 0);
 
     _functions[3] = Function();
     _functions[4] = Function("Patch", 0xFFE0, ActionType::ChangeMode, static_cast<byte>(Modes::Patch),
                              ActionType::ChangeMode, static_cast<byte>(Modes::Home));
-    _functions[5] = Function();
-    _functions[6] = Function();
+    _functions[5] = Function("Gig", GigViewButtonColour, ActionType::SetGigView, 1, ActionType::SetGigView, 0);
+    _functions[6] = Function("Tap", TapTempoButtonColour, ActionType::TapTempo, 0, ActionType::None, 0);
     _functions[7] = Function("Tuner", TunerButtonColour, ActionType::SetTuner, 1, ActionType::SetTuner, 0);
 }
 
 void PlayMode::activate()
 {
     _midiProvider.selectPlaylist(_selectedPlaylist);
+    setupFunctions();
+    const bool didRefreshOverrides = _buttonOverrideStore.refresh();
+    _buttonOverrideStore.applyOverrides(_selectedPlaylist, _selectedPreset, _functions, TouchButtonManager::BUTTON_COUNT);
+    Serial.printf("Play mode: activate playlist=%s(%u) patch=%u refresh=%s\n", playPlaylistName(_selectedPlaylist),
+                  static_cast<unsigned int>(_selectedPlaylist), static_cast<unsigned int>(_selectedPreset),
+                  didRefreshOverrides ? "ok" : "failed");
+    for (byte buttonIndex = 0; buttonIndex < TouchButtonManager::BUTTON_COUNT; ++buttonIndex)
+    {
+        const Function& func = getFunction(buttonIndex);
+        const bool enabled = isButtonEnabled(buttonIndex);
+        Serial.printf("Play mode: button %u label='%s' colour=0x%04X enabled=%s momentary=%s ",
+                      static_cast<unsigned int>(buttonIndex + 1U), func.label(),
+                      static_cast<unsigned int>(func.colour()), enabled ? "yes" : "no",
+                      func.hasMomentaryBehaviour() ? "yes" : "no");
+        logFunctionAction("press=", func.action(FunctionBehaviour::ButtonDown));
+        Serial.print(" ");
+        logFunctionAction("release=", func.action(FunctionBehaviour::ButtonRelease));
+        Serial.print(" ");
+        logFunctionAction("short=", func.action(FunctionBehaviour::ShortPress));
+        Serial.print(" ");
+        logFunctionAction("long=", func.action(FunctionBehaviour::LongPress));
+        Serial.println();
+    }
+    _isTapTempoLit = true;
+    const uint32_t now = millis();
+    if (_hasTapTempoFlashInterval && _tapTempoFlashUntilMs != 0 &&
+        static_cast<int32_t>(now - _tapTempoFlashUntilMs) < 0)
+    {
+        _nextTapTempoFlashToggleMs = now + _tapTempoFlashHalfPeriodMs;
+    }
+    else
+    {
+        _tapTempoFlashUntilMs = 0;
+    }
 
     if (_hasSelectedPreset)
     {
         _midiProvider.recallPreset(_selectedPreset);
     }
 
-    if (!isButtonEnabled(_selectedButton))
+    const int8_t firstSceneButton = firstSceneSelectionButton();
+    if (!isSceneSelectionButton(_selectedButton))
     {
-        _selectedButton = 0;
+        _selectedButton = (firstSceneButton >= 0) ? static_cast<byte>(firstSceneButton) : 0;
     }
 
-    _midiProvider.selectScene(_selectedButton);
+    if (firstSceneButton >= 0)
+    {
+        _midiProvider.selectScene(_selectedButton);
+    }
 
     updateVisuals();
     renderPlayCenterUi();
@@ -159,7 +256,7 @@ void PlayMode::renderPatchBadgeNumber(byte patchNumber, uint16_t textColour)
 
 void PlayMode::renderSnapshotLabel(byte snapshotButton, uint16_t textColour)
 {
-    if (snapshotButton < FirstSnapshotButtonIndex || snapshotButton > LastSnapshotButtonIndex)
+    if (!isSceneSelectionButton(snapshotButton))
     {
         return;
     }
@@ -298,21 +395,68 @@ void PlayMode::updateSnapshotSelectionVisuals(byte previousSelected, byte curren
 
 bool PlayMode::usesSelectionBorder(byte number) const
 {
-    return number >= FirstSnapshotButtonIndex && number <= LastSnapshotButtonIndex;
+    return isSceneSelectionButton(number);
+}
+
+int8_t PlayMode::firstSceneSelectionButton() const
+{
+    for (byte buttonIndex = FirstSnapshotButtonIndex; buttonIndex <= LastSnapshotButtonIndex; ++buttonIndex)
+    {
+        if (isSceneSelectionButton(buttonIndex))
+        {
+            return static_cast<int8_t>(buttonIndex);
+        }
+    }
+
+    return -1;
+}
+
+bool PlayMode::isSceneSelectionButton(byte number) const
+{
+    if (number < FirstSnapshotButtonIndex || number > LastSnapshotButtonIndex || !isButtonEnabled(number))
+    {
+        return false;
+    }
+
+    const Function& func = getFunction(number);
+    return !func.hasMomentaryBehaviour() &&
+           func.action(FunctionBehaviour::ShortPress).type == ActionType::SelectScene;
 }
 
 uint8_t PlayMode::ringBrightnessForButton(byte number) const
 {
-    // Snapshot buttons (0-2) are mutually exclusive: selected is bright, others are dim.
-    // Patch navigation button is always bright when enabled.
-    if (number == PatchButtonIndex || number == TunerButtonIndex)
+    if (number == PatchButtonIndex || number == GigViewButtonIndex || number == TunerButtonIndex)
     {
         return RingManager::FullBrightness;
     }
 
-    const bool isPlayFunctionButton = (number >= FirstSnapshotButtonIndex && number <= LastSnapshotButtonIndex);
-    return (isPlayFunctionButton && number == _selectedButton) ? RingManager::FullBrightness
-                                                               : RingManager::DimBrightness;
+    if (number == TapTempoButtonIndex)
+    {
+        return _isTapTempoLit ? RingManager::FullBrightness : 0;
+    }
+
+    if (isSceneSelectionButton(number))
+    {
+        return number == _selectedButton ? RingManager::FullBrightness : RingManager::DimBrightness;
+    }
+
+    return RingManager::FullBrightness;
+}
+
+void PlayMode::buttonDown(byte number)
+{
+    if (number >= TouchButtonManager::BUTTON_COUNT || !isButtonEnabled(number))
+    {
+        return;
+    }
+
+    const Function& func = getFunction(number);
+    if (!func.hasMomentaryBehaviour())
+    {
+        return;
+    }
+
+    executeAction(func.action(FunctionBehaviour::ButtonDown));
 }
 
 void PlayMode::buttonPressed(byte number)
@@ -328,15 +472,21 @@ void PlayMode::buttonPressed(byte number)
     }
 
     const Function& func = getFunction(number);
-    if (func.pressAction() == ActionType::ChangeMode)
+    if (func.hasMomentaryBehaviour())
     {
-        executeAction(func.pressAction(), func.pressActionValue());
         return;
     }
 
-    executeAction(func.pressAction(), func.pressActionValue());
+    const FunctionAction& shortPressAction = func.action(FunctionBehaviour::ShortPress);
+    if (shortPressAction.type == ActionType::ChangeMode)
+    {
+        executeAction(shortPressAction);
+        return;
+    }
 
-    if (func.pressAction() != ActionType::SelectScene)
+    executeAction(shortPressAction);
+
+    if (shortPressAction.type != ActionType::SelectScene || !isSceneSelectionButton(number))
     {
         return;
     }
@@ -359,37 +509,89 @@ void PlayMode::buttonLongPressed(byte number)
     }
 
     const Function& func = getFunction(number);
-    executeAction(func.longPressAction(), func.longPressActionValue());
+    if (func.hasMomentaryBehaviour())
+    {
+        return;
+    }
+
+    executeAction(func.action(FunctionBehaviour::LongPress));
+}
+
+void PlayMode::buttonReleased(byte number)
+{
+    if (number >= TouchButtonManager::BUTTON_COUNT || !isButtonEnabled(number))
+    {
+        return;
+    }
+
+    const Function& func = getFunction(number);
+    if (!func.hasMomentaryBehaviour())
+    {
+        return;
+    }
+
+    executeAction(func.action(FunctionBehaviour::ButtonRelease));
 }
 
 void PlayMode::frameTick()
 {
-    // Play mode currently has no per-frame work.
+    const uint32_t now = millis();
+    if (_tapTempoFlashUntilMs != 0 && static_cast<int32_t>(now - _tapTempoFlashUntilMs) >= 0)
+    {
+        _tapTempoFlashUntilMs = 0;
+        if (!_isTapTempoLit)
+        {
+            _isTapTempoLit = true;
+            renderTapTempoPill();
+        }
+        return;
+    }
+
+    if (!_hasTapTempoFlashInterval || _tapTempoFlashUntilMs == 0)
+    {
+        return;
+    }
+
+    if (static_cast<int32_t>(now - _nextTapTempoFlashToggleMs) < 0)
+    {
+        return;
+    }
+
+    _isTapTempoLit = !_isTapTempoLit;
+    _nextTapTempoFlashToggleMs = now + _tapTempoFlashHalfPeriodMs;
+    renderTapTempoPill();
 }
 
-void PlayMode::executeAction(ActionType action, byte actionValue)
+void PlayMode::executeAction(const FunctionAction& action)
 {
-    switch (action)
+    switch (action.type)
     {
     case ActionType::None:
         break;
     case ActionType::SendMidiProgramChange:
-        _midiProvider.recallPreset(actionValue);
+        _midiManager.sendProgramChange(action.value);
         break;
     case ActionType::SendMidiControlChange:
-        _midiManager.sendControlChange(actionValue, 127);
+        _midiManager.sendControlChange(action.value, action.secondaryValue);
         break;
     case ActionType::SelectScene:
-        _midiProvider.selectScene(actionValue);
+        _midiProvider.selectScene(action.value);
         break;
     case ActionType::SetTuner:
-        _midiProvider.setTunerEnabled(actionValue != 0);
+        _midiProvider.setTunerEnabled(action.value != 0);
+        break;
+    case ActionType::SetGigView:
+        _midiProvider.setGigViewEnabled(action.value != 0);
         break;
     case ActionType::SelectHomePlaylist:
         break;
+    case ActionType::TapTempo:
+        _midiManager.sendControlChange(TapTempoCc, TapTempoValue);
+        registerTapTempoPress(millis());
+        break;
     case ActionType::ChangeMode:
     {
-        const Modes targetMode = static_cast<Modes>(actionValue);
+        const Modes targetMode = static_cast<Modes>(action.value);
         if (targetMode == Modes::Home)
         {
             _transitionDelegate.enterMode(targetMode, ModeTransitionNone);
@@ -401,4 +603,71 @@ void PlayMode::executeAction(ActionType action, byte actionValue)
         break;
     }
     }
+}
+
+void PlayMode::registerTapTempoPress(uint32_t pressedAtMs)
+{
+    if (_tapTempoPressCount < 3U)
+    {
+        _tapTempoPressTimes[_tapTempoPressCount++] = pressedAtMs;
+    }
+    else
+    {
+        _tapTempoPressTimes[0] = _tapTempoPressTimes[1];
+        _tapTempoPressTimes[1] = _tapTempoPressTimes[2];
+        _tapTempoPressTimes[2] = pressedAtMs;
+    }
+
+    if (_tapTempoPressCount >= 2U)
+    {
+        uint32_t intervalTotalMs = 0;
+        for (uint8_t i = 1; i < _tapTempoPressCount; ++i)
+        {
+            intervalTotalMs += (_tapTempoPressTimes[i] - _tapTempoPressTimes[i - 1U]);
+        }
+
+        const uint32_t averageIntervalMs = intervalTotalMs / static_cast<uint32_t>(_tapTempoPressCount - 1U);
+        _tapTempoFlashHalfPeriodMs = (averageIntervalMs > 1U) ? (averageIntervalMs / 2U) : 1U;
+        _hasTapTempoFlashInterval = true;
+    }
+
+    _isTapTempoLit = true;
+    _tapTempoFlashUntilMs = pressedAtMs + TapTempoFlashDurationMs;
+    if (_hasTapTempoFlashInterval)
+    {
+        _nextTapTempoFlashToggleMs = pressedAtMs + _tapTempoFlashHalfPeriodMs;
+    }
+
+    renderTapTempoPill();
+}
+
+void PlayMode::renderTapTempoPill()
+{
+    FootSwitchTouchButton* button = _touchButtonManager.getButton(TapTempoButtonIndex);
+    if (button == nullptr)
+    {
+        return;
+    }
+
+    const bool enabled = isButtonEnabled(TapTempoButtonIndex);
+    const uint8_t ringBrightness = enabled ? ringBrightnessForButton(TapTempoButtonIndex) : 0;
+    const uint16_t pillColour = (enabled && ringBrightness > 0) ? getFunction(TapTempoButtonIndex).colour() : 0;
+
+    button->setEnabled(enabled);
+    button->setPillColour(pillColour);
+    button->setBorderVisible(false);
+
+    if (!enabled)
+    {
+        _ringManager.setRingColour(TapTempoButtonIndex, 0);
+        _ringManager.setRingBrightness(TapTempoButtonIndex, 0);
+        _screenUi.drawTouchButtonPill(button->getLocation(), button->getSize(), 0, 0);
+        return;
+    }
+
+    const uint32_t ringColour = ColorUtils::rgb565To888(getFunction(TapTempoButtonIndex).colour());
+    _ringManager.setRingColour(TapTempoButtonIndex, (ringBrightness > 0) ? ringColour : 0);
+    _ringManager.setRingBrightness(TapTempoButtonIndex, ringBrightness);
+    _screenUi.drawTouchButtonPill(button->getLocation(), button->getSize(), pillColour,
+                                  _screenUi.touchButtonPillBorderColour());
 }
