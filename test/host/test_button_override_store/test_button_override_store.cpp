@@ -36,35 +36,26 @@ class MockTextFileStore : public ITextFileStore
     char contents[2048] = {0};
 };
 
-void test_refresh_parses_momentary_override_and_preserves_unspecified_short_press()
+void test_refresh_parses_tap_alias_for_blank_default_button()
 {
     MockTextFileStore fileStore;
     std::strcpy(fileStore.contents,
-                "{\"playModes\":{\"Project7\":{\"patches\":{\"5\":{\"buttons\":{\"6\":{\"label\":\"FX\","
-                "\"colour\":\"F81F\",\"function\":{\"press\":{\"action\":\"SendMidiControlChange\",\"value\":44,"
-                "\"secondaryValue\":127},\"release\":{\"action\":\"SendMidiControlChange\",\"value\":44,"
-                "\"secondaryValue\":0}}}}}}}}}");
+                "{\"playModes\":{\"Project7\":{\"patches\":{\"5\":{\"buttons\":{\"3\":{\"label\":\"Tap\","
+                "\"colour\":\"001F\",\"function\":{\"shortPress\":\"Tap\"}}}}}}}}");
     fileStore.hasContents = true;
 
     ButtonOverrideStore store(&fileStore);
     TEST_ASSERT_TRUE(store.refresh());
 
     Function functions[8] = {};
-    functions[6] = Function("Tap", 0x001F, ActionType::TapTempo, 0, ActionType::None, 0);
+    functions[3] = Function();
     store.applyOverrides(2, 5, functions, 8);
 
-    TEST_ASSERT_EQUAL_STRING("FX", functions[6].label());
-    TEST_ASSERT_EQUAL_HEX16(0xF81F, functions[6].colour());
-    TEST_ASSERT_TRUE(functions[6].hasMomentaryBehaviour());
-    TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(ActionType::SendMidiControlChange),
-                            static_cast<uint8_t>(functions[6].action(FunctionBehaviour::ButtonDown).type));
-    TEST_ASSERT_EQUAL_UINT8(44, functions[6].action(FunctionBehaviour::ButtonDown).value);
-    TEST_ASSERT_EQUAL_UINT8(127, functions[6].action(FunctionBehaviour::ButtonDown).secondaryValue);
-    TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(ActionType::SendMidiControlChange),
-                            static_cast<uint8_t>(functions[6].action(FunctionBehaviour::ButtonRelease).type));
-    TEST_ASSERT_EQUAL_UINT8(0, functions[6].action(FunctionBehaviour::ButtonRelease).secondaryValue);
+    TEST_ASSERT_EQUAL_STRING("Tap", functions[3].label());
+    TEST_ASSERT_EQUAL_HEX16(0x001F, functions[3].colour());
+    TEST_ASSERT_FALSE(functions[3].hasMomentaryBehaviour());
     TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(ActionType::TapTempo),
-                            static_cast<uint8_t>(functions[6].action(FunctionBehaviour::ShortPress).type));
+                            static_cast<uint8_t>(functions[3].action(FunctionBehaviour::ShortPress).type));
 }
 
 void test_apply_overrides_matches_playlist_and_patch()
@@ -130,7 +121,7 @@ int main(int argc, char** argv)
     (void)argv;
 
     UNITY_BEGIN();
-    RUN_TEST(test_refresh_parses_momentary_override_and_preserves_unspecified_short_press);
+    RUN_TEST(test_refresh_parses_tap_alias_for_blank_default_button);
     RUN_TEST(test_apply_overrides_matches_playlist_and_patch);
     RUN_TEST(test_apply_overrides_can_reparse_same_config_multiple_times);
     return UNITY_END();
