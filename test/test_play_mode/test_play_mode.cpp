@@ -446,19 +446,76 @@ void test_gig_view_button_long_press_closes_gig_view()
     TEST_ASSERT_EQUAL_INT(0, fixture.midiManager.controlChangeCalls);
 }
 
-void test_tap_tempo_button_sends_cc44_value100_without_changing_scene_selection()
+void test_tap_tempo_button_does_not_send_midi_on_first_press_without_changing_scene_selection()
 {
     PlayModeFixture fixture;
 
     fixture.mode.activate();
     fixture.mode.buttonPressed(6);
 
-    TEST_ASSERT_EQUAL_INT(1, fixture.midiManager.controlChangeCalls);
-    TEST_ASSERT_EQUAL_UINT8(44, fixture.midiManager.lastControlChangeNumber);
-    TEST_ASSERT_EQUAL_UINT8(100, fixture.midiManager.lastControlChangeValue);
+    TEST_ASSERT_EQUAL_INT(0, fixture.midiManager.controlChangeCalls);
     TEST_ASSERT_EQUAL_INT(1, fixture.midiProvider.selectSceneCalls);
     TEST_ASSERT_TRUE(fixture.touchButtonManager.getButton(0)->hasBorder());
     TEST_ASSERT_FALSE(fixture.touchButtonManager.getButton(6)->hasBorder());
+}
+
+void test_tap_tempo_button_does_not_send_midi_on_second_press()
+{
+    PlayModeFixture fixture;
+
+    fixture.mode.activate();
+    fixture.mode.buttonPressed(6);
+    delay(50);
+    fixture.mode.buttonPressed(6);
+
+    TEST_ASSERT_EQUAL_INT(0, fixture.midiManager.controlChangeCalls);
+}
+
+void test_tap_tempo_button_sends_cc44_value100_on_scheduled_interval_after_third_press()
+{
+    PlayModeFixture fixture;
+
+    fixture.mode.activate();
+    fixture.mode.buttonPressed(6);
+    delay(50);
+    fixture.mode.buttonPressed(6);
+    delay(50);
+    fixture.mode.buttonPressed(6);
+
+    TEST_ASSERT_EQUAL_INT(0, fixture.midiManager.controlChangeCalls);
+
+    delay(49);
+    fixture.mode.frameTick();
+    TEST_ASSERT_EQUAL_INT(0, fixture.midiManager.controlChangeCalls);
+
+    delay(1);
+    fixture.mode.frameTick();
+    TEST_ASSERT_EQUAL_INT(1, fixture.midiManager.controlChangeCalls);
+    TEST_ASSERT_EQUAL_UINT8(44, fixture.midiManager.lastControlChangeNumber);
+    TEST_ASSERT_EQUAL_UINT8(100, fixture.midiManager.lastControlChangeValue);
+}
+
+void test_tap_tempo_continued_tapping_does_not_delay_next_scheduled_midi_send()
+{
+    PlayModeFixture fixture;
+
+    fixture.mode.activate();
+    fixture.mode.buttonPressed(6);
+    delay(50);
+    fixture.mode.buttonPressed(6);
+    delay(50);
+    fixture.mode.buttonPressed(6);
+    delay(45);
+    fixture.mode.buttonPressed(6);
+
+    TEST_ASSERT_EQUAL_INT(0, fixture.midiManager.controlChangeCalls);
+
+    delay(5);
+    fixture.mode.frameTick();
+
+    TEST_ASSERT_EQUAL_INT(1, fixture.midiManager.controlChangeCalls);
+    TEST_ASSERT_EQUAL_UINT8(44, fixture.midiManager.lastControlChangeNumber);
+    TEST_ASSERT_EQUAL_UINT8(100, fixture.midiManager.lastControlChangeValue);
 }
 
 void test_tap_tempo_light_flashes_using_recent_tap_average()
@@ -524,6 +581,87 @@ void test_tap_tempo_press_restarts_ten_second_flash_window()
     fixture.mode.frameTick();
 
     TEST_ASSERT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(6)->pillColour());
+}
+
+void test_tap_tempo_pre_arm_taps_reset_after_three_seconds_of_silence()
+{
+    PlayModeFixture fixture;
+
+    fixture.mode.activate();
+    fixture.mode.buttonPressed(6);
+
+    delay(3100);
+    fixture.mode.buttonPressed(6);
+    delay(50);
+    fixture.mode.buttonPressed(6);
+
+    delay(50);
+    fixture.mode.frameTick();
+    TEST_ASSERT_EQUAL_INT(0, fixture.midiManager.controlChangeCalls);
+
+    fixture.mode.buttonPressed(6);
+    delay(49);
+    fixture.mode.frameTick();
+    TEST_ASSERT_EQUAL_INT(0, fixture.midiManager.controlChangeCalls);
+
+    delay(1);
+    fixture.mode.frameTick();
+    TEST_ASSERT_EQUAL_INT(1, fixture.midiManager.controlChangeCalls);
+}
+
+void test_tap_tempo_inactivity_sends_three_trailing_messages_then_stops()
+{
+    PlayModeFixture fixture;
+
+    fixture.mode.activate();
+    fixture.mode.buttonPressed(6);
+    delay(1000);
+    fixture.mode.buttonPressed(6);
+    delay(1000);
+    fixture.mode.buttonPressed(6);
+
+    delay(1000);
+    fixture.mode.frameTick();
+    TEST_ASSERT_EQUAL_INT(1, fixture.midiManager.controlChangeCalls);
+
+    delay(1000);
+    fixture.mode.frameTick();
+    TEST_ASSERT_EQUAL_INT(2, fixture.midiManager.controlChangeCalls);
+
+    delay(1000);
+    fixture.mode.frameTick();
+    TEST_ASSERT_EQUAL_INT(3, fixture.midiManager.controlChangeCalls);
+
+    delay(1000);
+    fixture.mode.frameTick();
+    TEST_ASSERT_EQUAL_INT(4, fixture.midiManager.controlChangeCalls);
+
+    delay(1000);
+    fixture.mode.frameTick();
+    TEST_ASSERT_EQUAL_INT(5, fixture.midiManager.controlChangeCalls);
+
+    delay(1000);
+    fixture.mode.frameTick();
+    TEST_ASSERT_EQUAL_INT(5, fixture.midiManager.controlChangeCalls);
+}
+
+void test_tap_tempo_deactivate_clears_pending_scheduler()
+{
+    PlayModeFixture fixture;
+
+    fixture.mode.activate();
+    fixture.mode.buttonPressed(6);
+    delay(50);
+    fixture.mode.buttonPressed(6);
+    delay(50);
+    fixture.mode.buttonPressed(6);
+
+    fixture.mode.deactivate();
+    delay(60);
+    fixture.mode.activate();
+    fixture.mode.frameTick();
+
+    TEST_ASSERT_EQUAL_INT(0, fixture.midiManager.controlChangeCalls);
 }
 
 void test_tap_tempo_button_long_press_is_noop()
@@ -624,7 +762,7 @@ void test_tap_tempo_button_does_not_change_mode()
 
     TEST_ASSERT_EQUAL_INT(0, fixture.transitionDelegate.calls);
     TEST_ASSERT_EQUAL_INT(1, fixture.midiProvider.selectSceneCalls);
-    TEST_ASSERT_EQUAL_INT(1, fixture.midiManager.controlChangeCalls);
+    TEST_ASSERT_EQUAL_INT(0, fixture.midiManager.controlChangeCalls);
 }
 
 void test_button_five_transitions_to_patch_mode()
@@ -701,10 +839,16 @@ void setup()
     RUN_TEST(test_scene_c_selects_scene_two);
     RUN_TEST(test_gig_view_button_opens_gig_view_without_changing_scene_selection);
     RUN_TEST(test_gig_view_button_long_press_closes_gig_view);
-    RUN_TEST(test_tap_tempo_button_sends_cc44_value100_without_changing_scene_selection);
+    RUN_TEST(test_tap_tempo_button_does_not_send_midi_on_first_press_without_changing_scene_selection);
+    RUN_TEST(test_tap_tempo_button_does_not_send_midi_on_second_press);
+    RUN_TEST(test_tap_tempo_button_sends_cc44_value100_on_scheduled_interval_after_third_press);
+    RUN_TEST(test_tap_tempo_continued_tapping_does_not_delay_next_scheduled_midi_send);
     RUN_TEST(test_tap_tempo_light_flashes_using_recent_tap_average);
     RUN_TEST(test_tap_tempo_light_returns_to_solid_blue_after_ten_seconds);
     RUN_TEST(test_tap_tempo_press_restarts_ten_second_flash_window);
+    RUN_TEST(test_tap_tempo_pre_arm_taps_reset_after_three_seconds_of_silence);
+    RUN_TEST(test_tap_tempo_inactivity_sends_three_trailing_messages_then_stops);
+    RUN_TEST(test_tap_tempo_deactivate_clears_pending_scheduler);
     RUN_TEST(test_tap_tempo_button_long_press_is_noop);
     RUN_TEST(test_tuner_button_enables_tuner_without_changing_scene_selection);
     RUN_TEST(test_tuner_button_long_press_disables_tuner);

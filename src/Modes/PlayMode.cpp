@@ -30,6 +30,8 @@ const uint16_t TapTempoButtonColour = 0x001F;
 const byte TapTempoCc = 44;
 const byte TapTempoValue = 100;
 const uint32_t TapTempoFlashDurationMs = 10000;
+const uint32_t TapTempoInactivityTimeoutMs = 3000;
+const uint8_t TapTempoTrailingMessageCount = 3;
 const byte TunerButtonIndex = 7;
 const uint16_t TunerButtonColour = 0x801F;
 
@@ -93,8 +95,9 @@ PlayMode::PlayMode(TouchButtonManager& touchButtonManager, RingManager& ringMana
     : FunctionModeBase(touchButtonManager, ringManager, screenUi, midiManager, transitionDelegate),
       _midiProvider(midiProvider), _buttonOverrideStore(buttonOverrideStore), _selectedPreset(0),
       _selectedPlaylist(midiProvider.defaultPlaylistIndex()), _hasSelectedPreset(false), _selectedButton(0),
-      _tapTempoPressTimes{0, 0, 0}, _tapTempoPressCount(0),
+      _tapTempoPressTimes{0, 0, 0}, _tapTempoPressCount(0), _tapTempoIntervalMs(0),
       _tapTempoFlashHalfPeriodMs(0), _nextTapTempoFlashToggleMs(0), _tapTempoFlashUntilMs(0),
+      _nextTapTempoMidiSendMs(0), _tapTempoInactivityDeadlineMs(0), _tapTempoTrailingMessagesRemaining(0),
       _hasTapTempoFlashInterval(false), _isTapTempoLit(true)
 {
     setupFunctions();
@@ -205,7 +208,11 @@ void PlayMode::activate()
     renderPlayCenterUi();
 }
 
-void PlayMode::deactivate() { clearPlayCenterUi(); }
+void PlayMode::deactivate()
+{
+    clearTapTempoState();
+    clearPlayCenterUi();
+}
 
 void PlayMode::renderPlayCenterUi()
 {
@@ -536,6 +543,31 @@ void PlayMode::buttonReleased(byte number)
 void PlayMode::frameTick()
 {
     const uint32_t now = millis();
+    if (_nextTapTempoMidiSendMs != 0)
+    {
+        if (_tapTempoInactivityDeadlineMs != 0 &&
+            static_cast<int32_t>(now - _tapTempoInactivityDeadlineMs) >= 0)
+        {
+            _tapTempoInactivityDeadlineMs = 0;
+            _tapTempoTrailingMessagesRemaining = TapTempoTrailingMessageCount;
+        }
+
+        if (static_cast<int32_t>(now - _nextTapTempoMidiSendMs) >= 0)
+        {
+            _midiManager.sendControlChange(TapTempoCc, TapTempoValue);
+            _nextTapTempoMidiSendMs += _tapTempoIntervalMs;
+
+            if (_tapTempoInactivityDeadlineMs == 0 && _tapTempoTrailingMessagesRemaining > 0)
+            {
+                --_tapTempoTrailingMessagesRemaining;
+                if (_tapTempoTrailingMessagesRemaining == 0)
+                {
+                    _nextTapTempoMidiSendMs = 0;
+                }
+            }
+        }
+    }
+
     if (_tapTempoFlashUntilMs != 0 && static_cast<int32_t>(now - _tapTempoFlashUntilMs) >= 0)
     {
         _tapTempoFlashUntilMs = 0;
@@ -586,7 +618,6 @@ void PlayMode::executeAction(const FunctionAction& action)
     case ActionType::SelectHomePlaylist:
         break;
     case ActionType::TapTempo:
-        _midiManager.sendControlChange(TapTempoCc, TapTempoValue);
         registerTapTempoPress(millis());
         break;
     case ActionType::ChangeMode:
@@ -607,6 +638,17 @@ void PlayMode::executeAction(const FunctionAction& action)
 
 void PlayMode::registerTapTempoPress(uint32_t pressedAtMs)
 {
+    const uint32_t previousNextTapTempoMidiSendMs = _nextTapTempoMidiSendMs;
+
+    if (_tapTempoPressCount > 0)
+    {
+        const uint32_t lastPressedAtMs = _tapTempoPressTimes[_tapTempoPressCount - 1U];
+        if ((pressedAtMs - lastPressedAtMs) >= TapTempoInactivityTimeoutMs)
+        {
+            clearTapTempoState();
+        }
+    }
+
     if (_tapTempoPressCount < 3U)
     {
         _tapTempoPressTimes[_tapTempoPressCount++] = pressedAtMs;
@@ -618,6 +660,7 @@ void PlayMode::registerTapTempoPress(uint32_t pressedAtMs)
         _tapTempoPressTimes[2] = pressedAtMs;
     }
 
+    _tapTempoIntervalMs = 0;
     if (_tapTempoPressCount >= 2U)
     {
         uint32_t intervalTotalMs = 0;
@@ -627,8 +670,36 @@ void PlayMode::registerTapTempoPress(uint32_t pressedAtMs)
         }
 
         const uint32_t averageIntervalMs = intervalTotalMs / static_cast<uint32_t>(_tapTempoPressCount - 1U);
+        _tapTempoIntervalMs = (averageIntervalMs > 0U) ? averageIntervalMs : 1U;
         _tapTempoFlashHalfPeriodMs = (averageIntervalMs > 1U) ? (averageIntervalMs / 2U) : 1U;
         _hasTapTempoFlashInterval = true;
+    }
+    else
+    {
+        _tapTempoFlashHalfPeriodMs = 0;
+        _hasTapTempoFlashInterval = false;
+    }
+
+    _tapTempoInactivityDeadlineMs = 0;
+    _tapTempoTrailingMessagesRemaining = 0;
+    if (_tapTempoPressCount >= 3U)
+    {
+        const uint32_t candidateNextTapTempoMidiSendMs = pressedAtMs + _tapTempoIntervalMs;
+        if (previousNextTapTempoMidiSendMs == 0 ||
+            static_cast<int32_t>(candidateNextTapTempoMidiSendMs - previousNextTapTempoMidiSendMs) < 0)
+        {
+            _nextTapTempoMidiSendMs = candidateNextTapTempoMidiSendMs;
+        }
+        else
+        {
+            _nextTapTempoMidiSendMs = previousNextTapTempoMidiSendMs;
+        }
+
+        _tapTempoInactivityDeadlineMs = pressedAtMs + TapTempoInactivityTimeoutMs;
+    }
+    else
+    {
+        _nextTapTempoMidiSendMs = 0;
     }
 
     _isTapTempoLit = true;
@@ -639,6 +710,23 @@ void PlayMode::registerTapTempoPress(uint32_t pressedAtMs)
     }
 
     renderTapTempoPill();
+}
+
+void PlayMode::clearTapTempoState()
+{
+    _tapTempoPressTimes[0] = 0;
+    _tapTempoPressTimes[1] = 0;
+    _tapTempoPressTimes[2] = 0;
+    _tapTempoPressCount = 0;
+    _tapTempoIntervalMs = 0;
+    _tapTempoFlashHalfPeriodMs = 0;
+    _nextTapTempoFlashToggleMs = 0;
+    _tapTempoFlashUntilMs = 0;
+    _nextTapTempoMidiSendMs = 0;
+    _tapTempoInactivityDeadlineMs = 0;
+    _tapTempoTrailingMessagesRemaining = 0;
+    _hasTapTempoFlashInterval = false;
+    _isTapTempoLit = true;
 }
 
 void PlayMode::renderTapTempoPill()

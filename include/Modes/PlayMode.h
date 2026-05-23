@@ -33,6 +33,7 @@ class PlayMode : public FunctionModeBase
   private:
     void executeAction(const FunctionAction& action);
     void registerTapTempoPress(uint32_t pressedAtMs);
+    void clearTapTempoState();
     void renderTapTempoPill();
     void renderPlayCenterUi();
     void clearPlayCenterUi();
@@ -63,9 +64,13 @@ class PlayMode : public FunctionModeBase
     byte _selectedButton;
     uint32_t _tapTempoPressTimes[3];
     uint8_t _tapTempoPressCount;
+    uint32_t _tapTempoIntervalMs;
     uint32_t _tapTempoFlashHalfPeriodMs;
     uint32_t _nextTapTempoFlashToggleMs;
     uint32_t _tapTempoFlashUntilMs;
+    uint32_t _nextTapTempoMidiSendMs;
+    uint32_t _tapTempoInactivityDeadlineMs;
+    uint8_t _tapTempoTrailingMessagesRemaining;
     bool _hasTapTempoFlashInterval;
     bool _isTapTempoLit;
 };
