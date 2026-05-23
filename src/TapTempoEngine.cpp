@@ -125,3 +125,5 @@ TapTempoEngine::TickResult TapTempoEngine::tick(uint32_t nowMs)
 bool TapTempoEngine::hasFlashInterval() const { return _hasFlashInterval; }
 
 uint32_t TapTempoEngine::flashHalfPeriodMs() const { return _flashHalfPeriodMs; }
+
+uint32_t TapTempoEngine::intervalMs() const { return _intervalMs; }

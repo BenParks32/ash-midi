@@ -161,15 +161,25 @@ class MockButtonOverrideStore : public IButtonOverrideStore
         lastPlaylistIndex = playlistIndex;
         lastPatchNumber = patchNumber;
 
-        if (!enableMomentaryOverride || functions == nullptr || functionCount <= 5)
+        if (functions == nullptr)
         {
             return;
         }
 
-        functions[5] = Function("Hold", 0xF81F, FunctionAction(ActionType::SendMidiControlChange, 21, 127),
-                                FunctionAction(ActionType::SendMidiControlChange, 21, 0),
-                                FunctionAction(ActionType::SelectScene, 2, 0),
-                                FunctionAction(ActionType::ChangeMode, static_cast<byte>(Modes::Home), 0));
+        if (enableMomentaryOverride && functionCount > 5)
+        {
+            functions[5] = Function("Hold", 0xF81F, FunctionAction(ActionType::SendMidiControlChange, 21, 127),
+                                    FunctionAction(ActionType::SendMidiControlChange, 21, 0),
+                                    FunctionAction(ActionType::SelectScene, 2, 0),
+                                    FunctionAction(ActionType::ChangeMode, static_cast<byte>(Modes::Home), 0));
+        }
+
+        if (!enableTapOverride || tapButtonIndex >= functionCount)
+        {
+            return;
+        }
+
+        functions[tapButtonIndex] = Function("Tap", 0x001F, ActionType::TapTempo, 0, ActionType::None, 0);
     }
 
     mutable int applyCalls = 0;
@@ -178,6 +188,8 @@ class MockButtonOverrideStore : public IButtonOverrideStore
     int refreshCalls = 0;
     bool refreshResult = true;
     bool enableMomentaryOverride = false;
+    bool enableTapOverride = false;
+    byte tapButtonIndex = 3;
 };
 
 class MockMidiProvider : public IMidiProvider
@@ -277,8 +289,35 @@ void test_activate_sets_play_labels()
     TEST_ASSERT_EQUAL_STRING(" ", fixture.touchButtonManager.getButton(3)->label());
     TEST_ASSERT_EQUAL_STRING("Patch", fixture.touchButtonManager.getButton(4)->label());
     TEST_ASSERT_EQUAL_STRING("Gig", fixture.touchButtonManager.getButton(5)->label());
-    TEST_ASSERT_EQUAL_STRING("Tap", fixture.touchButtonManager.getButton(6)->label());
+    TEST_ASSERT_EQUAL_STRING(" ", fixture.touchButtonManager.getButton(6)->label());
     TEST_ASSERT_EQUAL_STRING("Tuner", fixture.touchButtonManager.getButton(7)->label());
+}
+
+void test_activate_applies_tap_to_configured_button()
+{
+    PlayModeFixture fixture;
+    fixture.overrideStore.enableTapOverride = true;
+
+    fixture.mode.activate();
+
+    TEST_ASSERT_EQUAL_STRING("Tap", fixture.touchButtonManager.getButton(3)->label());
+    TEST_ASSERT_NOT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(3)->pillColour());
+}
+
+void test_tap_tempo_button_label_updates_to_bpm_when_interval_is_known()
+{
+    PlayModeFixture fixture;
+    fixture.overrideStore.enableTapOverride = true;
+
+    fixture.mode.activate();
+    TEST_ASSERT_EQUAL_STRING("Tap", fixture.touchButtonManager.getButton(3)->label());
+
+    fixture.mode.buttonPressed(3);
+    TEST_ASSERT_EQUAL_STRING("Tap", fixture.touchButtonManager.getButton(3)->label());
+
+    delay(500);
+    fixture.mode.buttonPressed(3);
+    TEST_ASSERT_EQUAL_STRING("120", fixture.touchButtonManager.getButton(3)->label());
 }
 
 void test_activate_refreshes_button_overrides_for_selected_playlist_and_patch()
@@ -313,7 +352,7 @@ void test_activate_selects_single_button_and_dims_others()
     TEST_ASSERT_NOT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(2)->pillColour());
     TEST_ASSERT_NOT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(4)->pillColour());
     TEST_ASSERT_NOT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(5)->pillColour());
-    TEST_ASSERT_NOT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(6)->pillColour());
+    TEST_ASSERT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(6)->pillColour());
     TEST_ASSERT_NOT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(7)->pillColour());
 }
 
@@ -522,24 +561,26 @@ void test_gig_view_button_long_press_closes_gig_view()
 void test_tap_tempo_button_does_not_send_midi_on_first_press_without_changing_scene_selection()
 {
     PlayModeFixture fixture;
+    fixture.overrideStore.enableTapOverride = true;
 
     fixture.mode.activate();
-    fixture.mode.buttonPressed(6);
+    fixture.mode.buttonPressed(3);
 
     TEST_ASSERT_EQUAL_INT(0, fixture.midiManager.controlChangeCalls);
     TEST_ASSERT_EQUAL_INT(1, fixture.midiProvider.selectSceneCalls);
     TEST_ASSERT_TRUE(fixture.touchButtonManager.getButton(0)->hasBorder());
-    TEST_ASSERT_FALSE(fixture.touchButtonManager.getButton(6)->hasBorder());
+    TEST_ASSERT_FALSE(fixture.touchButtonManager.getButton(3)->hasBorder());
 }
 
 void test_tap_tempo_button_does_not_send_midi_on_second_press()
 {
     PlayModeFixture fixture;
+    fixture.overrideStore.enableTapOverride = true;
 
     fixture.mode.activate();
-    fixture.mode.buttonPressed(6);
+    fixture.mode.buttonPressed(3);
     delay(50);
-    fixture.mode.buttonPressed(6);
+    fixture.mode.buttonPressed(3);
 
     TEST_ASSERT_EQUAL_INT(0, fixture.midiManager.controlChangeCalls);
 }
@@ -547,13 +588,14 @@ void test_tap_tempo_button_does_not_send_midi_on_second_press()
 void test_tap_tempo_button_sends_cc44_value100_on_scheduled_interval_after_third_press()
 {
     PlayModeFixture fixture;
+    fixture.overrideStore.enableTapOverride = true;
 
     fixture.mode.activate();
-    fixture.mode.buttonPressed(6);
+    fixture.mode.buttonPressed(3);
     delay(50);
-    fixture.mode.buttonPressed(6);
+    fixture.mode.buttonPressed(3);
     delay(50);
-    fixture.mode.buttonPressed(6);
+    fixture.mode.buttonPressed(3);
 
     TEST_ASSERT_EQUAL_INT(0, fixture.midiManager.controlChangeCalls);
 
@@ -571,15 +613,16 @@ void test_tap_tempo_button_sends_cc44_value100_on_scheduled_interval_after_third
 void test_tap_tempo_continued_tapping_does_not_delay_next_scheduled_midi_send()
 {
     PlayModeFixture fixture;
+    fixture.overrideStore.enableTapOverride = true;
 
     fixture.mode.activate();
-    fixture.mode.buttonPressed(6);
+    fixture.mode.buttonPressed(3);
     delay(50);
-    fixture.mode.buttonPressed(6);
+    fixture.mode.buttonPressed(3);
     delay(50);
-    fixture.mode.buttonPressed(6);
+    fixture.mode.buttonPressed(3);
     delay(45);
-    fixture.mode.buttonPressed(6);
+    fixture.mode.buttonPressed(3);
 
     TEST_ASSERT_EQUAL_INT(0, fixture.midiManager.controlChangeCalls);
 
@@ -594,85 +637,97 @@ void test_tap_tempo_continued_tapping_does_not_delay_next_scheduled_midi_send()
 void test_tap_tempo_light_flashes_using_recent_tap_average()
 {
     PlayModeFixture fixture;
+    fixture.overrideStore.enableTapOverride = true;
 
     fixture.mode.activate();
-    fixture.mode.buttonPressed(6);
+    fixture.mode.buttonPressed(3);
     delay(50);
-    fixture.mode.buttonPressed(6);
+    fixture.mode.buttonPressed(3);
     delay(50);
-    fixture.mode.buttonPressed(6);
+    fixture.mode.buttonPressed(3);
 
-    TEST_ASSERT_NOT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(6)->pillColour());
+    TEST_ASSERT_NOT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(3)->pillColour());
 
     delay(35);
+    const int drawLabelCallsBeforeFlash = fixture.ui.drawTouchButtonLabelAndPillCalls;
+    const int drawPillCallsBeforeFlash = fixture.ui.drawTouchButtonPillCalls;
     fixture.mode.frameTick();
-    TEST_ASSERT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(6)->pillColour());
+    TEST_ASSERT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(3)->pillColour());
+    TEST_ASSERT_EQUAL_INT(drawLabelCallsBeforeFlash, fixture.ui.drawTouchButtonLabelAndPillCalls);
+    TEST_ASSERT_EQUAL_INT(drawPillCallsBeforeFlash + 1, fixture.ui.drawTouchButtonPillCalls);
 
     delay(35);
+    const int drawLabelCallsBeforeSecondFlash = fixture.ui.drawTouchButtonLabelAndPillCalls;
+    const int drawPillCallsBeforeSecondFlash = fixture.ui.drawTouchButtonPillCalls;
     fixture.mode.frameTick();
-    TEST_ASSERT_NOT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(6)->pillColour());
+    TEST_ASSERT_NOT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(3)->pillColour());
+    TEST_ASSERT_EQUAL_INT(drawLabelCallsBeforeSecondFlash, fixture.ui.drawTouchButtonLabelAndPillCalls);
+    TEST_ASSERT_EQUAL_INT(drawPillCallsBeforeSecondFlash + 1, fixture.ui.drawTouchButtonPillCalls);
 }
 
 void test_tap_tempo_light_returns_to_solid_blue_after_ten_seconds()
 {
     PlayModeFixture fixture;
+    fixture.overrideStore.enableTapOverride = true;
 
     fixture.mode.activate();
-    fixture.mode.buttonPressed(6);
+    fixture.mode.buttonPressed(3);
     delay(50);
-    fixture.mode.buttonPressed(6);
+    fixture.mode.buttonPressed(3);
     delay(50);
-    fixture.mode.buttonPressed(6);
+    fixture.mode.buttonPressed(3);
 
     delay(35);
     fixture.mode.frameTick();
-    TEST_ASSERT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(6)->pillColour());
+    TEST_ASSERT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(3)->pillColour());
 
     delay(10020);
     fixture.mode.frameTick();
-    TEST_ASSERT_NOT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(6)->pillColour());
+    TEST_ASSERT_NOT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(3)->pillColour());
 
     delay(35);
     fixture.mode.frameTick();
-    TEST_ASSERT_NOT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(6)->pillColour());
+    TEST_ASSERT_NOT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(3)->pillColour());
 }
 
 void test_tap_tempo_press_after_inactivity_restarts_solid_flash_window()
 {
     PlayModeFixture fixture;
+    fixture.overrideStore.enableTapOverride = true;
 
     fixture.mode.activate();
-    fixture.mode.buttonPressed(6);
+    fixture.mode.buttonPressed(3);
     delay(50);
-    fixture.mode.buttonPressed(6);
+    fixture.mode.buttonPressed(3);
     delay(50);
-    fixture.mode.buttonPressed(6);
+    fixture.mode.buttonPressed(3);
 
     delay(9990);
-    fixture.mode.buttonPressed(6);
+    fixture.mode.buttonPressed(3);
     delay(35);
     fixture.mode.frameTick();
 
-    TEST_ASSERT_NOT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(6)->pillColour());
+    TEST_ASSERT_NOT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(3)->pillColour());
 }
 
 void test_tap_tempo_pre_arm_taps_reset_after_three_seconds_of_silence()
 {
     PlayModeFixture fixture;
+    fixture.overrideStore.enableTapOverride = true;
 
     fixture.mode.activate();
-    fixture.mode.buttonPressed(6);
+    fixture.mode.buttonPressed(3);
 
     delay(3100);
-    fixture.mode.buttonPressed(6);
+    fixture.mode.buttonPressed(3);
     delay(50);
-    fixture.mode.buttonPressed(6);
+    fixture.mode.buttonPressed(3);
 
     delay(50);
     fixture.mode.frameTick();
     TEST_ASSERT_EQUAL_INT(0, fixture.midiManager.controlChangeCalls);
 
-    fixture.mode.buttonPressed(6);
+    fixture.mode.buttonPressed(3);
     delay(49);
     fixture.mode.frameTick();
     TEST_ASSERT_EQUAL_INT(0, fixture.midiManager.controlChangeCalls);
@@ -685,13 +740,14 @@ void test_tap_tempo_pre_arm_taps_reset_after_three_seconds_of_silence()
 void test_tap_tempo_inactivity_sends_three_trailing_messages_then_stops()
 {
     PlayModeFixture fixture;
+    fixture.overrideStore.enableTapOverride = true;
 
     fixture.mode.activate();
-    fixture.mode.buttonPressed(6);
+    fixture.mode.buttonPressed(3);
     delay(1000);
-    fixture.mode.buttonPressed(6);
+    fixture.mode.buttonPressed(3);
     delay(1000);
-    fixture.mode.buttonPressed(6);
+    fixture.mode.buttonPressed(3);
 
     delay(1000);
     fixture.mode.frameTick();
@@ -721,13 +777,14 @@ void test_tap_tempo_inactivity_sends_three_trailing_messages_then_stops()
 void test_tap_tempo_deactivate_clears_pending_scheduler()
 {
     PlayModeFixture fixture;
+    fixture.overrideStore.enableTapOverride = true;
 
     fixture.mode.activate();
-    fixture.mode.buttonPressed(6);
+    fixture.mode.buttonPressed(3);
     delay(50);
-    fixture.mode.buttonPressed(6);
+    fixture.mode.buttonPressed(3);
     delay(50);
-    fixture.mode.buttonPressed(6);
+    fixture.mode.buttonPressed(3);
 
     fixture.mode.deactivate();
     delay(60);
@@ -740,9 +797,10 @@ void test_tap_tempo_deactivate_clears_pending_scheduler()
 void test_tap_tempo_button_long_press_is_noop()
 {
     PlayModeFixture fixture;
+    fixture.overrideStore.enableTapOverride = true;
 
     fixture.mode.activate();
-    fixture.mode.buttonLongPressed(6);
+    fixture.mode.buttonLongPressed(3);
 
     TEST_ASSERT_EQUAL_INT(0, fixture.midiManager.controlChangeCalls);
     TEST_ASSERT_EQUAL_INT(1, fixture.midiProvider.selectSceneCalls);
@@ -795,6 +853,7 @@ void test_button_press_changes_selection_to_single_button()
 void test_button_pressed_ignores_disabled_button()
 {
     PlayModeFixture fixture;
+    fixture.overrideStore.enableTapOverride = true;
 
     fixture.mode.activate();
     fixture.mode.buttonPressed(3);
@@ -829,9 +888,10 @@ void test_button_five_long_press_transitions_to_home()
 void test_tap_tempo_button_does_not_change_mode()
 {
     PlayModeFixture fixture;
+    fixture.overrideStore.enableTapOverride = true;
 
     fixture.mode.activate();
-    fixture.mode.buttonPressed(6);
+    fixture.mode.buttonPressed(3);
 
     TEST_ASSERT_EQUAL_INT(0, fixture.transitionDelegate.calls);
     TEST_ASSERT_EQUAL_INT(1, fixture.midiProvider.selectSceneCalls);
@@ -897,6 +957,8 @@ int main(int argc, char** argv)
 
     UNITY_BEGIN();
     RUN_TEST(test_activate_sets_play_labels);
+    RUN_TEST(test_activate_applies_tap_to_configured_button);
+    RUN_TEST(test_tap_tempo_button_label_updates_to_bpm_when_interval_is_known);
     RUN_TEST(test_activate_refreshes_button_overrides_for_selected_playlist_and_patch);
     RUN_TEST(test_activate_selects_single_button_and_dims_others);
     RUN_TEST(test_activate_recalls_selected_preset_before_scene_select);

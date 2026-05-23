@@ -338,7 +338,7 @@ bool ButtonOverrideStore::parseActionName(const char* name, ActionType& outActio
         outActionType = ActionType::SelectHomePlaylist;
         return true;
     }
-    if (std::strcmp(name, "TapTempo") == 0)
+    if (std::strcmp(name, "Tap") == 0 || std::strcmp(name, "TapTempo") == 0)
     {
         outActionType = ActionType::TapTempo;
         return true;

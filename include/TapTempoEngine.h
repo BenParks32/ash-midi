@@ -21,6 +21,7 @@ class TapTempoEngine
 
     bool hasFlashInterval() const;
     uint32_t flashHalfPeriodMs() const;
+    uint32_t intervalMs() const;
 
   private:
     uint32_t _pressTimes[3];

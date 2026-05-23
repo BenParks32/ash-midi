@@ -26,8 +26,6 @@ const byte LastSnapshotButtonIndex = 2;
 const byte PatchButtonIndex = 4;
 const byte GigViewButtonIndex = 5;
 const uint16_t GigViewButtonColour = 0xF81F;
-const byte TapTempoButtonIndex = 6;
-const uint16_t TapTempoButtonColour = 0x001F;
 const byte TapTempoCc = 44;
 const byte TapTempoValue = 100;
 const uint32_t TapTempoFlashDurationMs = 10000;
@@ -73,7 +71,7 @@ const char* actionTypeName(ActionType action)
     case ActionType::SelectHomePlaylist:
         return "SelectHomePlaylist";
     case ActionType::TapTempo:
-        return "TapTempo";
+        return "Tap";
     case ActionType::SetGigView:
         return "SetGigView";
     default:
@@ -94,7 +92,8 @@ PlayMode::PlayMode(TouchButtonManager& touchButtonManager, RingManager& ringMana
     : FunctionModeBase(touchButtonManager, ringManager, screenUi, midiManager, transitionDelegate),
       _midiProvider(midiProvider), _buttonOverrideStore(buttonOverrideStore), _selectedPreset(0),
       _selectedPlaylist(midiProvider.defaultPlaylistIndex()), _hasSelectedPreset(false), _selectedButton(0),
-      _tapTempoEngine(), _nextTapTempoFlashToggleMs(0), _tapTempoFlashUntilMs(0), _isTapTempoLit(true)
+      _tapTempoEngine(), _nextTapTempoFlashToggleMs(0), _tapTempoFlashUntilMs(0), _isTapTempoLit(true),
+      _tapTempoDisplayLabel{0}
 {
     setupFunctions();
 }
@@ -142,7 +141,7 @@ void PlayMode::setupFunctions()
     _functions[4] = Function("Patch", 0xFFE0, ActionType::ChangeMode, static_cast<byte>(Modes::Patch),
                              ActionType::ChangeMode, static_cast<byte>(Modes::Home));
     _functions[5] = Function("Gig", GigViewButtonColour, ActionType::SetGigView, 1, ActionType::SetGigView, 0);
-    _functions[6] = Function("Tap", TapTempoButtonColour, ActionType::TapTempo, 0, ActionType::None, 0);
+    _functions[6] = Function();
     _functions[7] = Function("Tuner", TunerButtonColour, ActionType::SetTuner, 1, ActionType::SetTuner, 0);
 }
 
@@ -426,16 +425,26 @@ bool PlayMode::isSceneSelectionButton(byte number) const
            func.action(FunctionBehaviour::ShortPress).type == ActionType::SelectScene;
 }
 
+bool PlayMode::isTapTempoButton(byte number) const
+{
+    if (number >= TouchButtonManager::BUTTON_COUNT || !isButtonEnabled(number))
+    {
+        return false;
+    }
+
+    return getFunction(number).action(FunctionBehaviour::ShortPress).type == ActionType::TapTempo;
+}
+
 uint8_t PlayMode::ringBrightnessForButton(byte number) const
 {
+    if (isTapTempoButton(number))
+    {
+        return _isTapTempoLit ? RingManager::FullBrightness : 0;
+    }
+
     if (number == PatchButtonIndex || number == GigViewButtonIndex || number == TunerButtonIndex)
     {
         return RingManager::FullBrightness;
-    }
-
-    if (number == TapTempoButtonIndex)
-    {
-        return _isTapTempoLit ? RingManager::FullBrightness : 0;
     }
 
     if (isSceneSelectionButton(number))
@@ -550,7 +559,7 @@ void PlayMode::frameTick()
         if (!_isTapTempoLit)
         {
             _isTapTempoLit = true;
-            renderTapTempoPill();
+            renderTapTempoButtons(false);
         }
         return;
     }
@@ -567,7 +576,7 @@ void PlayMode::frameTick()
 
     _isTapTempoLit = !_isTapTempoLit;
     _nextTapTempoFlashToggleMs = now + _tapTempoEngine.flashHalfPeriodMs();
-    renderTapTempoPill();
+    renderTapTempoButtons(false);
 }
 
 void PlayMode::executeAction(const FunctionAction& action)
@@ -616,6 +625,11 @@ void PlayMode::registerTapTempoPress(uint32_t pressedAtMs)
 {
     _tapTempoEngine.registerPress(pressedAtMs);
 
+    if (_tapTempoEngine.hasFlashInterval())
+    {
+        formatTapTempoBpmLabel(_tapTempoEngine.intervalMs(), _tapTempoDisplayLabel, sizeof(_tapTempoDisplayLabel));
+    }
+
     _isTapTempoLit = true;
     _tapTempoFlashUntilMs = pressedAtMs + TapTempoFlashDurationMs;
     if (_tapTempoEngine.hasFlashInterval())
@@ -623,7 +637,7 @@ void PlayMode::registerTapTempoPress(uint32_t pressedAtMs)
         _nextTapTempoFlashToggleMs = pressedAtMs + _tapTempoEngine.flashHalfPeriodMs();
     }
 
-    renderTapTempoPill();
+    renderTapTempoButtons(true);
 }
 
 void PlayMode::clearTapTempoState()
@@ -632,35 +646,60 @@ void PlayMode::clearTapTempoState()
     _nextTapTempoFlashToggleMs = 0;
     _tapTempoFlashUntilMs = 0;
     _isTapTempoLit = true;
+    _tapTempoDisplayLabel[0] = '\0';
 }
 
-void PlayMode::renderTapTempoPill()
+void PlayMode::renderTapTempoButtons(bool redrawLabel)
 {
-    FootSwitchTouchButton* button = _touchButtonManager.getButton(TapTempoButtonIndex);
-    if (button == nullptr)
+    for (byte buttonIndex = 0; buttonIndex < TouchButtonManager::BUTTON_COUNT; ++buttonIndex)
+    {
+        if (!isTapTempoButton(buttonIndex))
+        {
+            continue;
+        }
+
+        FootSwitchTouchButton* button = _touchButtonManager.getButton(buttonIndex);
+        if (button == nullptr)
+        {
+            continue;
+        }
+
+        const uint8_t ringBrightness = ringBrightnessForButton(buttonIndex);
+        const uint16_t pillColour = (ringBrightness > 0U) ? getFunction(buttonIndex).colour() : TFT_BLACK;
+
+        button->setEnabled(true);
+        button->setPillColour(pillColour);
+        button->setBorderVisible(false);
+
+        const uint32_t ringColour = ColorUtils::rgb565To888(getFunction(buttonIndex).colour());
+        _ringManager.setRingColour(buttonIndex, (ringBrightness > 0U) ? ringColour : 0U);
+        _ringManager.setRingBrightness(buttonIndex, ringBrightness);
+
+        if (redrawLabel)
+        {
+            button->setLabel((_tapTempoDisplayLabel[0] != '\0') ? _tapTempoDisplayLabel : getFunction(buttonIndex).label());
+            button->draw(_screenUi);
+            continue;
+        }
+
+        _screenUi.drawTouchButtonPill(button->getLocation(), button->getSize(), pillColour,
+                                      _screenUi.touchButtonPillBorderColour());
+    }
+}
+
+void PlayMode::formatTapTempoBpmLabel(uint32_t intervalMs, char* buffer, size_t bufferSize)
+{
+    if (buffer == nullptr || bufferSize == 0U)
     {
         return;
     }
 
-    const bool enabled = isButtonEnabled(TapTempoButtonIndex);
-    const uint8_t ringBrightness = enabled ? ringBrightnessForButton(TapTempoButtonIndex) : 0;
-    const uint16_t pillColour = (enabled && ringBrightness > 0) ? getFunction(TapTempoButtonIndex).colour() : 0;
-
-    button->setEnabled(enabled);
-    button->setPillColour(pillColour);
-    button->setBorderVisible(false);
-
-    if (!enabled)
+    if (intervalMs == 0U)
     {
-        _ringManager.setRingColour(TapTempoButtonIndex, 0);
-        _ringManager.setRingBrightness(TapTempoButtonIndex, 0);
-        _screenUi.drawTouchButtonPill(button->getLocation(), button->getSize(), 0, 0);
+        buffer[0] = '\0';
         return;
     }
 
-    const uint32_t ringColour = ColorUtils::rgb565To888(getFunction(TapTempoButtonIndex).colour());
-    _ringManager.setRingColour(TapTempoButtonIndex, (ringBrightness > 0) ? ringColour : 0);
-    _ringManager.setRingBrightness(TapTempoButtonIndex, ringBrightness);
-    _screenUi.drawTouchButtonPill(button->getLocation(), button->getSize(), pillColour,
-                                  _screenUi.touchButtonPillBorderColour());
+    const uint32_t bpm = (60000U + (intervalMs / 2U)) / intervalMs;
+    std::snprintf(buffer, bufferSize, "%lu", static_cast<unsigned long>(bpm));
 }
