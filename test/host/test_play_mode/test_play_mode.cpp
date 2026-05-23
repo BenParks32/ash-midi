@@ -896,18 +896,19 @@ void test_tuner_button_flashes_when_enabled_without_redrawing_label()
     TEST_ASSERT_EQUAL_INT(drawPillCallsBeforeFlash + 1, fixture.ui.drawTouchButtonPillCalls);
 }
 
-void test_deactivate_clears_toggle_state_before_reactivation()
+void test_patch_change_reactivation_preserves_tuner_toggle_state()
 {
     PlayModeFixture fixture;
 
     fixture.mode.activate();
     fixture.mode.buttonPressed(7);
     fixture.mode.deactivate();
+    fixture.mode.setTransitionValue(ModeTransitionPatchReturnFlag | 9);
     fixture.mode.activate();
     fixture.mode.buttonPressed(7);
 
     TEST_ASSERT_EQUAL_INT(2, fixture.midiProvider.setTunerCalls);
-    TEST_ASSERT_TRUE(fixture.midiProvider.lastTunerEnabled);
+    TEST_ASSERT_FALSE(fixture.midiProvider.lastTunerEnabled);
 }
 
 void test_button_press_changes_selection_to_single_button()
@@ -1068,7 +1069,7 @@ int main(int argc, char** argv)
     RUN_TEST(test_tuner_button_second_short_press_disables_tuner);
     RUN_TEST(test_tuner_button_long_press_is_noop);
     RUN_TEST(test_tuner_button_flashes_when_enabled_without_redrawing_label);
-    RUN_TEST(test_deactivate_clears_toggle_state_before_reactivation);
+    RUN_TEST(test_patch_change_reactivation_preserves_tuner_toggle_state);
     RUN_TEST(test_button_press_changes_selection_to_single_button);
     RUN_TEST(test_button_pressed_ignores_disabled_button);
     RUN_TEST(test_long_press_is_noop);

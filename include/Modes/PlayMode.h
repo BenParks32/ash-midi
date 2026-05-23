@@ -36,7 +36,6 @@ class PlayMode : public FunctionModeBase
     void toggleAction(ActionType actionType);
     void registerTapTempoPress(uint32_t pressedAtMs);
     void clearTapTempoState();
-    void clearToggleState();
     void renderTapTempoButtons(bool redrawLabel);
     void renderToggleButtons(ActionType actionType, bool redrawLabel);
     static void formatTapTempoBpmLabel(uint32_t intervalMs, char* buffer, size_t bufferSize);

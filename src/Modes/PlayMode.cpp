@@ -185,6 +185,17 @@ void PlayMode::activate()
         _tapTempoFlashUntilMs = 0;
     }
 
+    if (_isTunerEnabled)
+    {
+        _isTunerFlashLit = true;
+        _nextTunerFlashToggleMs = now + TunerFlashHalfPeriodMs;
+    }
+    else
+    {
+        _isTunerFlashLit = true;
+        _nextTunerFlashToggleMs = 0;
+    }
+
     if (_hasSelectedPreset)
     {
         _midiProvider.recallPreset(_selectedPreset);
@@ -207,7 +218,6 @@ void PlayMode::activate()
 
 void PlayMode::deactivate()
 {
-    clearToggleState();
     clearTapTempoState();
     clearPlayCenterUi();
 }
@@ -731,14 +741,6 @@ void PlayMode::clearTapTempoState()
     _tapTempoFlashUntilMs = 0;
     _isTapTempoLit = true;
     _tapTempoDisplayLabel[0] = '\0';
-}
-
-void PlayMode::clearToggleState()
-{
-    _isTunerEnabled = false;
-    _isGigViewEnabled = false;
-    _isTunerFlashLit = true;
-    _nextTunerFlashToggleMs = 0;
 }
 
 void PlayMode::renderTapTempoButtons(bool redrawLabel)
