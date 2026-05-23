@@ -24,6 +24,12 @@ class PlayMode : public FunctionModeBase
     void setTransitionValue(ModeTransitionValue transitionValue) override;
 
   private:
+    struct TrackedTextLabel
+    {
+        static constexpr size_t Capacity = 64;
+        char text[Capacity];
+    };
+
     struct PatchBadgeMetrics
     {
         int32_t frameCenterX;
@@ -44,12 +50,19 @@ class PlayMode : public FunctionModeBase
     void renderPatchBadge();
     void clearPatchBadge();
     void renderPatchBadgeNumber(byte patchNumber, uint16_t textColour);
+    void renderPatchNameLabel(uint16_t textColour);
     void renderSnapshotLabel(byte snapshotButton, uint16_t textColour);
     static void formatPatchNumberLabel(byte patchNumber, char* buffer, size_t bufferSize);
+    static void formatPatchNameDisplayLabel(const char* patchName, char* buffer, size_t bufferSize);
     void formatSnapshotLabelUppercase(byte snapshotButton, char* buffer, size_t bufferSize) const;
+    void updateTrackedTextLabel(TrackedTextLabel& trackedLabel, const char* newText, const GFXfont* font, uint8_t scale,
+                                int32_t x, int32_t y, uint16_t textColour);
+    void clearTrackedTextLabel(TrackedTextLabel& trackedLabel, const GFXfont* font, uint8_t scale, int32_t x, int32_t y);
     PatchBadgeMetrics patchBadgeMetrics() const;
     int32_t patchBadgeFrameCenterX() const;
     int32_t patchBadgeFrameTopY() const;
+    int32_t patchNameLabelY() const;
+    int32_t snapshotLabelY() const;
     void renderButton(byte number);
     void updateSnapshotSelectionVisuals(byte previousSelected, byte currentSelected);
     void updateVisuals();
@@ -78,5 +91,9 @@ class PlayMode : public FunctionModeBase
     bool _isTunerEnabled;
     bool _isGigViewEnabled;
     bool _isTunerFlashLit;
+    bool _toggleStates[TouchButtonManager::BUTTON_COUNT];
+    PatchDisplayConfig _patchDisplayConfig;
+    TrackedTextLabel _patchNameLabel;
+    TrackedTextLabel _snapshotLabel;
     char _tapTempoDisplayLabel[Function::LabelCapacity];
 };

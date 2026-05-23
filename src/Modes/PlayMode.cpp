@@ -4,12 +4,14 @@
 #include <TFT_eSPI.h>
 #include <cctype>
 #include <cstdio>
+#include <cstring>
 
 namespace
 {
 const char* PlayPatchBadgeTitle = "Patch";
 const uint8_t PlayPatchBadgeTitleScale = 1;
 const uint8_t PlayPatchBadgeNumberScale = 1;
+const uint8_t PlayPatchNameScale = 1;
 const uint8_t PlaySnapshotLabelScale = 1;
 
 const int32_t PlayPatchBadgeFrameWidth = 118;
@@ -19,6 +21,9 @@ const int32_t PlayPatchBadgeRightMargin = 20;
 const int32_t PlaySnapshotLabelOffsetY = 72;
 const int32_t PlayPatchBadgeTitleBorderOffset = 5;
 const int32_t PlayPatchBadgeNumberOffset = 22;
+const int32_t PlayPatchNameOffsetY = 40;
+const size_t PlayPatchNameMaxChars = 18;
+const char* PlayPatchNamePrefix = "Patch: ";
 
 const int32_t PlaySnapshotLabelLeftX = 40;
 const byte FirstSnapshotButtonIndex = 0;
@@ -95,6 +100,8 @@ PlayMode::PlayMode(TouchButtonManager& touchButtonManager, RingManager& ringMana
       _selectedPlaylist(midiProvider.defaultPlaylistIndex()), _hasSelectedPreset(false), _selectedButton(0),
       _tapTempoEngine(), _nextTapTempoFlashToggleMs(0), _tapTempoFlashUntilMs(0), _isTapTempoLit(true),
       _nextTunerFlashToggleMs(0), _isTunerEnabled(false), _isGigViewEnabled(false), _isTunerFlashLit(true),
+      _toggleStates{false, false, false, false, false, false, false, false},
+      _patchDisplayConfig(), _patchNameLabel{{0}}, _snapshotLabel{{0}},
       _tapTempoDisplayLabel{0}
 {
     setupFunctions();
@@ -143,16 +150,20 @@ void PlayMode::setupFunctions()
     _functions[4] = Function("Patch", 0xFFE0, ActionType::ChangeMode, static_cast<byte>(Modes::Patch),
                              ActionType::ChangeMode, static_cast<byte>(Modes::Home));
     _functions[5] = Function("Gig", GigViewButtonColour, ActionType::SetGigView, 1, ActionType::SetGigView, 0);
+    _functions[5].setToggle(true);
     _functions[6] = Function();
     _functions[7] = Function("Tuner", TunerButtonColour, ActionType::SetTuner, 1, ActionType::SetTuner, 0);
+    _functions[7].setToggle(true);
 }
 
 void PlayMode::activate()
 {
     _midiProvider.selectPlaylist(_selectedPlaylist);
     setupFunctions();
+    _patchDisplayConfig.name[0] = '\0';
     const bool didRefreshOverrides = _buttonOverrideStore.refresh();
-    _buttonOverrideStore.applyOverrides(_selectedPlaylist, _selectedPreset, _functions, TouchButtonManager::BUTTON_COUNT);
+    _buttonOverrideStore.applyOverrides(_selectedPlaylist, _selectedPreset, _functions, TouchButtonManager::BUTTON_COUNT,
+                                        &_patchDisplayConfig);
     Serial.printf("Play mode: activate playlist=%s(%u) patch=%u refresh=%s\n", playPlaylistName(_selectedPlaylist),
                   static_cast<unsigned int>(_selectedPlaylist), static_cast<unsigned int>(_selectedPreset),
                   didRefreshOverrides ? "ok" : "failed");
@@ -225,13 +236,15 @@ void PlayMode::deactivate()
 void PlayMode::renderPlayCenterUi()
 {
     renderPatchBadge();
+    renderPatchNameLabel(TFT_WHITE);
     renderSnapshotLabel(_selectedButton, TFT_WHITE);
 }
 
 void PlayMode::clearPlayCenterUi()
 {
     clearPatchBadge();
-    renderSnapshotLabel(_selectedButton, TFT_BLACK);
+    clearTrackedTextLabel(_patchNameLabel, FF22, PlayPatchNameScale, PlaySnapshotLabelLeftX, patchNameLabelY());
+    clearTrackedTextLabel(_snapshotLabel, FF32, PlaySnapshotLabelScale, PlaySnapshotLabelLeftX, snapshotLabelY());
 }
 
 void PlayMode::renderPatchBadge()
@@ -273,15 +286,14 @@ void PlayMode::renderSnapshotLabel(byte snapshotButton, uint16_t textColour)
 {
     if (!isSceneSelectionButton(snapshotButton))
     {
+        clearTrackedTextLabel(_snapshotLabel, FF32, PlaySnapshotLabelScale, PlaySnapshotLabelLeftX, snapshotLabelY());
         return;
     }
 
     char snapshotLabel[16] = {'\0'};
     formatSnapshotLabelUppercase(snapshotButton, snapshotLabel, sizeof(snapshotLabel));
-
-    const int32_t labelY = _screenUi.boxHeight() + PlaySnapshotLabelOffsetY;
-    _screenUi.drawText(FF32, PlaySnapshotLabelScale, snapshotLabel, PlaySnapshotLabelLeftX, labelY, textColour,
-                       TFT_BLACK);
+    updateTrackedTextLabel(_snapshotLabel, snapshotLabel, FF32, PlaySnapshotLabelScale, PlaySnapshotLabelLeftX,
+                           snapshotLabelY(), textColour);
 }
 
 void PlayMode::formatPatchNumberLabel(byte patchNumber, char* buffer, size_t bufferSize)
@@ -292,6 +304,30 @@ void PlayMode::formatPatchNumberLabel(byte patchNumber, char* buffer, size_t buf
     }
 
     std::snprintf(buffer, bufferSize, "%02u", static_cast<unsigned int>(patchNumber));
+}
+
+void PlayMode::formatPatchNameDisplayLabel(const char* patchName, char* buffer, size_t bufferSize)
+{
+    if (buffer == nullptr || bufferSize == 0U)
+    {
+        return;
+    }
+
+    if (patchName == nullptr || patchName[0] == '\0')
+    {
+        buffer[0] = '\0';
+        return;
+    }
+
+    const size_t patchNameLength = std::strlen(patchName);
+    if (patchNameLength <= PlayPatchNameMaxChars)
+    {
+        std::snprintf(buffer, bufferSize, "%s%s", PlayPatchNamePrefix, patchName);
+        return;
+    }
+
+    std::snprintf(buffer, bufferSize, "%s%.*s...", PlayPatchNamePrefix, static_cast<int>(PlayPatchNameMaxChars),
+                  patchName);
 }
 
 void PlayMode::formatSnapshotLabelUppercase(byte snapshotButton, char* buffer, size_t bufferSize) const
@@ -315,6 +351,36 @@ void PlayMode::formatSnapshotLabelUppercase(byte snapshotButton, char* buffer, s
         ++out;
     }
     buffer[out] = '\0';
+}
+
+void PlayMode::updateTrackedTextLabel(TrackedTextLabel& trackedLabel, const char* newText, const GFXfont* font,
+                                      uint8_t scale, int32_t x, int32_t y, uint16_t textColour)
+{
+    if (trackedLabel.text[0] != '\0')
+    {
+        _screenUi.drawText(font, scale, trackedLabel.text, x, y, TFT_BLACK, TFT_BLACK);
+    }
+
+    if (newText == nullptr || newText[0] == '\0')
+    {
+        trackedLabel.text[0] = '\0';
+        return;
+    }
+
+    std::snprintf(trackedLabel.text, sizeof(trackedLabel.text), "%s", newText);
+    _screenUi.drawText(font, scale, trackedLabel.text, x, y, textColour, TFT_BLACK);
+}
+
+void PlayMode::clearTrackedTextLabel(TrackedTextLabel& trackedLabel, const GFXfont* font, uint8_t scale, int32_t x,
+                                     int32_t y)
+{
+    if (trackedLabel.text[0] == '\0')
+    {
+        return;
+    }
+
+    _screenUi.drawText(font, scale, trackedLabel.text, x, y, TFT_BLACK, TFT_BLACK);
+    trackedLabel.text[0] = '\0';
 }
 
 int32_t PlayMode::patchBadgeFrameCenterX() const
@@ -347,6 +413,10 @@ int32_t PlayMode::patchBadgeFrameTopY() const
 
     return centerTopY + swappedTopGap;
 }
+
+int32_t PlayMode::patchNameLabelY() const { return _screenUi.boxHeight() + PlayPatchNameOffsetY; }
+
+int32_t PlayMode::snapshotLabelY() const { return _screenUi.boxHeight() + PlaySnapshotLabelOffsetY; }
 
 void PlayMode::updateVisuals() { renderAllButtons(); }
 
@@ -394,18 +464,15 @@ void PlayMode::updateSnapshotSelectionVisuals(byte previousSelected, byte curren
     if (previousSelected >= FirstSnapshotButtonIndex && previousSelected <= LastSnapshotButtonIndex)
     {
         renderButton(previousSelected);
-        if (previousSelected != currentSelected)
-        {
-            renderSnapshotLabel(previousSelected, TFT_BLACK);
-        }
     }
 
     if (currentSelected != previousSelected && currentSelected >= FirstSnapshotButtonIndex &&
         currentSelected <= LastSnapshotButtonIndex)
     {
         renderButton(currentSelected);
-        renderSnapshotLabel(currentSelected, TFT_WHITE);
     }
+
+    renderSnapshotLabel(currentSelected, TFT_WHITE);
 }
 
 bool PlayMode::usesSelectionBorder(byte number) const
@@ -472,7 +539,11 @@ ActionType PlayMode::toggleActionTypeForButton(byte number) const
     }
 }
 
-bool PlayMode::isToggleButton(byte number) const { return toggleActionTypeForButton(number) != ActionType::None; }
+bool PlayMode::isToggleButton(byte number) const
+{
+    return number < TouchButtonManager::BUTTON_COUNT && isButtonEnabled(number) && getFunction(number).isToggle() &&
+           !getFunction(number).hasMomentaryBehaviour();
+}
 
 bool PlayMode::isToggleActionEnabled(ActionType actionType) const
 {
@@ -494,14 +565,17 @@ uint8_t PlayMode::ringBrightnessForButton(byte number) const
         return _isTapTempoLit ? RingManager::FullBrightness : 0;
     }
 
-    switch (toggleActionTypeForButton(number))
+    if (isToggleButton(number))
     {
-    case ActionType::SetTuner:
-        return (!_isTunerEnabled || _isTunerFlashLit) ? RingManager::FullBrightness : 0;
-    case ActionType::SetGigView:
-        return _isGigViewEnabled ? RingManager::FullBrightness : RingManager::DimBrightness;
-    default:
-        break;
+        switch (toggleActionTypeForButton(number))
+        {
+        case ActionType::SetTuner:
+            return (!_isTunerEnabled || _isTunerFlashLit) ? RingManager::FullBrightness : 0;
+        case ActionType::SetGigView:
+            return _isGigViewEnabled ? RingManager::FullBrightness : RingManager::DimBrightness;
+        default:
+            return _toggleStates[number] ? RingManager::FullBrightness : RingManager::DimBrightness;
+        }
     }
 
     if (number == PatchButtonIndex)
@@ -552,9 +626,17 @@ void PlayMode::buttonPressed(byte number)
     }
 
     const ActionType toggleActionType = toggleActionTypeForButton(number);
-    if (toggleActionType != ActionType::None)
+    if (isToggleButton(number))
     {
-        toggleAction(toggleActionType);
+        if (toggleActionType != ActionType::None)
+        {
+            toggleAction(toggleActionType);
+            return;
+        }
+
+        _toggleStates[number] = !_toggleStates[number];
+        executeAction(func.action(FunctionBehaviour::ShortPress));
+        renderButton(number);
         return;
     }
 
@@ -743,6 +825,14 @@ void PlayMode::clearTapTempoState()
     _tapTempoDisplayLabel[0] = '\0';
 }
 
+void PlayMode::renderPatchNameLabel(uint16_t textColour)
+{
+    char patchNameLabel[TrackedTextLabel::Capacity] = {'\0'};
+    formatPatchNameDisplayLabel(_patchDisplayConfig.name, patchNameLabel, sizeof(patchNameLabel));
+    updateTrackedTextLabel(_patchNameLabel, patchNameLabel, FF22, PlayPatchNameScale, PlaySnapshotLabelLeftX,
+                           patchNameLabelY(), textColour);
+}
+
 void PlayMode::renderTapTempoButtons(bool redrawLabel)
 {
     for (byte buttonIndex = 0; buttonIndex < TouchButtonManager::BUTTON_COUNT; ++buttonIndex)
@@ -785,7 +875,7 @@ void PlayMode::renderToggleButtons(ActionType actionType, bool redrawLabel)
 {
     for (byte buttonIndex = 0; buttonIndex < TouchButtonManager::BUTTON_COUNT; ++buttonIndex)
     {
-        if (toggleActionTypeForButton(buttonIndex) != actionType)
+        if (!isToggleButton(buttonIndex) || toggleActionTypeForButton(buttonIndex) != actionType)
         {
             continue;
         }

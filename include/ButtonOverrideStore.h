@@ -7,13 +7,23 @@
 #include <Arduino.h>
 #include <stddef.h>
 
+struct PatchDisplayConfig
+{
+    static constexpr size_t NameCapacity = 48;
+
+    char name[NameCapacity];
+
+    PatchDisplayConfig() : name{0} {}
+};
+
 class IButtonOverrideStore
 {
   public:
     virtual ~IButtonOverrideStore() = default;
 
     virtual bool refresh() = 0;
-    virtual void applyOverrides(byte playlistIndex, byte patchNumber, Function* functions, size_t functionCount) const = 0;
+    virtual void applyOverrides(byte playlistIndex, byte patchNumber, Function* functions, size_t functionCount,
+                                PatchDisplayConfig* patchDisplay = nullptr) const = 0;
 };
 
 class ButtonOverrideStore : public IButtonOverrideStore
@@ -23,7 +33,8 @@ class ButtonOverrideStore : public IButtonOverrideStore
     ~ButtonOverrideStore();
 
     bool refresh() override;
-    void applyOverrides(byte playlistIndex, byte patchNumber, Function* functions, size_t functionCount) const override;
+    void applyOverrides(byte playlistIndex, byte patchNumber, Function* functions, size_t functionCount,
+                        PatchDisplayConfig* patchDisplay = nullptr) const override;
 
   private:
     static constexpr const char* kPrimaryConfigPath = "/BUTTONS.JSN";
@@ -42,6 +53,8 @@ class ButtonOverrideStore : public IButtonOverrideStore
         char label[Function::LabelCapacity];
         bool hasColour;
         uint16_t colour;
+        bool hasToggle;
+        bool toggle;
         ParsedActionOverride actions[static_cast<uint8_t>(FunctionBehaviour::Count)];
     };
 

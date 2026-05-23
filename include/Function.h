@@ -54,11 +54,13 @@ class Function
     uint16_t colour() const;
     const FunctionAction& action(FunctionBehaviour behaviour) const;
     bool hasMomentaryBehaviour() const;
+    bool isToggle() const;
 
     // Setters
     void setLabel(const char* label);
     void setColour(uint16_t colour);
     void setAction(FunctionBehaviour behaviour, const FunctionAction& action);
+    void setToggle(bool toggle);
 
   private:
     static FunctionAction buildLegacyAction(ActionType action, uint8_t actionValue);
@@ -66,4 +68,5 @@ class Function
     char _label[LabelCapacity];
     uint16_t _colour;
     FunctionAction _actions[static_cast<uint8_t>(FunctionBehaviour::Count)];
+    bool _isToggle;
 };

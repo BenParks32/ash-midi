@@ -58,6 +58,42 @@ void test_refresh_parses_tap_alias_for_blank_default_button()
                             static_cast<uint8_t>(functions[3].action(FunctionBehaviour::ShortPress).type));
 }
 
+void test_apply_overrides_reads_patch_name_without_button_overrides()
+{
+    MockTextFileStore fileStore;
+    std::strcpy(fileStore.contents, "{\"playModes\":{\"Project7\":{\"patches\":{\"5\":{\"name\":\"Big Sky Intro\"}}}}}");
+    fileStore.hasContents = true;
+
+    ButtonOverrideStore store(&fileStore);
+    TEST_ASSERT_TRUE(store.refresh());
+
+    Function functions[8] = {};
+    PatchDisplayConfig patchDisplay;
+    store.applyOverrides(2, 5, functions, 8, &patchDisplay);
+
+    TEST_ASSERT_EQUAL_STRING("Big Sky Intro", patchDisplay.name);
+    TEST_ASSERT_EQUAL_STRING(" ", functions[0].label());
+}
+
+void test_apply_overrides_sets_toggle_flag_when_configured()
+{
+    MockTextFileStore fileStore;
+    std::strcpy(fileStore.contents,
+                "{\"playModes\":{\"Project7\":{\"patches\":{\"5\":{\"buttons\":{\"7\":{\"toggle\":true,"
+                "\"function\":{\"shortPress\":{\"action\":\"SetTuner\",\"value\":1},"
+                "\"longPress\":{\"action\":\"SetTuner\",\"value\":0}}}}}}}}}");
+    fileStore.hasContents = true;
+
+    ButtonOverrideStore store(&fileStore);
+    TEST_ASSERT_TRUE(store.refresh());
+
+    Function functions[8] = {};
+    functions[7] = Function("Tuner", 0x801F, ActionType::SetTuner, 1, ActionType::SetTuner, 0);
+    store.applyOverrides(2, 5, functions, 8);
+
+    TEST_ASSERT_TRUE(functions[7].isToggle());
+}
+
 void test_apply_overrides_matches_playlist_and_patch()
 {
     MockTextFileStore fileStore;
@@ -122,6 +158,8 @@ int main(int argc, char** argv)
 
     UNITY_BEGIN();
     RUN_TEST(test_refresh_parses_tap_alias_for_blank_default_button);
+    RUN_TEST(test_apply_overrides_reads_patch_name_without_button_overrides);
+    RUN_TEST(test_apply_overrides_sets_toggle_flag_when_configured);
     RUN_TEST(test_apply_overrides_matches_playlist_and_patch);
     RUN_TEST(test_apply_overrides_can_reparse_same_config_multiple_times);
     return UNITY_END();
