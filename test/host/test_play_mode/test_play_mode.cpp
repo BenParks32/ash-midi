@@ -1,3 +1,5 @@
+#include <cstdio>
+#include <cstring>
 #include <unity.h>
 
 #include "ButtonOverrideStore.h"
@@ -30,6 +32,17 @@ constexpr ModeTransitionValue hostHomePlaylistTransitionValue(byte playlistIndex
 class FakeScreenUi : public IScreenUi
 {
   public:
+    struct DrawTextCall
+    {
+        char label[64];
+        const GFXfont* font;
+        uint8_t scale;
+        int32_t x;
+        int32_t y;
+        uint16_t textColour;
+        uint16_t backgroundColour;
+    };
+
     void drawBackgroundAndBorder() override { ++drawBackgroundAndBorderCalls; }
 
     void drawCenteredFrame(int32_t, int32_t, int32_t, int32_t, int32_t) override { ++drawCenteredFrameCalls; }
@@ -50,9 +63,21 @@ class FakeScreenUi : public IScreenUi
         ++drawLogoWithColoursCalls;
     }
 
-    void drawText(const GFXfont*, uint8_t, const char*, int32_t, int32_t, uint16_t, uint16_t) override
+    void drawText(const GFXfont* font, uint8_t scale, const char* label, int32_t x, int32_t y, uint16_t textColour,
+                  uint16_t backgroundColour) override
     {
         ++drawTextCalls;
+        if (drawTextCallCount < MaxDrawTextCalls)
+        {
+            DrawTextCall& call = drawTextLog[drawTextCallCount++];
+            std::snprintf(call.label, sizeof(call.label), "%s", (label != nullptr) ? label : "");
+            call.font = font;
+            call.scale = scale;
+            call.x = x;
+            call.y = y;
+            call.textColour = textColour;
+            call.backgroundColour = backgroundColour;
+        }
     }
 
     void fillRect(int32_t, int32_t, int32_t, int32_t, uint16_t) override { ++fillRectCalls; }
@@ -85,6 +110,9 @@ class FakeScreenUi : public IScreenUi
     int32_t bottomRowY() const override { return 240; }
     Size boxSize() const override { return {120, 80}; }
 
+    static constexpr int MaxDrawTextCalls = 64;
+    DrawTextCall drawTextLog[MaxDrawTextCalls] = {};
+    int drawTextCallCount = 0;
     int drawBackgroundAndBorderCalls = 0;
     int drawCenteredFrameCalls = 0;
     int drawLogoCalls = 0;
@@ -155,11 +183,22 @@ class MockButtonOverrideStore : public IButtonOverrideStore
         return refreshResult;
     }
 
-    void applyOverrides(byte playlistIndex, byte patchNumber, Function* functions, size_t functionCount) const override
+    void applyOverrides(byte playlistIndex, byte patchNumber, Function* functions, size_t functionCount,
+                        PatchDisplayConfig* patchDisplay = nullptr) const override
     {
         ++applyCalls;
         lastPlaylistIndex = playlistIndex;
         lastPatchNumber = patchNumber;
+
+        if (patchDisplay != nullptr)
+        {
+            patchDisplay->name[0] = '\0';
+            if (enablePatchName)
+            {
+                const char* patchName = (patchNumber == alternatePatchNumber) ? alternatePatchName : defaultPatchName;
+                std::snprintf(patchDisplay->name, PatchDisplayConfig::NameCapacity, "%s", patchName);
+            }
+        }
 
         if (functions == nullptr)
         {
@@ -172,6 +211,18 @@ class MockButtonOverrideStore : public IButtonOverrideStore
                                     FunctionAction(ActionType::SendMidiControlChange, 21, 0),
                                     FunctionAction(ActionType::SelectScene, 2, 0),
                                     FunctionAction(ActionType::ChangeMode, static_cast<byte>(Modes::Home), 0));
+        }
+
+        if (disableTunerToggle && functionCount > 7)
+        {
+            functions[7] = Function("Tuner", 0x801F, ActionType::SetTuner, 1, ActionType::SetTuner, 0);
+            functions[7].setToggle(false);
+        }
+
+        if (enableGenericToggleOverride && functionCount > 6)
+        {
+            functions[6] = Function("E Flat", 0xFD20, ActionType::SendMidiControlChange, 35, ActionType::None, 0);
+            functions[6].setToggle(true);
         }
 
         if (!enableTapOverride || tapButtonIndex >= functionCount)
@@ -187,8 +238,14 @@ class MockButtonOverrideStore : public IButtonOverrideStore
     mutable byte lastPatchNumber = 0;
     int refreshCalls = 0;
     bool refreshResult = true;
+    bool disableTunerToggle = false;
+    bool enableGenericToggleOverride = false;
     bool enableMomentaryOverride = false;
+    bool enablePatchName = false;
     bool enableTapOverride = false;
+    char defaultPatchName[PatchDisplayConfig::NameCapacity] = "Big Sky Intro";
+    char alternatePatchName[PatchDisplayConfig::NameCapacity] = "Massive Lead Wall";
+    byte alternatePatchNumber = 9;
     byte tapButtonIndex = 3;
 };
 
@@ -282,6 +339,34 @@ uint32_t ringPixelColour(const PlayModeFixture& fixture, byte ringIndex)
     return fixture.strip.getPixelColor(static_cast<uint16_t>(ringIndex) * RingManager::LedsPerRing);
 }
 
+int findDrawTextCallIndex(const FakeScreenUi& ui, const char* label, uint16_t textColour, int startIndex = 0)
+{
+    for (int i = startIndex; i < ui.drawTextCallCount; ++i)
+    {
+        if (std::strcmp(ui.drawTextLog[i].label, label) == 0 && ui.drawTextLog[i].textColour == textColour)
+        {
+            return i;
+        }
+    }
+
+    return -1;
+}
+
+bool hasDrawTextPrefix(const FakeScreenUi& ui, const char* prefix, uint16_t textColour)
+{
+    const size_t prefixLength = std::strlen(prefix);
+    for (int i = 0; i < ui.drawTextCallCount; ++i)
+    {
+        if (ui.drawTextLog[i].textColour == textColour &&
+            std::strncmp(ui.drawTextLog[i].label, prefix, prefixLength) == 0)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 void test_activate_sets_play_labels()
 {
     PlayModeFixture fixture;
@@ -307,6 +392,37 @@ void test_activate_applies_tap_to_configured_button()
 
     TEST_ASSERT_EQUAL_STRING("Tap", fixture.touchButtonManager.getButton(3)->label());
     TEST_ASSERT_NOT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(3)->pillColour());
+}
+
+void test_activate_renders_patch_name_with_prefix_when_provided()
+{
+    PlayModeFixture fixture;
+    fixture.overrideStore.enablePatchName = true;
+
+    fixture.mode.activate();
+
+    TEST_ASSERT_TRUE(findDrawTextCallIndex(fixture.ui, "Patch: Big Sky Intro", TFT_WHITE) >= 0);
+}
+
+void test_activate_without_patch_name_does_not_render_patch_name_prefix()
+{
+    PlayModeFixture fixture;
+
+    fixture.mode.activate();
+
+    TEST_ASSERT_FALSE(hasDrawTextPrefix(fixture.ui, "Patch: ", TFT_WHITE));
+}
+
+void test_patch_name_is_truncated_for_long_labels()
+{
+    PlayModeFixture fixture;
+    fixture.overrideStore.enablePatchName = true;
+    std::snprintf(fixture.overrideStore.defaultPatchName, sizeof(fixture.overrideStore.defaultPatchName),
+                  "%s", "This Is A Very Long Patch Name For A Big Ambient Intro");
+
+    fixture.mode.activate();
+
+    TEST_ASSERT_TRUE(hasDrawTextPrefix(fixture.ui, "Patch: This Is A Very Lon...", TFT_WHITE));
 }
 
 void test_tap_tempo_button_label_updates_to_bpm_when_interval_is_known()
@@ -877,6 +993,41 @@ void test_tuner_button_long_press_is_noop()
     TEST_ASSERT_EQUAL_INT(0, fixture.midiManager.controlChangeCalls);
 }
 
+void test_tuner_button_can_be_configured_as_non_toggle()
+{
+    PlayModeFixture fixture;
+    fixture.overrideStore.disableTunerToggle = true;
+
+    fixture.mode.activate();
+    fixture.mode.buttonPressed(7);
+    fixture.mode.buttonPressed(7);
+    fixture.mode.buttonLongPressed(7);
+
+    TEST_ASSERT_EQUAL_INT(3, fixture.midiProvider.setTunerCalls);
+    TEST_ASSERT_FALSE(fixture.midiProvider.lastTunerEnabled);
+}
+
+void test_generic_toggle_button_dims_until_pressed_and_toggles_on_second_press()
+{
+    PlayModeFixture fixture;
+    fixture.overrideStore.enableGenericToggleOverride = true;
+
+    fixture.mode.activate();
+    const uint32_t dimColour = ringPixelColour(fixture, 6);
+
+    fixture.mode.buttonPressed(6);
+    const uint32_t fullColour = ringPixelColour(fixture, 6);
+
+    fixture.mode.buttonPressed(6);
+    const uint32_t dimAgainColour = ringPixelColour(fixture, 6);
+
+    TEST_ASSERT_NOT_EQUAL(0U, dimColour);
+    TEST_ASSERT_TRUE(fullColour > dimColour);
+    TEST_ASSERT_TRUE(dimAgainColour < fullColour);
+    TEST_ASSERT_EQUAL_INT(2, fixture.midiManager.controlChangeCalls);
+    TEST_ASSERT_EQUAL_UINT8(35, fixture.midiManager.lastControlChangeNumber);
+}
+
 void test_tuner_button_flashes_when_enabled_without_redrawing_label()
 {
     PlayModeFixture fixture;
@@ -909,6 +1060,40 @@ void test_patch_change_reactivation_preserves_tuner_toggle_state()
 
     TEST_ASSERT_EQUAL_INT(2, fixture.midiProvider.setTunerCalls);
     TEST_ASSERT_FALSE(fixture.midiProvider.lastTunerEnabled);
+}
+
+void test_deactivate_clears_rendered_patch_name_in_black()
+{
+    PlayModeFixture fixture;
+    fixture.overrideStore.enablePatchName = true;
+
+    fixture.mode.activate();
+    const int drawTextCallsBeforeDeactivate = fixture.ui.drawTextCallCount;
+
+    fixture.mode.deactivate();
+
+    TEST_ASSERT_TRUE(findDrawTextCallIndex(fixture.ui, "Patch: Big Sky Intro", TFT_BLACK, drawTextCallsBeforeDeactivate) >= 0);
+}
+
+void test_patch_change_renders_new_patch_name_after_clearing_previous_one()
+{
+    PlayModeFixture fixture;
+    fixture.overrideStore.enablePatchName = true;
+
+    fixture.mode.activate();
+    const int drawTextCallsBeforePatchChange = fixture.ui.drawTextCallCount;
+
+    fixture.mode.deactivate();
+    fixture.mode.setTransitionValue(ModeTransitionPatchReturnFlag | fixture.overrideStore.alternatePatchNumber);
+    fixture.mode.activate();
+
+    const int clearCallIndex =
+        findDrawTextCallIndex(fixture.ui, "Patch: Big Sky Intro", TFT_BLACK, drawTextCallsBeforePatchChange);
+    const int renderCallIndex =
+        findDrawTextCallIndex(fixture.ui, "Patch: Massive Lead Wall", TFT_WHITE, drawTextCallsBeforePatchChange);
+
+    TEST_ASSERT_TRUE(clearCallIndex >= 0);
+    TEST_ASSERT_TRUE(renderCallIndex > clearCallIndex);
 }
 
 void test_button_press_changes_selection_to_single_button()
@@ -1035,6 +1220,9 @@ int main(int argc, char** argv)
     UNITY_BEGIN();
     RUN_TEST(test_activate_sets_play_labels);
     RUN_TEST(test_activate_applies_tap_to_configured_button);
+    RUN_TEST(test_activate_renders_patch_name_with_prefix_when_provided);
+    RUN_TEST(test_activate_without_patch_name_does_not_render_patch_name_prefix);
+    RUN_TEST(test_patch_name_is_truncated_for_long_labels);
     RUN_TEST(test_tap_tempo_button_label_updates_to_bpm_when_interval_is_known);
     RUN_TEST(test_activate_refreshes_button_overrides_for_selected_playlist_and_patch);
     RUN_TEST(test_activate_selects_single_button_and_dims_others);
@@ -1068,8 +1256,12 @@ int main(int argc, char** argv)
     RUN_TEST(test_tuner_button_enables_tuner_without_changing_scene_selection);
     RUN_TEST(test_tuner_button_second_short_press_disables_tuner);
     RUN_TEST(test_tuner_button_long_press_is_noop);
+    RUN_TEST(test_tuner_button_can_be_configured_as_non_toggle);
+    RUN_TEST(test_generic_toggle_button_dims_until_pressed_and_toggles_on_second_press);
     RUN_TEST(test_tuner_button_flashes_when_enabled_without_redrawing_label);
     RUN_TEST(test_patch_change_reactivation_preserves_tuner_toggle_state);
+    RUN_TEST(test_deactivate_clears_rendered_patch_name_in_black);
+    RUN_TEST(test_patch_change_renders_new_patch_name_after_clearing_previous_one);
     RUN_TEST(test_button_press_changes_selection_to_single_button);
     RUN_TEST(test_button_pressed_ignores_disabled_button);
     RUN_TEST(test_long_press_is_noop);

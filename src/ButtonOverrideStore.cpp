@@ -103,15 +103,18 @@ bool ButtonOverrideStore::refresh()
     return true;
 }
 
-void ButtonOverrideStore::applyOverrides(byte playlistIndex, byte patchNumber, Function* functions, size_t functionCount) const
+void ButtonOverrideStore::applyOverrides(byte playlistIndex, byte patchNumber, Function* functions, size_t functionCount,
+                                         PatchDisplayConfig* patchDisplay) const
 {
-    if (functions == nullptr || functionCount == 0 || _configBuffer == nullptr)
+    if (patchDisplay != nullptr)
     {
-        if (_configBuffer == nullptr)
-        {
-            Serial.printf("Button overrides: no override matched for %s patch %u.\n", playlistName(playlistIndex),
-                          static_cast<unsigned int>(patchNumber));
-        }
+        patchDisplay->name[0] = '\0';
+    }
+
+    if (_configBuffer == nullptr)
+    {
+        Serial.printf("Button overrides: no override matched for %s patch %u.\n", playlistName(playlistIndex),
+                      static_cast<unsigned int>(patchNumber));
         return;
     }
 
@@ -139,10 +142,31 @@ void ButtonOverrideStore::applyOverrides(byte playlistIndex, byte patchNumber, F
     const JsonObjectConst patches = modeObject["patches"].as<JsonObjectConst>();
     const JsonObjectConst patchObject = patches[patchKey].as<JsonObjectConst>();
     const JsonObjectConst buttons = patchObject["buttons"].as<JsonObjectConst>();
-    if (playModes.isNull() || modeObject.isNull() || patches.isNull() || patchObject.isNull() || buttons.isNull())
+    if (playModes.isNull() || modeObject.isNull() || patches.isNull() || patchObject.isNull())
     {
         Serial.printf("Button overrides: no override matched for %s patch %u.\n", playlistName(playlistIndex),
                       static_cast<unsigned int>(patchNumber));
+        return;
+    }
+
+    if (patchDisplay != nullptr)
+    {
+        const char* patchName = patchObject["name"].as<const char*>();
+        if (patchName != nullptr)
+        {
+            std::strncpy(patchDisplay->name, patchName, PatchDisplayConfig::NameCapacity - 1U);
+            patchDisplay->name[PatchDisplayConfig::NameCapacity - 1U] = '\0';
+        }
+    }
+
+    const bool hasPatchDisplayName = (patchDisplay != nullptr && patchDisplay->name[0] != '\0');
+    if (functions == nullptr || functionCount == 0 || buttons.isNull())
+    {
+        if (!hasPatchDisplayName)
+        {
+            Serial.printf("Button overrides: no override matched for %s patch %u.\n", playlistName(playlistIndex),
+                          static_cast<unsigned int>(patchNumber));
+        }
         return;
     }
 
@@ -186,7 +210,7 @@ void ButtonOverrideStore::applyOverrides(byte playlistIndex, byte patchNumber, F
                       static_cast<unsigned int>(buttonIndex + 1U));
     }
 
-    if (appliedCount == 0)
+    if (appliedCount == 0 && !hasPatchDisplayName)
     {
         Serial.printf("Button overrides: no override matched for %s patch %u.\n", playlistName(playlistIndex),
                       static_cast<unsigned int>(patchNumber));
@@ -470,6 +494,8 @@ void ButtonOverrideStore::clearButtonOverride(ParsedButtonOverride& buttonOverri
     buttonOverride.label[0] = '\0';
     buttonOverride.hasColour = false;
     buttonOverride.colour = 0;
+    buttonOverride.hasToggle = false;
+    buttonOverride.toggle = false;
 
     for (uint8_t behaviourIndex = 0; behaviourIndex < static_cast<uint8_t>(FunctionBehaviour::Count); ++behaviourIndex)
     {
@@ -488,6 +514,11 @@ void ButtonOverrideStore::applyButtonOverride(const ParsedButtonOverride& button
     if (buttonOverride.hasColour)
     {
         target.setColour(buttonOverride.colour);
+    }
+
+    if (buttonOverride.hasToggle)
+    {
+        target.setToggle(buttonOverride.toggle);
     }
 
     for (uint8_t behaviourIndex = 0; behaviourIndex < static_cast<uint8_t>(FunctionBehaviour::Count); ++behaviourIndex)
@@ -544,6 +575,17 @@ bool ButtonOverrideStore::parseButtonOverrideObject(const JsonObjectConst& butto
 
         outButtonOverride.hasColour = true;
         outButtonOverride.colour = colour;
+    }
+
+    if (!buttonObject["toggle"].isNull())
+    {
+        if (!buttonObject["toggle"].is<bool>())
+        {
+            return false;
+        }
+
+        outButtonOverride.hasToggle = true;
+        outButtonOverride.toggle = buttonObject["toggle"].as<bool>();
     }
 
     const JsonObjectConst functionObject = buttonObject["function"].as<JsonObjectConst>();

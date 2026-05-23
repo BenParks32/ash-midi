@@ -2,13 +2,13 @@
 #include <cstring>
 
 Function::Function()
-    : _colour(0), _actions{}
+    : _colour(0), _actions{}, _isToggle(false)
 {
     setLabel(" ");
 }
 
 Function::Function(const char* label, uint16_t colour, ActionType shortPressAction, ActionType longPressAction)
-    : _colour(colour), _actions{}
+    : _colour(colour), _actions{}, _isToggle(false)
 {
     setLabel(label);
     setAction(FunctionBehaviour::ShortPress, buildLegacyAction(shortPressAction, 0));
@@ -17,7 +17,7 @@ Function::Function(const char* label, uint16_t colour, ActionType shortPressActi
 
 Function::Function(const char* label, uint16_t colour, ActionType shortPressAction, uint8_t shortPressActionValue,
                    ActionType longPressAction, uint8_t longPressActionValue)
-    : _colour(colour), _actions{}
+    : _colour(colour), _actions{}, _isToggle(false)
 {
     setLabel(label);
     setAction(FunctionBehaviour::ShortPress, buildLegacyAction(shortPressAction, shortPressActionValue));
@@ -27,7 +27,7 @@ Function::Function(const char* label, uint16_t colour, ActionType shortPressActi
 Function::Function(const char* label, uint16_t colour, const FunctionAction& buttonDownAction,
                    const FunctionAction& buttonReleaseAction, const FunctionAction& shortPressAction,
                    const FunctionAction& longPressAction)
-    : _colour(colour), _actions{}
+    : _colour(colour), _actions{}, _isToggle(false)
 {
     setLabel(label);
     setAction(FunctionBehaviour::ButtonDown, buttonDownAction);
@@ -51,6 +51,8 @@ bool Function::hasMomentaryBehaviour() const
            action(FunctionBehaviour::ButtonRelease).type != ActionType::None;
 }
 
+bool Function::isToggle() const { return _isToggle; }
+
 void Function::setLabel(const char* label)
 {
     if (label == nullptr || label[0] == '\0')
@@ -69,6 +71,8 @@ void Function::setAction(FunctionBehaviour behaviour, const FunctionAction& acti
 {
     _actions[static_cast<uint8_t>(behaviour)] = action;
 }
+
+void Function::setToggle(bool toggle) { _isToggle = toggle; }
 
 FunctionAction Function::buildLegacyAction(ActionType action, uint8_t actionValue)
 {
