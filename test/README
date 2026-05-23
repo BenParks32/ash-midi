@@ -14,7 +14,10 @@ Local business-logic tests live under `test/host` and run with the native Platfo
 - `pio test -e native`
 - A local C/C++ toolchain must be installed and available on `PATH` for the native environment.
 - Current migrated host suites:
+  - `test_button_diagnostic_mode`
   - `test_button_handler`
+  - `test_patch_mode`
+  - `test_play_mode`
   - `test_menu_mode`
   - `test_home_mode`
   - `test_qc_mini_midi_provider`

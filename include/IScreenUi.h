@@ -13,6 +13,8 @@ class IScreenUi : public ITouchButtonLayout
 
     virtual void drawBackgroundAndBorder() = 0;
     virtual void drawCenteredFrame(int32_t centerX, int32_t topY, int32_t width, int32_t height, int32_t radius) = 0;
+    virtual void drawCenteredFrame(int32_t centerX, int32_t topY, int32_t width, int32_t height, int32_t radius,
+                                   uint16_t outerColour, uint16_t innerColour) = 0;
     virtual void drawLogo(const GFXfont* titleFont, uint8_t titleScale, const char* title, const GFXfont* subtitleFont,
                           uint8_t subtitleScale, const char* subtitle) = 0;
     virtual void drawLogo(const GFXfont* titleFont, uint8_t titleScale, const char* title,

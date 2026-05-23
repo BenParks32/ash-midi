@@ -36,6 +36,8 @@ class HostSerialStub
 
     template <typename T> void println(const T&) {}
 
+    void println() {}
+
     explicit operator bool() const { return true; }
 };
 

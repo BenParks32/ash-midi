@@ -29,6 +29,11 @@ class FakeScreenUi : public IScreenUi
     void drawBackgroundAndBorder() override { ++drawBackgroundAndBorderCalls; }
     void drawCenteredFrame(int32_t, int32_t, int32_t, int32_t, int32_t) override { ++drawCenteredFrameCalls; }
 
+    void drawCenteredFrame(int32_t, int32_t, int32_t, int32_t, int32_t, uint16_t, uint16_t) override
+    {
+        ++drawCenteredFrameCalls;
+    }
+
     void drawLogo(const GFXfont*, uint8_t, const char*, const GFXfont*, uint8_t, const char*) override
     {
         ++drawLogoCalls;

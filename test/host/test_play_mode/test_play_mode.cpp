@@ -1,20 +1,18 @@
-#include <Arduino.h>
-#include <TFT_eSPI.h>
 #include <unity.h>
 
 #include "ButtonOverrideStore.h"
+#include "Modes/ModeManager.h"
 #include "Modes/PlayMode.h"
 
-// Pull in implementation units required by PlayMode without linking app main.cpp.
-#include "../../src/Function.cpp"
-#include "../../src/Lights.cpp"
-#include "../../src/TapTempoEngine.cpp"
-#include "../../src/Modes/FunctionModeBase.cpp"
-#include "../../src/Modes/PlayMode.cpp"
-#include "../../src/RingManager.cpp"
-#include "../../src/ScreenUi.cpp"
-#include "../../src/Touch/TouchButton.cpp"
-#include "../../src/Touch/TouchButtonManager.cpp"
+#include "../../../src/Function.cpp"
+#include "../../../src/Lights.cpp"
+#include "../../../src/TapTempoEngine.cpp"
+#include "../../../src/Modes/FunctionModeBase.cpp"
+#include "../../../src/Modes/ModeManager.cpp"
+#include "../../../src/Modes/PlayMode.cpp"
+#include "../../../src/RingManager.cpp"
+#include "../../../src/Touch/TouchButton.cpp"
+#include "../../../src/Touch/TouchButtonManager.cpp"
 
 namespace
 {
@@ -24,10 +22,87 @@ constexpr byte V40PlaylistIndex = 2;
 constexpr byte AmplessPlaylistIndex = 3;
 constexpr byte CodeRedPlaylistIndex = 4;
 
-constexpr ModeTransitionValue homePlaylistTransitionValue(byte playlistIndex)
+constexpr ModeTransitionValue hostHomePlaylistTransitionValue(byte playlistIndex)
 {
     return static_cast<ModeTransitionValue>(HomePlaylistTransitionFlag | playlistIndex);
 }
+
+class FakeScreenUi : public IScreenUi
+{
+  public:
+    void drawBackgroundAndBorder() override { ++drawBackgroundAndBorderCalls; }
+
+    void drawCenteredFrame(int32_t, int32_t, int32_t, int32_t, int32_t) override { ++drawCenteredFrameCalls; }
+
+    void drawCenteredFrame(int32_t, int32_t, int32_t, int32_t, int32_t, uint16_t, uint16_t) override
+    {
+        ++drawCenteredFrameCalls;
+    }
+
+    void drawLogo(const GFXfont*, uint8_t, const char*, const GFXfont*, uint8_t, const char*) override
+    {
+        ++drawLogoCalls;
+    }
+
+    void drawLogo(const GFXfont*, uint8_t, const char*, const GFXfont*, uint8_t, const char*, uint16_t, uint16_t,
+                  uint16_t, uint16_t) override
+    {
+        ++drawLogoWithColoursCalls;
+    }
+
+    void drawText(const GFXfont*, uint8_t, const char*, int32_t, int32_t, uint16_t, uint16_t) override
+    {
+        ++drawTextCalls;
+    }
+
+    void fillRect(int32_t, int32_t, int32_t, int32_t, uint16_t) override { ++fillRectCalls; }
+    void drawRect(int32_t, int32_t, int32_t, int32_t, uint16_t) override { ++drawRectCalls; }
+    void drawSmallText(const char*, int32_t, int32_t, uint16_t, uint16_t) override { ++drawSmallTextCalls; }
+
+    void drawCenteredText(const GFXfont*, uint8_t, const char*, int32_t, int32_t, uint16_t, uint16_t) override
+    {
+        ++drawCenteredTextCalls;
+    }
+
+    void drawTouchButtonLabelAndPill(const char*, const Point&, const Size&, uint16_t, bool, uint16_t,
+                                     uint16_t) override
+    {
+        ++drawTouchButtonLabelAndPillCalls;
+    }
+
+    void drawTouchButtonPill(const Point&, const Size&, uint16_t, uint16_t) override { ++drawTouchButtonPillCalls; }
+
+    void setSdStatusInitializing() override { ++setSdStatusInitializingCalls; }
+    void setSdStatusFailed() override { ++setSdStatusFailedCalls; }
+    void setSdStatusReady() override { ++setSdStatusReadyCalls; }
+    void setSdStatusNotMounted() override { ++setSdStatusNotMountedCalls; }
+    void hideSdStatus() override { ++hideSdStatusCalls; }
+    void redrawSdStatus() override { ++redrawSdStatusCalls; }
+
+    uint16_t touchButtonPillBorderColour() const override { return TFT_WHITE; }
+    int32_t boxWidth() const override { return 120; }
+    int32_t boxHeight() const override { return 80; }
+    int32_t bottomRowY() const override { return 240; }
+    Size boxSize() const override { return {120, 80}; }
+
+    int drawBackgroundAndBorderCalls = 0;
+    int drawCenteredFrameCalls = 0;
+    int drawLogoCalls = 0;
+    int drawLogoWithColoursCalls = 0;
+    int drawTextCalls = 0;
+    int fillRectCalls = 0;
+    int drawRectCalls = 0;
+    int drawSmallTextCalls = 0;
+    int drawCenteredTextCalls = 0;
+    int drawTouchButtonLabelAndPillCalls = 0;
+    int drawTouchButtonPillCalls = 0;
+    int setSdStatusInitializingCalls = 0;
+    int setSdStatusFailedCalls = 0;
+    int setSdStatusReadyCalls = 0;
+    int setSdStatusNotMountedCalls = 0;
+    int hideSdStatusCalls = 0;
+    int redrawSdStatusCalls = 0;
+};
 
 class MockMidiManager : public IMidiManager
 {
@@ -173,16 +248,13 @@ class PlayModeFixture
 {
   public:
     PlayModeFixture()
-        : screenSize{480, 320}, ui(tft, screenSize), strip(RingManager::LedCount, 0, NEO_GRB + NEO_KHZ800),
-          ringManager(strip), touchButtonManager(ui), midiManager(), midiProvider(), transitionDelegate(),
-          overrideStore(), mode(touchButtonManager, ringManager, ui, midiManager, midiProvider, overrideStore,
-                                transitionDelegate)
+        : ui(), strip(RingManager::LedCount, 0, NEO_GRB + NEO_KHZ800), ringManager(strip), touchButtonManager(ui),
+          midiManager(), midiProvider(), transitionDelegate(), overrideStore(),
+          mode(touchButtonManager, ringManager, ui, midiManager, midiProvider, overrideStore, transitionDelegate)
     {
     }
 
-    const Size screenSize;
-    TFT_eSPI tft;
-    ScreenUi ui;
+    FakeScreenUi ui;
     Adafruit_NeoPixel strip;
     RingManager ringManager;
     TouchButtonManager touchButtonManager;
@@ -213,7 +285,7 @@ void test_activate_refreshes_button_overrides_for_selected_playlist_and_patch()
 {
     PlayModeFixture fixture;
 
-    fixture.mode.setTransitionValue(homePlaylistTransitionValue(CodeRedPlaylistIndex));
+    fixture.mode.setTransitionValue(hostHomePlaylistTransitionValue(CodeRedPlaylistIndex));
     fixture.mode.activate();
 
     TEST_ASSERT_EQUAL_INT(1, fixture.overrideStore.refreshCalls);
@@ -311,7 +383,7 @@ void test_activate_recalls_v40_playlist_preset_1a()
 {
     PlayModeFixture fixture;
 
-    fixture.mode.setTransitionValue(homePlaylistTransitionValue(V40PlaylistIndex));
+    fixture.mode.setTransitionValue(hostHomePlaylistTransitionValue(V40PlaylistIndex));
     fixture.mode.activate();
 
     TEST_ASSERT_EQUAL_INT(1, fixture.midiProvider.selectPlaylistCalls);
@@ -325,7 +397,7 @@ void test_activate_recalls_ampless_playlist_preset_1a()
 {
     PlayModeFixture fixture;
 
-    fixture.mode.setTransitionValue(homePlaylistTransitionValue(AmplessPlaylistIndex));
+    fixture.mode.setTransitionValue(hostHomePlaylistTransitionValue(AmplessPlaylistIndex));
     fixture.mode.activate();
 
     TEST_ASSERT_EQUAL_INT(1, fixture.midiProvider.selectPlaylistCalls);
@@ -339,7 +411,7 @@ void test_activate_recalls_code_red_playlist_preset_1a()
 {
     PlayModeFixture fixture;
 
-    fixture.mode.setTransitionValue(homePlaylistTransitionValue(CodeRedPlaylistIndex));
+    fixture.mode.setTransitionValue(hostHomePlaylistTransitionValue(CodeRedPlaylistIndex));
     fixture.mode.activate();
 
     TEST_ASSERT_EQUAL_INT(1, fixture.midiProvider.selectPlaylistCalls);
@@ -798,7 +870,7 @@ void test_button_five_uses_home_playlist_preset_zero_for_next_patch_entry()
 {
     PlayModeFixture fixture;
 
-    fixture.mode.setTransitionValue(homePlaylistTransitionValue(CodeRedPlaylistIndex));
+    fixture.mode.setTransitionValue(hostHomePlaylistTransitionValue(CodeRedPlaylistIndex));
     fixture.mode.activate();
     fixture.mode.buttonPressed(4);
 
@@ -809,18 +881,19 @@ void test_button_five_uses_home_playlist_preset_zero_for_next_patch_entry()
 }
 } // namespace
 
-void setUp() {}
+void setUp()
+{
+    HostArduino::resetTime();
+    HostArduino::resetPins();
+    HostArduino::resetRandom();
+}
 
 void tearDown() {}
 
-void setup()
+int main(int argc, char** argv)
 {
-    Serial.begin(115200);
-    const uint32_t start = millis();
-    while (!Serial && (millis() - start) < 5000U)
-    {
-        delay(10);
-    }
+    (void)argc;
+    (void)argv;
 
     UNITY_BEGIN();
     RUN_TEST(test_activate_sets_play_labels);
@@ -861,7 +934,5 @@ void setup()
     RUN_TEST(test_button_five_transitions_to_patch_mode);
     RUN_TEST(test_button_five_uses_patch_return_value_for_next_patch_entry);
     RUN_TEST(test_button_five_uses_home_playlist_preset_zero_for_next_patch_entry);
-    UNITY_END();
+    return UNITY_END();
 }
-
-void loop() {}

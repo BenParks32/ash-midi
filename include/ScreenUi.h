@@ -26,9 +26,9 @@ class ScreenUi : public IScreenUi
   public:
     void drawBackgroundAndBorder();
     void clearCenterSection();
-    void drawCenteredFrame(int32_t centerX, int32_t topY, int32_t width, int32_t height, int32_t radius);
+    void drawCenteredFrame(int32_t centerX, int32_t topY, int32_t width, int32_t height, int32_t radius) override;
     void drawCenteredFrame(int32_t centerX, int32_t topY, int32_t width, int32_t height, int32_t radius,
-                           uint16_t outerColour, uint16_t innerColour);
+                           uint16_t outerColour, uint16_t innerColour) override;
     void drawLogo(const GFXfont* titleFont, uint8_t titleScale, const char* title, const GFXfont* subtitleFont,
                   uint8_t subtitleScale, const char* subtitle);
     void drawLogo(const GFXfont* titleFont, uint8_t titleScale, const char* title, const GFXfont* subtitleFont,
