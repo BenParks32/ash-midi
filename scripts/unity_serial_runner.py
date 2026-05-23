@@ -3,10 +3,34 @@ import sys
 import time
 
 import serial
+from serial.tools import list_ports
 
 
 SUMMARY_RE = re.compile(r"Tests\s+\d+\s+Failures\s+\d+\s+Ignored\s+\d+")
 TESTCASE_RE = re.compile(r"^[^:\n]+:\d+:[^:\n]+:(PASS|FAIL|IGNORE)")
+STM32_USB_VID = 0x0483
+STM32_USB_PID = 0x5740
+
+
+def resolve_port(port_hint: str) -> str | None:
+    ports = list(list_ports.comports())
+    stm32_ports = [
+        port.device
+        for port in ports
+        if port.vid == STM32_USB_VID and port.pid == STM32_USB_PID
+    ]
+
+    if port_hint and port_hint.lower() != "auto":
+        if port_hint in stm32_ports or not stm32_ports:
+            return port_hint
+        if len(stm32_ports) == 1:
+            return stm32_ports[0]
+
+    if len(stm32_ports) == 1:
+        return stm32_ports[0]
+    if port_hint and port_hint.lower() != "auto":
+        return port_hint
+    return None
 
 
 def main() -> int:
@@ -21,8 +45,12 @@ def main() -> int:
     start = time.time()
     ser = None
     while (time.time() - start) < timeout_s:
+        resolved_port = resolve_port(port)
+        if not resolved_port:
+            time.sleep(0.2)
+            continue
         try:
-            ser = serial.Serial(port=port, baudrate=baud, timeout=0.2)
+            ser = serial.Serial(port=resolved_port, baudrate=baud, timeout=0.2)
             break
         except serial.SerialException:
             time.sleep(0.2)

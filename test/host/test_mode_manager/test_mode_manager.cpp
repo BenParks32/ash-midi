@@ -66,6 +66,69 @@ void test_enter_mode_ignores_null_target_mode()
     TEST_ASSERT_EQUAL_INT(0, home.activateCalls);
 }
 
+void test_enter_mode_ignores_out_of_range_mode()
+{
+    FakeMode home;
+    FakeMode play;
+    FakeMode patch;
+    FakeMode menu;
+    FakeMode buttonDiagnostic;
+
+    IMode* activeMode = &home;
+    IMode* modes[ModeCount] = {&home, &play, &patch, &menu, &buttonDiagnostic};
+    ModeManager manager(activeMode, modes);
+
+    manager.enterMode(static_cast<Modes>(ModeCount), 99);
+
+    TEST_ASSERT_EQUAL_PTR(&home, activeMode);
+    TEST_ASSERT_EQUAL_INT(0, home.activateCalls);
+    TEST_ASSERT_EQUAL_INT(0, play.activateCalls);
+    TEST_ASSERT_EQUAL_INT(0, patch.activateCalls);
+    TEST_ASSERT_EQUAL_INT(0, menu.activateCalls);
+    TEST_ASSERT_EQUAL_INT(0, buttonDiagnostic.activateCalls);
+}
+
+void test_enter_mode_can_switch_to_home()
+{
+    FakeMode home;
+    FakeMode play;
+    FakeMode patch;
+    FakeMode menu;
+    FakeMode buttonDiagnostic;
+
+    IMode* activeMode = &play;
+    IMode* modes[ModeCount] = {&home, &play, &patch, &menu, &buttonDiagnostic};
+    ModeManager manager(activeMode, modes);
+
+    manager.enterMode(Modes::Home, 7);
+
+    TEST_ASSERT_EQUAL_PTR(&home, activeMode);
+    TEST_ASSERT_EQUAL_INT(1, home.setTransitionValueCalls);
+    TEST_ASSERT_EQUAL_UINT16(7, home.lastTransitionValue);
+    TEST_ASSERT_EQUAL_INT(1, home.activateCalls);
+}
+
+void test_enter_mode_can_switch_to_patch()
+{
+    FakeMode home;
+    FakeMode play;
+    FakeMode patch;
+    FakeMode menu;
+    FakeMode buttonDiagnostic;
+
+    IMode* activeMode = &play;
+    IMode* modes[ModeCount] = {&home, &play, &patch, &menu, &buttonDiagnostic};
+    ModeManager manager(activeMode, modes);
+
+    manager.enterMode(Modes::Patch, 33);
+
+    TEST_ASSERT_EQUAL_PTR(&patch, activeMode);
+    TEST_ASSERT_EQUAL_INT(1, patch.setTransitionValueCalls);
+    TEST_ASSERT_EQUAL_UINT16(33, patch.lastTransitionValue);
+    TEST_ASSERT_EQUAL_INT(1, patch.activateCalls);
+    TEST_ASSERT_EQUAL_INT(1, play.deactivateCalls);
+}
+
 void test_enter_mode_can_switch_to_button_diagnostic()
 {
     FakeMode home;
@@ -100,6 +163,9 @@ int main(int argc, char** argv)
     UNITY_BEGIN();
     RUN_TEST(test_enter_mode_switches_active_and_activates_target);
     RUN_TEST(test_enter_mode_ignores_null_target_mode);
+    RUN_TEST(test_enter_mode_ignores_out_of_range_mode);
+    RUN_TEST(test_enter_mode_can_switch_to_home);
+    RUN_TEST(test_enter_mode_can_switch_to_patch);
     RUN_TEST(test_enter_mode_can_switch_to_button_diagnostic);
     return UNITY_END();
 }

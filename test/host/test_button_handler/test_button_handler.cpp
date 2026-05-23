@@ -122,6 +122,16 @@ void test_button_pressed_does_nothing_when_no_active_mode()
     TEST_ASSERT_EQUAL_INT(0, fixture.modeSpy.pressedCalls);
 }
 
+void test_button_long_pressed_no_mode_does_not_select_touch_button()
+{
+    ButtonHandlerFixture fixture;
+    fixture.activeMode = nullptr;
+
+    fixture.handler.buttonLongPressed(2);
+
+    TEST_ASSERT_EQUAL_INT(0, fixture.modeSpy.longPressedCalls);
+}
+
 void test_button_handler_reads_active_mode_pointer_by_reference()
 {
     ButtonHandlerFixture fixture;
@@ -156,6 +166,7 @@ int main(int argc, char** argv)
     RUN_TEST(test_button_long_pressed_routes_to_active_mode);
     RUN_TEST(test_button_released_routes_to_active_mode);
     RUN_TEST(test_button_pressed_does_nothing_when_no_active_mode);
+    RUN_TEST(test_button_long_pressed_no_mode_does_not_select_touch_button);
     RUN_TEST(test_button_handler_reads_active_mode_pointer_by_reference);
     return UNITY_END();
 }

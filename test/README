@@ -27,4 +27,9 @@ Local business-logic tests live under `test/host` and run with the native Platfo
   - `test_button_override_store`
   - `test_touch_button_manager`
 
-These tests should target host-safe logic only. Keep hardware integration coverage in the MCU-backed tests, but prefer extracting pure logic (for example tap-tempo scheduling) so it can be validated locally without flashing the device.
+Hardware-backed tests are now limited to the smoke suite in `test/test_hardware_smoke`:
+- `pio test -e blackpill_f401cc`
+- Current retained hardware suite: `test_hardware_smoke`
+- This suite is only for board-only integration seams that host tests cannot cover well: GPIO/button interrupt setup through `ButtonHandler`/`Button`, and NeoPixel `RingManager` init/show on the MCU.
+
+Do not add duplicate business-logic suites outside `test/host`. New logic tests should go to `test/host`; only keep MCU-backed tests for real hardware integration smoke coverage.

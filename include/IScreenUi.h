@@ -4,7 +4,9 @@
 
 #include <Arduino.h>
 
+#ifndef _GFXFONT_H_
 struct GFXfont;
+#endif
 
 class IScreenUi : public ITouchButtonLayout
 {
