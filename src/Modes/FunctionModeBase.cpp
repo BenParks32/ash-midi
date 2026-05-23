@@ -1,6 +1,7 @@
 #include "Modes/FunctionModeBase.h"
 #include "ColorUtils.h"
 
+#include <TFT_eSPI.h>
 #include <cstring>
 
 namespace
@@ -12,7 +13,7 @@ void applyButtonVisualFromFunctionColour(FootSwitchTouchButton& button, uint16_t
 }
 } // namespace
 
-FunctionModeBase::FunctionModeBase(TouchButtonManager& touchButtonManager, RingManager& ringManager, ScreenUi& screenUi,
+FunctionModeBase::FunctionModeBase(TouchButtonManager& touchButtonManager, RingManager& ringManager, IScreenUi& screenUi,
                                    IMidiManager& midiManager, IModeTransistionDelegate& transitionDelegate)
     : _touchButtonManager(touchButtonManager), _ringManager(ringManager), _screenUi(screenUi),
       _midiManager(midiManager), _transitionDelegate(transitionDelegate)

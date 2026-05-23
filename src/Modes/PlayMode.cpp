@@ -1,6 +1,7 @@
 #include "Modes/PlayMode.h"
 #include "ColorUtils.h"
 
+#include <TFT_eSPI.h>
 #include <cctype>
 #include <cstdio>
 
@@ -30,8 +31,6 @@ const uint16_t TapTempoButtonColour = 0x001F;
 const byte TapTempoCc = 44;
 const byte TapTempoValue = 100;
 const uint32_t TapTempoFlashDurationMs = 10000;
-const uint32_t TapTempoInactivityTimeoutMs = 3000;
-const uint8_t TapTempoTrailingMessageCount = 3;
 const byte TunerButtonIndex = 7;
 const uint16_t TunerButtonColour = 0x801F;
 
@@ -89,16 +88,13 @@ void logFunctionAction(const char* prefix, const FunctionAction& action)
 }
 } // namespace
 
-PlayMode::PlayMode(TouchButtonManager& touchButtonManager, RingManager& ringManager, ScreenUi& screenUi,
+PlayMode::PlayMode(TouchButtonManager& touchButtonManager, RingManager& ringManager, IScreenUi& screenUi,
                    IMidiManager& midiManager, IMidiProvider& midiProvider, IButtonOverrideStore& buttonOverrideStore,
                    IModeTransistionDelegate& transitionDelegate)
     : FunctionModeBase(touchButtonManager, ringManager, screenUi, midiManager, transitionDelegate),
       _midiProvider(midiProvider), _buttonOverrideStore(buttonOverrideStore), _selectedPreset(0),
       _selectedPlaylist(midiProvider.defaultPlaylistIndex()), _hasSelectedPreset(false), _selectedButton(0),
-      _tapTempoPressTimes{0, 0, 0}, _tapTempoPressCount(0), _tapTempoIntervalMs(0),
-      _tapTempoFlashHalfPeriodMs(0), _nextTapTempoFlashToggleMs(0), _tapTempoFlashUntilMs(0),
-      _nextTapTempoMidiSendMs(0), _tapTempoInactivityDeadlineMs(0), _tapTempoTrailingMessagesRemaining(0),
-      _hasTapTempoFlashInterval(false), _isTapTempoLit(true)
+      _tapTempoEngine(), _nextTapTempoFlashToggleMs(0), _tapTempoFlashUntilMs(0), _isTapTempoLit(true)
 {
     setupFunctions();
 }
@@ -178,10 +174,10 @@ void PlayMode::activate()
     }
     _isTapTempoLit = true;
     const uint32_t now = millis();
-    if (_hasTapTempoFlashInterval && _tapTempoFlashUntilMs != 0 &&
+    if (_tapTempoEngine.hasFlashInterval() && _tapTempoFlashUntilMs != 0 &&
         static_cast<int32_t>(now - _tapTempoFlashUntilMs) < 0)
     {
-        _nextTapTempoFlashToggleMs = now + _tapTempoFlashHalfPeriodMs;
+        _nextTapTempoFlashToggleMs = now + _tapTempoEngine.flashHalfPeriodMs();
     }
     else
     {
@@ -543,29 +539,9 @@ void PlayMode::buttonReleased(byte number)
 void PlayMode::frameTick()
 {
     const uint32_t now = millis();
-    if (_nextTapTempoMidiSendMs != 0)
+    if (_tapTempoEngine.tick(now).shouldSendMidi)
     {
-        if (_tapTempoInactivityDeadlineMs != 0 &&
-            static_cast<int32_t>(now - _tapTempoInactivityDeadlineMs) >= 0)
-        {
-            _tapTempoInactivityDeadlineMs = 0;
-            _tapTempoTrailingMessagesRemaining = TapTempoTrailingMessageCount;
-        }
-
-        if (static_cast<int32_t>(now - _nextTapTempoMidiSendMs) >= 0)
-        {
-            _midiManager.sendControlChange(TapTempoCc, TapTempoValue);
-            _nextTapTempoMidiSendMs += _tapTempoIntervalMs;
-
-            if (_tapTempoInactivityDeadlineMs == 0 && _tapTempoTrailingMessagesRemaining > 0)
-            {
-                --_tapTempoTrailingMessagesRemaining;
-                if (_tapTempoTrailingMessagesRemaining == 0)
-                {
-                    _nextTapTempoMidiSendMs = 0;
-                }
-            }
-        }
+        _midiManager.sendControlChange(TapTempoCc, TapTempoValue);
     }
 
     if (_tapTempoFlashUntilMs != 0 && static_cast<int32_t>(now - _tapTempoFlashUntilMs) >= 0)
@@ -579,7 +555,7 @@ void PlayMode::frameTick()
         return;
     }
 
-    if (!_hasTapTempoFlashInterval || _tapTempoFlashUntilMs == 0)
+    if (!_tapTempoEngine.hasFlashInterval() || _tapTempoFlashUntilMs == 0)
     {
         return;
     }
@@ -590,7 +566,7 @@ void PlayMode::frameTick()
     }
 
     _isTapTempoLit = !_isTapTempoLit;
-    _nextTapTempoFlashToggleMs = now + _tapTempoFlashHalfPeriodMs;
+    _nextTapTempoFlashToggleMs = now + _tapTempoEngine.flashHalfPeriodMs();
     renderTapTempoPill();
 }
 
@@ -638,75 +614,13 @@ void PlayMode::executeAction(const FunctionAction& action)
 
 void PlayMode::registerTapTempoPress(uint32_t pressedAtMs)
 {
-    const uint32_t previousNextTapTempoMidiSendMs = _nextTapTempoMidiSendMs;
-
-    if (_tapTempoPressCount > 0)
-    {
-        const uint32_t lastPressedAtMs = _tapTempoPressTimes[_tapTempoPressCount - 1U];
-        if ((pressedAtMs - lastPressedAtMs) >= TapTempoInactivityTimeoutMs)
-        {
-            clearTapTempoState();
-        }
-    }
-
-    if (_tapTempoPressCount < 3U)
-    {
-        _tapTempoPressTimes[_tapTempoPressCount++] = pressedAtMs;
-    }
-    else
-    {
-        _tapTempoPressTimes[0] = _tapTempoPressTimes[1];
-        _tapTempoPressTimes[1] = _tapTempoPressTimes[2];
-        _tapTempoPressTimes[2] = pressedAtMs;
-    }
-
-    _tapTempoIntervalMs = 0;
-    if (_tapTempoPressCount >= 2U)
-    {
-        uint32_t intervalTotalMs = 0;
-        for (uint8_t i = 1; i < _tapTempoPressCount; ++i)
-        {
-            intervalTotalMs += (_tapTempoPressTimes[i] - _tapTempoPressTimes[i - 1U]);
-        }
-
-        const uint32_t averageIntervalMs = intervalTotalMs / static_cast<uint32_t>(_tapTempoPressCount - 1U);
-        _tapTempoIntervalMs = (averageIntervalMs > 0U) ? averageIntervalMs : 1U;
-        _tapTempoFlashHalfPeriodMs = (averageIntervalMs > 1U) ? (averageIntervalMs / 2U) : 1U;
-        _hasTapTempoFlashInterval = true;
-    }
-    else
-    {
-        _tapTempoFlashHalfPeriodMs = 0;
-        _hasTapTempoFlashInterval = false;
-    }
-
-    _tapTempoInactivityDeadlineMs = 0;
-    _tapTempoTrailingMessagesRemaining = 0;
-    if (_tapTempoPressCount >= 3U)
-    {
-        const uint32_t candidateNextTapTempoMidiSendMs = pressedAtMs + _tapTempoIntervalMs;
-        if (previousNextTapTempoMidiSendMs == 0 ||
-            static_cast<int32_t>(candidateNextTapTempoMidiSendMs - previousNextTapTempoMidiSendMs) < 0)
-        {
-            _nextTapTempoMidiSendMs = candidateNextTapTempoMidiSendMs;
-        }
-        else
-        {
-            _nextTapTempoMidiSendMs = previousNextTapTempoMidiSendMs;
-        }
-
-        _tapTempoInactivityDeadlineMs = pressedAtMs + TapTempoInactivityTimeoutMs;
-    }
-    else
-    {
-        _nextTapTempoMidiSendMs = 0;
-    }
+    _tapTempoEngine.registerPress(pressedAtMs);
 
     _isTapTempoLit = true;
     _tapTempoFlashUntilMs = pressedAtMs + TapTempoFlashDurationMs;
-    if (_hasTapTempoFlashInterval)
+    if (_tapTempoEngine.hasFlashInterval())
     {
-        _nextTapTempoFlashToggleMs = pressedAtMs + _tapTempoFlashHalfPeriodMs;
+        _nextTapTempoFlashToggleMs = pressedAtMs + _tapTempoEngine.flashHalfPeriodMs();
     }
 
     renderTapTempoPill();
@@ -714,18 +628,9 @@ void PlayMode::registerTapTempoPress(uint32_t pressedAtMs)
 
 void PlayMode::clearTapTempoState()
 {
-    _tapTempoPressTimes[0] = 0;
-    _tapTempoPressTimes[1] = 0;
-    _tapTempoPressTimes[2] = 0;
-    _tapTempoPressCount = 0;
-    _tapTempoIntervalMs = 0;
-    _tapTempoFlashHalfPeriodMs = 0;
+    _tapTempoEngine.clear();
     _nextTapTempoFlashToggleMs = 0;
     _tapTempoFlashUntilMs = 0;
-    _nextTapTempoMidiSendMs = 0;
-    _tapTempoInactivityDeadlineMs = 0;
-    _tapTempoTrailingMessagesRemaining = 0;
-    _hasTapTempoFlashInterval = false;
     _isTapTempoLit = true;
 }
 

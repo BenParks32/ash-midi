@@ -9,3 +9,19 @@ in the development cycle.
 
 More information about PlatformIO Unit Testing:
 - https://docs.platformio.org/en/latest/advanced/unit-testing/index.html
+
+Local business-logic tests live under `test/host` and run with the native PlatformIO environment:
+- `pio test -e native`
+- A local C/C++ toolchain must be installed and available on `PATH` for the native environment.
+- Current migrated host suites:
+  - `test_button_handler`
+  - `test_menu_mode`
+  - `test_home_mode`
+  - `test_qc_mini_midi_provider`
+  - `test_tap_tempo_engine`
+  - `test_mode_manager`
+  - `test_settings_store`
+  - `test_button_override_store`
+  - `test_touch_button_manager`
+
+These tests should target host-safe logic only. Keep hardware integration coverage in the MCU-backed tests, but prefer extracting pure logic (for example tap-tempo scheduling) so it can be validated locally without flashing the device.

@@ -3,11 +3,12 @@
 #include "Modes/FunctionModeBase.h"
 #include "ButtonOverrideStore.h"
 #include "MidiProvider.h"
+#include "TapTempoEngine.h"
 
 class PlayMode : public FunctionModeBase
 {
   public:
-    PlayMode(TouchButtonManager& touchButtonManager, RingManager& ringManager, ScreenUi& screenUi,
+    PlayMode(TouchButtonManager& touchButtonManager, RingManager& ringManager, IScreenUi& screenUi,
              IMidiManager& midiManager, IMidiProvider& midiProvider, IButtonOverrideStore& buttonOverrideStore,
              IModeTransistionDelegate& transitionDelegate);
 
@@ -62,15 +63,8 @@ class PlayMode : public FunctionModeBase
     byte _selectedPlaylist;
     bool _hasSelectedPreset;
     byte _selectedButton;
-    uint32_t _tapTempoPressTimes[3];
-    uint8_t _tapTempoPressCount;
-    uint32_t _tapTempoIntervalMs;
-    uint32_t _tapTempoFlashHalfPeriodMs;
+    TapTempoEngine _tapTempoEngine;
     uint32_t _nextTapTempoFlashToggleMs;
     uint32_t _tapTempoFlashUntilMs;
-    uint32_t _nextTapTempoMidiSendMs;
-    uint32_t _tapTempoInactivityDeadlineMs;
-    uint8_t _tapTempoTrailingMessagesRemaining;
-    bool _hasTapTempoFlashInterval;
     bool _isTapTempoLit;
 };

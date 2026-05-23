@@ -8,6 +8,7 @@
 // Pull in implementation units required by PlayMode without linking app main.cpp.
 #include "../../src/Function.cpp"
 #include "../../src/Lights.cpp"
+#include "../../src/TapTempoEngine.cpp"
 #include "../../src/Modes/FunctionModeBase.cpp"
 #include "../../src/Modes/PlayMode.cpp"
 #include "../../src/RingManager.cpp"

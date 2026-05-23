@@ -1,6 +1,7 @@
 #include "Modes/ButtonDiagnosticMode.h"
 
 #include "ColorUtils.h"
+#include <TFT_eSPI.h>
 
 namespace
 {
@@ -17,7 +18,7 @@ constexpr int32_t SmallTextCharWidthPx = 12;
 } // namespace
 
 ButtonDiagnosticMode::ButtonDiagnosticMode(TouchButtonManager& touchButtonManager, RingManager& ringManager,
-                                           ScreenUi& screenUi, IMidiManager& midiManager,
+                                           IScreenUi& screenUi, IMidiManager& midiManager,
                                            IModeTransistionDelegate& transitionDelegate)
     : FunctionModeBase(touchButtonManager, ringManager, screenUi, midiManager, transitionDelegate),
       _buttonStates{ButtonState::Off}

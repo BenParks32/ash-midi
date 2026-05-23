@@ -14,6 +14,7 @@ extern "C"
 {
 #endif
 
+#if !defined(NATIVE)
     void unityOutputStart(unsigned long);
     void unityOutputChar(unsigned int);
     void unityOutputFlush(void);
@@ -23,6 +24,7 @@ extern "C"
 #define UNITY_OUTPUT_CHAR(c) unityOutputChar(c)
 #define UNITY_OUTPUT_FLUSH() unityOutputFlush()
 #define UNITY_OUTPUT_COMPLETE() unityOutputComplete()
+#endif
 
 #ifdef __cplusplus
 }

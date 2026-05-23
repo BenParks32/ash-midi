@@ -6,7 +6,7 @@
 class PatchMode : public FunctionModeBase
 {
   public:
-    PatchMode(TouchButtonManager& touchButtonManager, RingManager& ringManager, ScreenUi& screenUi,
+    PatchMode(TouchButtonManager& touchButtonManager, RingManager& ringManager, IScreenUi& screenUi,
               IMidiManager& midiManager, IMidiProvider& midiProvider, IModeTransistionDelegate& transitionDelegate);
 
     void activate() override;

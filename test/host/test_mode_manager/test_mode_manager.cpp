@@ -1,0 +1,105 @@
+#include <unity.h>
+
+#include "Modes/ModeManager.h"
+
+#include "../../../src/Modes/ModeManager.cpp"
+
+namespace
+{
+class FakeMode : public IMode
+{
+  public:
+    void activate() override { ++activateCalls; }
+    void deactivate() override { ++deactivateCalls; }
+    void buttonPressed(const byte) override {}
+    void buttonLongPressed(const byte) override {}
+    void frameTick() override {}
+
+    void setTransitionValue(ModeTransitionValue transitionValue) override
+    {
+        ++setTransitionValueCalls;
+        lastTransitionValue = transitionValue;
+    }
+
+    int activateCalls = 0;
+    int deactivateCalls = 0;
+    int setTransitionValueCalls = 0;
+    ModeTransitionValue lastTransitionValue = ModeTransitionNone;
+};
+
+void test_enter_mode_switches_active_and_activates_target()
+{
+    FakeMode home;
+    FakeMode play;
+    FakeMode patch;
+    FakeMode menu;
+    FakeMode buttonDiagnostic;
+
+    IMode* activeMode = &home;
+    IMode* modes[ModeCount] = {&home, &play, &patch, &menu, &buttonDiagnostic};
+    ModeManager manager(activeMode, modes);
+
+    manager.enterMode(Modes::Play, 42);
+
+    TEST_ASSERT_EQUAL_PTR(&play, activeMode);
+    TEST_ASSERT_EQUAL_INT(1, play.setTransitionValueCalls);
+    TEST_ASSERT_EQUAL_UINT16(42, play.lastTransitionValue);
+    TEST_ASSERT_EQUAL_INT(1, play.activateCalls);
+    TEST_ASSERT_EQUAL_INT(0, home.activateCalls);
+    TEST_ASSERT_EQUAL_INT(1, home.deactivateCalls);
+}
+
+void test_enter_mode_ignores_null_target_mode()
+{
+    FakeMode home;
+    FakeMode play;
+    FakeMode menu;
+    FakeMode buttonDiagnostic;
+
+    IMode* activeMode = &home;
+    IMode* modes[ModeCount] = {&home, &play, nullptr, &menu, &buttonDiagnostic};
+    ModeManager manager(activeMode, modes);
+
+    manager.enterMode(Modes::Patch, 10);
+
+    TEST_ASSERT_EQUAL_PTR(&home, activeMode);
+    TEST_ASSERT_EQUAL_INT(0, home.activateCalls);
+}
+
+void test_enter_mode_can_switch_to_button_diagnostic()
+{
+    FakeMode home;
+    FakeMode play;
+    FakeMode patch;
+    FakeMode menu;
+    FakeMode buttonDiagnostic;
+
+    IMode* activeMode = &menu;
+    IMode* modes[ModeCount] = {&home, &play, &patch, &menu, &buttonDiagnostic};
+    ModeManager manager(activeMode, modes);
+
+    manager.enterMode(Modes::ButtonDiagnostic, ModeTransitionNone);
+
+    TEST_ASSERT_EQUAL_PTR(&buttonDiagnostic, activeMode);
+    TEST_ASSERT_EQUAL_INT(1, buttonDiagnostic.setTransitionValueCalls);
+    TEST_ASSERT_EQUAL_UINT16(ModeTransitionNone, buttonDiagnostic.lastTransitionValue);
+    TEST_ASSERT_EQUAL_INT(1, buttonDiagnostic.activateCalls);
+    TEST_ASSERT_EQUAL_INT(1, menu.deactivateCalls);
+}
+} // namespace
+
+void setUp() {}
+
+void tearDown() {}
+
+int main(int argc, char** argv)
+{
+    (void)argc;
+    (void)argv;
+
+    UNITY_BEGIN();
+    RUN_TEST(test_enter_mode_switches_active_and_activates_target);
+    RUN_TEST(test_enter_mode_ignores_null_target_mode);
+    RUN_TEST(test_enter_mode_can_switch_to_button_diagnostic);
+    return UNITY_END();
+}

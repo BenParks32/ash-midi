@@ -1,23 +1,122 @@
-#include <Arduino.h>
-#include <TFT_eSPI.h>
 #include <unity.h>
 
 #define private public
 #include "Modes/MenuMode.h"
 #undef private
 
-// Pull in implementation units required by MenuMode without linking app main.cpp.
-#include "../../src/Function.cpp"
-#include "../../src/Lights.cpp"
-#include "../../src/Modes/FunctionModeBase.cpp"
-#include "../../src/Modes/MenuMode.cpp"
-#include "../../src/RingManager.cpp"
-#include "../../src/ScreenUi.cpp"
-#include "../../src/Touch/TouchButton.cpp"
-#include "../../src/Touch/TouchButtonManager.cpp"
+#include "../../../src/Function.cpp"
+#include "../../../src/Lights.cpp"
+#include "../../../src/Modes/FunctionModeBase.cpp"
+#include "../../../src/Modes/MenuMode.cpp"
+#include "../../../src/RingManager.cpp"
+#include "../../../src/Touch/TouchButton.cpp"
+#include "../../../src/Touch/TouchButtonManager.cpp"
 
 namespace
 {
+class FakeScreenUi : public IScreenUi
+{
+  public:
+    enum class SdStatusState : uint8_t
+    {
+        None,
+        Initializing,
+        Failed,
+        Ready,
+        NotMounted,
+    };
+
+    void drawBackgroundAndBorder() override { ++drawBackgroundAndBorderCalls; }
+    void drawCenteredFrame(int32_t, int32_t, int32_t, int32_t, int32_t) override { ++drawCenteredFrameCalls; }
+
+    void drawLogo(const GFXfont*, uint8_t, const char*, const GFXfont*, uint8_t, const char*) override
+    {
+        ++drawLogoCalls;
+    }
+
+    void drawLogo(const GFXfont*, uint8_t, const char*, const GFXfont*, uint8_t, const char*, uint16_t, uint16_t,
+                  uint16_t, uint16_t) override
+    {
+        ++drawLogoWithColoursCalls;
+    }
+
+    void drawText(const GFXfont*, uint8_t, const char*, int32_t, int32_t, uint16_t, uint16_t) override
+    {
+        ++drawTextCalls;
+    }
+
+    void fillRect(int32_t, int32_t, int32_t, int32_t, uint16_t) override { ++fillRectCalls; }
+
+    void drawRect(int32_t, int32_t, int32_t, int32_t, uint16_t) override { ++drawRectCalls; }
+
+    void drawSmallText(const char*, int32_t, int32_t, uint16_t, uint16_t) override { ++drawSmallTextCalls; }
+
+    void drawCenteredText(const GFXfont*, uint8_t, const char*, int32_t, int32_t, uint16_t, uint16_t) override
+    {
+        ++drawCenteredTextCalls;
+    }
+
+    void drawTouchButtonLabelAndPill(const char*, const Point&, const Size&, uint16_t, bool, uint16_t,
+                                     uint16_t) override
+    {
+        ++drawTouchButtonLabelAndPillCalls;
+    }
+
+    void drawTouchButtonPill(const Point&, const Size&, uint16_t, uint16_t) override { ++drawTouchButtonPillCalls; }
+
+    void setSdStatusInitializing() override
+    {
+        ++setSdStatusInitializingCalls;
+        sdStatusState = SdStatusState::Initializing;
+    }
+
+    void setSdStatusFailed() override
+    {
+        ++setSdStatusFailedCalls;
+        sdStatusState = SdStatusState::Failed;
+    }
+
+    void setSdStatusReady() override
+    {
+        ++setSdStatusReadyCalls;
+        sdStatusState = SdStatusState::Ready;
+    }
+
+    void setSdStatusNotMounted() override
+    {
+        ++setSdStatusNotMountedCalls;
+        sdStatusState = SdStatusState::NotMounted;
+    }
+
+    void hideSdStatus() override { ++hideSdStatusCalls; }
+    void redrawSdStatus() override { ++redrawSdStatusCalls; }
+
+    uint16_t touchButtonPillBorderColour() const override { return TFT_WHITE; }
+    int32_t boxWidth() const override { return 120; }
+    int32_t boxHeight() const override { return 80; }
+    int32_t bottomRowY() const override { return 240; }
+    Size boxSize() const override { return {120, 80}; }
+
+    int drawBackgroundAndBorderCalls = 0;
+    int drawCenteredFrameCalls = 0;
+    int drawLogoCalls = 0;
+    int drawLogoWithColoursCalls = 0;
+    int drawTextCalls = 0;
+    int fillRectCalls = 0;
+    int drawRectCalls = 0;
+    int drawSmallTextCalls = 0;
+    int drawCenteredTextCalls = 0;
+    int drawTouchButtonLabelAndPillCalls = 0;
+    int drawTouchButtonPillCalls = 0;
+    int setSdStatusInitializingCalls = 0;
+    int setSdStatusFailedCalls = 0;
+    int setSdStatusReadyCalls = 0;
+    int setSdStatusNotMountedCalls = 0;
+    int hideSdStatusCalls = 0;
+    int redrawSdStatusCalls = 0;
+    SdStatusState sdStatusState = SdStatusState::None;
+};
+
 class MockMidiManager : public IMidiManager
 {
   public:
@@ -140,17 +239,15 @@ class MenuModeFixture
 {
   public:
     MenuModeFixture()
-        : screenSize{480, 320}, ui(tft, screenSize), strip(RingManager::LedCount, 0, NEO_GRB + NEO_KHZ800),
-          ringManager(strip), touchButtonManager(ui), midiManager(), transitionDelegate(), settingsStore(),
-          sdCardManager(), touchCalibrator(), settings{120, 3, {{254, 3649, 281, 3563, 7}}},
+        : ui(), strip(RingManager::LedCount, 0, NEO_GRB + NEO_KHZ800), ringManager(strip), touchButtonManager(ui),
+          midiManager(), transitionDelegate(), settingsStore(), sdCardManager(), touchCalibrator(),
+          settings{120, 3, {{254, 3649, 281, 3563, 7}}},
           mode(touchButtonManager, ringManager, ui, midiManager, transitionDelegate, settingsStore, sdCardManager,
                touchCalibrator, settings)
     {
     }
 
-    const Size screenSize;
-    TFT_eSPI tft;
-    ScreenUi ui;
+    FakeScreenUi ui;
     Adafruit_NeoPixel strip;
     RingManager ringManager;
     TouchButtonManager touchButtonManager;
@@ -173,6 +270,7 @@ void test_activate_disables_all_footswitch_labels()
     TEST_ASSERT_EQUAL_STRING(" ", fixture.touchButtonManager.getButton(3)->label());
     TEST_ASSERT_EQUAL_STRING("Home", fixture.touchButtonManager.getButton(4)->label());
     TEST_ASSERT_EQUAL_STRING(" ", fixture.touchButtonManager.getButton(7)->label());
+    TEST_ASSERT_EQUAL_INT(1, fixture.ui.hideSdStatusCalls);
 }
 
 void test_button_five_exits_menu_to_home()
@@ -293,7 +391,6 @@ void test_random_ring_colours_are_assigned_on_activate_and_stable_during_midi_ed
     }
     TEST_ASSERT_TRUE(anyNonZero);
 
-    // Select MIDI Channel item, enter edit mode, then change value.
     fixture.mode.encoderRotated(1);
     fixture.mode.encoderPressed();
     fixture.mode.encoderRotated(1);
@@ -346,11 +443,15 @@ void test_sd_card_item_toggles_unmount_and_mount()
 
     TEST_ASSERT_EQUAL_INT(1, fixture.sdCardManager.unmountCalls);
     TEST_ASSERT_FALSE(fixture.sdCardManager.mounted);
+    TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(FakeScreenUi::SdStatusState::NotMounted),
+                            static_cast<uint8_t>(fixture.ui.sdStatusState));
 
     fixture.mode.encoderPressed();
 
     TEST_ASSERT_EQUAL_INT(1, fixture.sdCardManager.mountCalls);
     TEST_ASSERT_TRUE(fixture.sdCardManager.mounted);
+    TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(FakeScreenUi::SdStatusState::Ready),
+                            static_cast<uint8_t>(fixture.ui.sdStatusState));
     TEST_ASSERT_EQUAL_INT(0, fixture.settingsStore.saveCalls);
 }
 
@@ -367,6 +468,7 @@ void test_touch_calibration_item_runs_calibrator_and_saves_result()
     TEST_ASSERT_EQUAL_INT(1, fixture.settingsStore.saveCalls);
     TEST_ASSERT_EQUAL_UINT16(101, fixture.settings.touchCalibration.values[0]);
     TEST_ASSERT_EQUAL_UINT16(404, fixture.settingsStore.stored.touchCalibration.values[3]);
+    TEST_ASSERT_EQUAL_INT(1, fixture.ui.drawBackgroundAndBorderCalls);
 }
 
 void test_touch_calibration_failure_does_not_apply_or_save()
@@ -400,18 +502,19 @@ void test_button_diagnostics_item_enters_button_diagnostic_mode()
 }
 } // namespace
 
-void setUp() {}
+void setUp()
+{
+    HostArduino::resetTime();
+    HostArduino::resetPins();
+    HostArduino::resetRandom();
+}
 
 void tearDown() {}
 
-void setup()
+int main(int argc, char** argv)
 {
-    Serial.begin(115200);
-    const uint32_t start = millis();
-    while (!Serial && (millis() - start) < 5000U)
-    {
-        delay(10);
-    }
+    (void)argc;
+    (void)argv;
 
     UNITY_BEGIN();
     RUN_TEST(test_activate_disables_all_footswitch_labels);
@@ -429,7 +532,5 @@ void setup()
     RUN_TEST(test_touch_calibration_item_runs_calibrator_and_saves_result);
     RUN_TEST(test_touch_calibration_failure_does_not_apply_or_save);
     RUN_TEST(test_button_diagnostics_item_enters_button_diagnostic_mode);
-    UNITY_END();
+    return UNITY_END();
 }
-
-void loop() {}

@@ -3,15 +3,15 @@
 #include "Modes/Mode.h"
 
 #include "Function.h"
+#include "IScreenUi.h"
 #include "MidiManager.h"
 #include "RingManager.h"
-#include "ScreenUi.h"
 #include "Touch/TouchButtonManager.h"
 
 class FunctionModeBase : public IMode
 {
   public:
-    FunctionModeBase(TouchButtonManager& touchButtonManager, RingManager& ringManager, ScreenUi& screenUi,
+    FunctionModeBase(TouchButtonManager& touchButtonManager, RingManager& ringManager, IScreenUi& screenUi,
                      IMidiManager& midiManager, IModeTransistionDelegate& transitionDelegate);
     virtual ~FunctionModeBase() = default;
 
@@ -30,7 +30,7 @@ class FunctionModeBase : public IMode
 
     TouchButtonManager& _touchButtonManager;
     RingManager& _ringManager;
-    ScreenUi& _screenUi;
+    IScreenUi& _screenUi;
     IMidiManager& _midiManager;
     IModeTransistionDelegate& _transitionDelegate;
     Function _functions[TouchButtonManager::BUTTON_COUNT];

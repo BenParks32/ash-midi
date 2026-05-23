@@ -1,5 +1,7 @@
 #include "Modes/HomeMode.h"
 
+#include <TFT_eSPI.h>
+
 const uint8_t HOME_PLAYLIST_PROJECT7 = 2;
 const uint8_t HOME_PLAYLIST_OPR = 3;
 const uint8_t HOME_PLAYLIST_CODERED = 4;
@@ -18,7 +20,7 @@ ModeTransitionValue homePlaylistTransitionValue(byte playlistIndex)
     return static_cast<ModeTransitionValue>(ModeTransitionHomePlaylistFlag | playlistIndex);
 }
 
-HomeMode::HomeMode(TouchButtonManager& touchButtonManager, RingManager& ringManager, ScreenUi& screenUi,
+HomeMode::HomeMode(TouchButtonManager& touchButtonManager, RingManager& ringManager, IScreenUi& screenUi,
                    IMidiManager& midiManager, IModeTransistionDelegate& transitionDelegate)
     : FunctionModeBase(touchButtonManager, ringManager, screenUi, midiManager, transitionDelegate)
 {

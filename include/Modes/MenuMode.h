@@ -8,7 +8,7 @@
 class MenuMode : public FunctionModeBase
 {
   public:
-    MenuMode(TouchButtonManager& touchButtonManager, RingManager& ringManager, ScreenUi& screenUi,
+    MenuMode(TouchButtonManager& touchButtonManager, RingManager& ringManager, IScreenUi& screenUi,
              IMidiManager& midiManager, IModeTransistionDelegate& transitionDelegate, ISettingsStore& settingsStore,
              ISdCardManager& sdCardManager, ITouchCalibrator& touchCalibrator, AppSettings& settings);
 
@@ -44,7 +44,7 @@ class MenuMode : public FunctionModeBase
     void renderMenuItem(MenuItem item, bool hasLeftFocus);
     void renderValuePanel(bool hasRightFocus);
     void renderValueLabel(bool hasRightFocus);
-    void renderSavingIndicator(const char* label = nullptr, uint16_t textColour = TFT_WHITE);
+    void renderSavingIndicator(const char* label = nullptr, uint16_t textColour = 0xFFFF);
     int32_t menuListStartY() const;
     int32_t menuRowY(MenuItem item) const;
     void moveSelection(int16_t steps);

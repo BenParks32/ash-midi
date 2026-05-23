@@ -5,7 +5,7 @@
 class ButtonDiagnosticMode : public FunctionModeBase
 {
   public:
-    ButtonDiagnosticMode(TouchButtonManager& touchButtonManager, RingManager& ringManager, ScreenUi& screenUi,
+    ButtonDiagnosticMode(TouchButtonManager& touchButtonManager, RingManager& ringManager, IScreenUi& screenUi,
                          IMidiManager& midiManager, IModeTransistionDelegate& transitionDelegate);
 
     void activate() override;

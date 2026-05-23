@@ -2,6 +2,7 @@
 
 #include "ColorUtils.h"
 
+#include <TFT_eSPI.h>
 #include <cstdio>
 
 namespace
@@ -21,7 +22,7 @@ const int32_t PatchNumberTextOffsetFromFrameTop = 16;
 const int32_t PatchTitleBorderOffset = 12;
 } // namespace
 
-PatchMode::PatchMode(TouchButtonManager& touchButtonManager, RingManager& ringManager, ScreenUi& screenUi,
+PatchMode::PatchMode(TouchButtonManager& touchButtonManager, RingManager& ringManager, IScreenUi& screenUi,
                      IMidiManager& midiManager, IMidiProvider& midiProvider,
                      IModeTransistionDelegate& transitionDelegate)
     : FunctionModeBase(touchButtonManager, ringManager, screenUi, midiManager, transitionDelegate),

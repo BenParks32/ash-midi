@@ -1,5 +1,6 @@
 #include "Modes/MenuMode.h"
 
+#include <TFT_eSPI.h>
 #include <cstdio>
 
 namespace
@@ -46,7 +47,7 @@ struct MenuLayout
     int32_t valuePanelHeight;
 };
 
-MenuLayout buildMenuLayout(const ScreenUi& screenUi)
+MenuLayout buildMenuLayout(const IScreenUi& screenUi)
 {
     MenuLayout layout = {};
     layout.screenWidth = screenUi.boxWidth() * 4;
@@ -125,7 +126,7 @@ int32_t menuRowGapForLayout(const MenuLayout& layout, uint8_t itemCount)
 }
 } // namespace
 
-MenuMode::MenuMode(TouchButtonManager& touchButtonManager, RingManager& ringManager, ScreenUi& screenUi,
+MenuMode::MenuMode(TouchButtonManager& touchButtonManager, RingManager& ringManager, IScreenUi& screenUi,
                    IMidiManager& midiManager, IModeTransistionDelegate& transitionDelegate,
                    ISettingsStore& settingsStore, ISdCardManager& sdCardManager, ITouchCalibrator& touchCalibrator,
                    AppSettings& settings)

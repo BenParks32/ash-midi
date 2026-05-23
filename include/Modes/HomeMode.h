@@ -5,7 +5,7 @@
 class HomeMode : public FunctionModeBase
 {
   public:
-    HomeMode(TouchButtonManager& touchButtonManager, RingManager& ringManager, ScreenUi& screenUi,
+    HomeMode(TouchButtonManager& touchButtonManager, RingManager& ringManager, IScreenUi& screenUi,
              IMidiManager& midiManager, IModeTransistionDelegate& transitionDelegate);
 
     void activate() override;

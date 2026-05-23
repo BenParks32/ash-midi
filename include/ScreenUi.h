@@ -1,13 +1,13 @@
 #pragma once
 
+#include "IScreenUi.h"
+#include "Gfx.h"
+#include "Resources.h"
+
 #include <Arduino.h>
 #include <TFT_eSPI.h>
 
-#include "Gfx.h"
-#include "Resources.h"
-#include "Touch/TouchButtonUi.h"
-
-class ScreenUi : public ITouchButtonLayout
+class ScreenUi : public IScreenUi
 {
   public:
     ScreenUi(TFT_eSPI& tft, const Size& screenSize);
