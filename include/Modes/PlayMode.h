@@ -33,9 +33,12 @@ class PlayMode : public FunctionModeBase
 
   private:
     void executeAction(const FunctionAction& action);
+    void toggleAction(ActionType actionType);
     void registerTapTempoPress(uint32_t pressedAtMs);
     void clearTapTempoState();
+    void clearToggleState();
     void renderTapTempoButtons(bool redrawLabel);
+    void renderToggleButtons(ActionType actionType, bool redrawLabel);
     static void formatTapTempoBpmLabel(uint32_t intervalMs, char* buffer, size_t bufferSize);
     void renderPlayCenterUi();
     void clearPlayCenterUi();
@@ -54,6 +57,9 @@ class PlayMode : public FunctionModeBase
     int8_t firstSceneSelectionButton() const;
     bool isSceneSelectionButton(byte number) const;
     bool isTapTempoButton(byte number) const;
+    bool isToggleButton(byte number) const;
+    ActionType toggleActionTypeForButton(byte number) const;
+    bool isToggleActionEnabled(ActionType actionType) const;
     bool usesSelectionBorder(byte number) const override;
     uint8_t ringBrightnessForButton(byte number) const override;
     void setupFunctions();
@@ -68,6 +74,10 @@ class PlayMode : public FunctionModeBase
     TapTempoEngine _tapTempoEngine;
     uint32_t _nextTapTempoFlashToggleMs;
     uint32_t _tapTempoFlashUntilMs;
+    uint32_t _nextTunerFlashToggleMs;
     bool _isTapTempoLit;
+    bool _isTunerEnabled;
+    bool _isGigViewEnabled;
+    bool _isTunerFlashLit;
     char _tapTempoDisplayLabel[Function::LabelCapacity];
 };

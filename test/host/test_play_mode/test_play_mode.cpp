@@ -277,6 +277,11 @@ class PlayModeFixture
     PlayMode mode;
 };
 
+uint32_t ringPixelColour(const PlayModeFixture& fixture, byte ringIndex)
+{
+    return fixture.strip.getPixelColor(static_cast<uint16_t>(ringIndex) * RingManager::LedsPerRing);
+}
+
 void test_activate_sets_play_labels()
 {
     PlayModeFixture fixture;
@@ -546,16 +551,42 @@ void test_gig_view_button_opens_gig_view_without_changing_scene_selection()
     TEST_ASSERT_FALSE(fixture.touchButtonManager.getButton(5)->hasBorder());
 }
 
-void test_gig_view_button_long_press_closes_gig_view()
+void test_gig_view_button_second_short_press_closes_gig_view()
+{
+    PlayModeFixture fixture;
+
+    fixture.mode.activate();
+    fixture.mode.buttonPressed(5);
+    fixture.mode.buttonPressed(5);
+
+    TEST_ASSERT_EQUAL_INT(2, fixture.midiProvider.setGigViewCalls);
+    TEST_ASSERT_FALSE(fixture.midiProvider.lastGigViewEnabled);
+    TEST_ASSERT_EQUAL_INT(0, fixture.midiManager.controlChangeCalls);
+}
+
+void test_gig_view_button_long_press_is_noop()
 {
     PlayModeFixture fixture;
 
     fixture.mode.activate();
     fixture.mode.buttonLongPressed(5);
 
-    TEST_ASSERT_EQUAL_INT(1, fixture.midiProvider.setGigViewCalls);
-    TEST_ASSERT_FALSE(fixture.midiProvider.lastGigViewEnabled);
+    TEST_ASSERT_EQUAL_INT(0, fixture.midiProvider.setGigViewCalls);
     TEST_ASSERT_EQUAL_INT(0, fixture.midiManager.controlChangeCalls);
+}
+
+void test_gig_view_button_ring_is_dim_until_toggled_on()
+{
+    PlayModeFixture fixture;
+
+    fixture.mode.activate();
+    const uint32_t dimColour = ringPixelColour(fixture, 5);
+
+    fixture.mode.buttonPressed(5);
+    const uint32_t fullColour = ringPixelColour(fixture, 5);
+
+    TEST_ASSERT_NOT_EQUAL(0U, dimColour);
+    TEST_ASSERT_TRUE(fullColour > dimColour);
 }
 
 void test_tap_tempo_button_does_not_send_midi_on_first_press_without_changing_scene_selection()
@@ -822,16 +853,61 @@ void test_tuner_button_enables_tuner_without_changing_scene_selection()
     TEST_ASSERT_FALSE(fixture.touchButtonManager.getButton(7)->hasBorder());
 }
 
-void test_tuner_button_long_press_disables_tuner()
+void test_tuner_button_second_short_press_disables_tuner()
+{
+    PlayModeFixture fixture;
+
+    fixture.mode.activate();
+    fixture.mode.buttonPressed(7);
+    fixture.mode.buttonPressed(7);
+
+    TEST_ASSERT_EQUAL_INT(2, fixture.midiProvider.setTunerCalls);
+    TEST_ASSERT_FALSE(fixture.midiProvider.lastTunerEnabled);
+    TEST_ASSERT_EQUAL_INT(0, fixture.midiManager.controlChangeCalls);
+}
+
+void test_tuner_button_long_press_is_noop()
 {
     PlayModeFixture fixture;
 
     fixture.mode.activate();
     fixture.mode.buttonLongPressed(7);
 
-    TEST_ASSERT_EQUAL_INT(1, fixture.midiProvider.setTunerCalls);
-    TEST_ASSERT_FALSE(fixture.midiProvider.lastTunerEnabled);
+    TEST_ASSERT_EQUAL_INT(0, fixture.midiProvider.setTunerCalls);
     TEST_ASSERT_EQUAL_INT(0, fixture.midiManager.controlChangeCalls);
+}
+
+void test_tuner_button_flashes_when_enabled_without_redrawing_label()
+{
+    PlayModeFixture fixture;
+
+    fixture.mode.activate();
+    fixture.mode.buttonPressed(7);
+
+    TEST_ASSERT_NOT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(7)->pillColour());
+
+    delay(500);
+    const int drawLabelCallsBeforeFlash = fixture.ui.drawTouchButtonLabelAndPillCalls;
+    const int drawPillCallsBeforeFlash = fixture.ui.drawTouchButtonPillCalls;
+    fixture.mode.frameTick();
+
+    TEST_ASSERT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(7)->pillColour());
+    TEST_ASSERT_EQUAL_INT(drawLabelCallsBeforeFlash, fixture.ui.drawTouchButtonLabelAndPillCalls);
+    TEST_ASSERT_EQUAL_INT(drawPillCallsBeforeFlash + 1, fixture.ui.drawTouchButtonPillCalls);
+}
+
+void test_deactivate_clears_toggle_state_before_reactivation()
+{
+    PlayModeFixture fixture;
+
+    fixture.mode.activate();
+    fixture.mode.buttonPressed(7);
+    fixture.mode.deactivate();
+    fixture.mode.activate();
+    fixture.mode.buttonPressed(7);
+
+    TEST_ASSERT_EQUAL_INT(2, fixture.midiProvider.setTunerCalls);
+    TEST_ASSERT_TRUE(fixture.midiProvider.lastTunerEnabled);
 }
 
 void test_button_press_changes_selection_to_single_button()
@@ -974,7 +1050,9 @@ int main(int argc, char** argv)
     RUN_TEST(test_scene_b_selects_scene_one);
     RUN_TEST(test_scene_c_selects_scene_two);
     RUN_TEST(test_gig_view_button_opens_gig_view_without_changing_scene_selection);
-    RUN_TEST(test_gig_view_button_long_press_closes_gig_view);
+    RUN_TEST(test_gig_view_button_second_short_press_closes_gig_view);
+    RUN_TEST(test_gig_view_button_long_press_is_noop);
+    RUN_TEST(test_gig_view_button_ring_is_dim_until_toggled_on);
     RUN_TEST(test_tap_tempo_button_does_not_send_midi_on_first_press_without_changing_scene_selection);
     RUN_TEST(test_tap_tempo_button_does_not_send_midi_on_second_press);
     RUN_TEST(test_tap_tempo_button_sends_cc44_value100_on_scheduled_interval_after_third_press);
@@ -987,7 +1065,10 @@ int main(int argc, char** argv)
     RUN_TEST(test_tap_tempo_deactivate_clears_pending_scheduler);
     RUN_TEST(test_tap_tempo_button_long_press_is_noop);
     RUN_TEST(test_tuner_button_enables_tuner_without_changing_scene_selection);
-    RUN_TEST(test_tuner_button_long_press_disables_tuner);
+    RUN_TEST(test_tuner_button_second_short_press_disables_tuner);
+    RUN_TEST(test_tuner_button_long_press_is_noop);
+    RUN_TEST(test_tuner_button_flashes_when_enabled_without_redrawing_label);
+    RUN_TEST(test_deactivate_clears_toggle_state_before_reactivation);
     RUN_TEST(test_button_press_changes_selection_to_single_button);
     RUN_TEST(test_button_pressed_ignores_disabled_button);
     RUN_TEST(test_long_press_is_noop);

@@ -29,6 +29,7 @@ const uint16_t GigViewButtonColour = 0xF81F;
 const byte TapTempoCc = 44;
 const byte TapTempoValue = 100;
 const uint32_t TapTempoFlashDurationMs = 10000;
+const uint32_t TunerFlashHalfPeriodMs = 500;
 const byte TunerButtonIndex = 7;
 const uint16_t TunerButtonColour = 0x801F;
 
@@ -93,6 +94,7 @@ PlayMode::PlayMode(TouchButtonManager& touchButtonManager, RingManager& ringMana
       _midiProvider(midiProvider), _buttonOverrideStore(buttonOverrideStore), _selectedPreset(0),
       _selectedPlaylist(midiProvider.defaultPlaylistIndex()), _hasSelectedPreset(false), _selectedButton(0),
       _tapTempoEngine(), _nextTapTempoFlashToggleMs(0), _tapTempoFlashUntilMs(0), _isTapTempoLit(true),
+      _nextTunerFlashToggleMs(0), _isTunerEnabled(false), _isGigViewEnabled(false), _isTunerFlashLit(true),
       _tapTempoDisplayLabel{0}
 {
     setupFunctions();
@@ -205,6 +207,7 @@ void PlayMode::activate()
 
 void PlayMode::deactivate()
 {
+    clearToggleState();
     clearTapTempoState();
     clearPlayCenterUi();
 }
@@ -435,6 +438,45 @@ bool PlayMode::isTapTempoButton(byte number) const
     return getFunction(number).action(FunctionBehaviour::ShortPress).type == ActionType::TapTempo;
 }
 
+ActionType PlayMode::toggleActionTypeForButton(byte number) const
+{
+    if (number >= TouchButtonManager::BUTTON_COUNT || !isButtonEnabled(number))
+    {
+        return ActionType::None;
+    }
+
+    const Function& func = getFunction(number);
+    if (func.hasMomentaryBehaviour())
+    {
+        return ActionType::None;
+    }
+
+    const ActionType actionType = func.action(FunctionBehaviour::ShortPress).type;
+    switch (actionType)
+    {
+    case ActionType::SetTuner:
+    case ActionType::SetGigView:
+        return actionType;
+    default:
+        return ActionType::None;
+    }
+}
+
+bool PlayMode::isToggleButton(byte number) const { return toggleActionTypeForButton(number) != ActionType::None; }
+
+bool PlayMode::isToggleActionEnabled(ActionType actionType) const
+{
+    switch (actionType)
+    {
+    case ActionType::SetTuner:
+        return _isTunerEnabled;
+    case ActionType::SetGigView:
+        return _isGigViewEnabled;
+    default:
+        return false;
+    }
+}
+
 uint8_t PlayMode::ringBrightnessForButton(byte number) const
 {
     if (isTapTempoButton(number))
@@ -442,7 +484,17 @@ uint8_t PlayMode::ringBrightnessForButton(byte number) const
         return _isTapTempoLit ? RingManager::FullBrightness : 0;
     }
 
-    if (number == PatchButtonIndex || number == GigViewButtonIndex || number == TunerButtonIndex)
+    switch (toggleActionTypeForButton(number))
+    {
+    case ActionType::SetTuner:
+        return (!_isTunerEnabled || _isTunerFlashLit) ? RingManager::FullBrightness : 0;
+    case ActionType::SetGigView:
+        return _isGigViewEnabled ? RingManager::FullBrightness : RingManager::DimBrightness;
+    default:
+        break;
+    }
+
+    if (number == PatchButtonIndex)
     {
         return RingManager::FullBrightness;
     }
@@ -489,6 +541,13 @@ void PlayMode::buttonPressed(byte number)
         return;
     }
 
+    const ActionType toggleActionType = toggleActionTypeForButton(number);
+    if (toggleActionType != ActionType::None)
+    {
+        toggleAction(toggleActionType);
+        return;
+    }
+
     const FunctionAction& shortPressAction = func.action(FunctionBehaviour::ShortPress);
     if (shortPressAction.type == ActionType::ChangeMode)
     {
@@ -522,6 +581,11 @@ void PlayMode::buttonLongPressed(byte number)
 
     const Function& func = getFunction(number);
     if (func.hasMomentaryBehaviour())
+    {
+        return;
+    }
+
+    if (isToggleButton(number))
     {
         return;
     }
@@ -561,22 +625,21 @@ void PlayMode::frameTick()
             _isTapTempoLit = true;
             renderTapTempoButtons(false);
         }
-        return;
     }
-
-    if (!_tapTempoEngine.hasFlashInterval() || _tapTempoFlashUntilMs == 0)
+    else if (_tapTempoEngine.hasFlashInterval() && _tapTempoFlashUntilMs != 0 &&
+             static_cast<int32_t>(now - _nextTapTempoFlashToggleMs) >= 0)
     {
-        return;
+        _isTapTempoLit = !_isTapTempoLit;
+        _nextTapTempoFlashToggleMs = now + _tapTempoEngine.flashHalfPeriodMs();
+        renderTapTempoButtons(false);
     }
 
-    if (static_cast<int32_t>(now - _nextTapTempoFlashToggleMs) < 0)
+    if (_isTunerEnabled && static_cast<int32_t>(now - _nextTunerFlashToggleMs) >= 0)
     {
-        return;
+        _isTunerFlashLit = !_isTunerFlashLit;
+        _nextTunerFlashToggleMs = now + TunerFlashHalfPeriodMs;
+        renderToggleButtons(ActionType::SetTuner, false);
     }
-
-    _isTapTempoLit = !_isTapTempoLit;
-    _nextTapTempoFlashToggleMs = now + _tapTempoEngine.flashHalfPeriodMs();
-    renderTapTempoButtons(false);
 }
 
 void PlayMode::executeAction(const FunctionAction& action)
@@ -621,6 +684,27 @@ void PlayMode::executeAction(const FunctionAction& action)
     }
 }
 
+void PlayMode::toggleAction(ActionType actionType)
+{
+    const bool nextEnabled = !isToggleActionEnabled(actionType);
+    switch (actionType)
+    {
+    case ActionType::SetTuner:
+        _isTunerEnabled = nextEnabled;
+        _isTunerFlashLit = true;
+        _nextTunerFlashToggleMs = nextEnabled ? (millis() + TunerFlashHalfPeriodMs) : 0U;
+        break;
+    case ActionType::SetGigView:
+        _isGigViewEnabled = nextEnabled;
+        break;
+    default:
+        return;
+    }
+
+    executeAction(FunctionAction(actionType, nextEnabled ? 1U : 0U, 0U));
+    renderToggleButtons(actionType, true);
+}
+
 void PlayMode::registerTapTempoPress(uint32_t pressedAtMs)
 {
     _tapTempoEngine.registerPress(pressedAtMs);
@@ -647,6 +731,14 @@ void PlayMode::clearTapTempoState()
     _tapTempoFlashUntilMs = 0;
     _isTapTempoLit = true;
     _tapTempoDisplayLabel[0] = '\0';
+}
+
+void PlayMode::clearToggleState()
+{
+    _isTunerEnabled = false;
+    _isGigViewEnabled = false;
+    _isTunerFlashLit = true;
+    _nextTunerFlashToggleMs = 0;
 }
 
 void PlayMode::renderTapTempoButtons(bool redrawLabel)
@@ -678,6 +770,45 @@ void PlayMode::renderTapTempoButtons(bool redrawLabel)
         if (redrawLabel)
         {
             button->setLabel((_tapTempoDisplayLabel[0] != '\0') ? _tapTempoDisplayLabel : getFunction(buttonIndex).label());
+            button->draw(_screenUi);
+            continue;
+        }
+
+        _screenUi.drawTouchButtonPill(button->getLocation(), button->getSize(), pillColour,
+                                      _screenUi.touchButtonPillBorderColour());
+    }
+}
+
+void PlayMode::renderToggleButtons(ActionType actionType, bool redrawLabel)
+{
+    for (byte buttonIndex = 0; buttonIndex < TouchButtonManager::BUTTON_COUNT; ++buttonIndex)
+    {
+        if (toggleActionTypeForButton(buttonIndex) != actionType)
+        {
+            continue;
+        }
+
+        FootSwitchTouchButton* button = _touchButtonManager.getButton(buttonIndex);
+        if (button == nullptr)
+        {
+            continue;
+        }
+
+        const uint8_t ringBrightness = ringBrightnessForButton(buttonIndex);
+        const uint16_t buttonColour = getFunction(buttonIndex).colour();
+        const uint16_t pillColour = (ringBrightness > 0U) ? buttonColour : TFT_BLACK;
+        const uint32_t ringColour = ColorUtils::rgb565To888(buttonColour);
+
+        button->setEnabled(true);
+        button->setPillColour(pillColour);
+        button->setBorderVisible(false);
+
+        _ringManager.setRingColour(buttonIndex, (ringBrightness > 0U) ? ringColour : 0U);
+        _ringManager.setRingBrightness(buttonIndex, ringBrightness);
+
+        if (redrawLabel)
+        {
+            button->setLabel(getFunction(buttonIndex).label());
             button->draw(_screenUi);
             continue;
         }
