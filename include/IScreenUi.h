@@ -3,10 +3,7 @@
 #include "Touch/TouchButtonUi.h"
 
 #include <Arduino.h>
-
-#ifndef _GFXFONT_H_
-struct GFXfont;
-#endif
+#include <TFT_eSPI.h>
 
 class IScreenUi : public ITouchButtonLayout
 {
