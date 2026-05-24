@@ -45,6 +45,25 @@
               }
             }
           }
+        },
+        "2": {
+          "name": "Oughta",
+          "longName": "Oughta Know",
+          "buttons": {
+            "0": {
+              "label": "Verse"
+            },
+            "1": {
+              "label": "Chorus"
+            },
+            "3": {
+              "label": "Tap",
+              "colour": "001F",
+              "function": {
+                "shortPress": "Tap"
+              }
+            }
+          }
         }
       }
     },
@@ -89,6 +108,7 @@
         },
         "2": {
           "name": "Killing",
+          "longName": "Killing In The Name",
           "buttons": {
             "0": {
               "label": "Crunch",

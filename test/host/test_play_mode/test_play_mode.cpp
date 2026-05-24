@@ -196,7 +196,11 @@ class MockButtonOverrideStore : public IButtonOverrideStore
             if (enablePatchName)
             {
                 const char* patchName = (patchNumber == alternatePatchNumber) ? alternatePatchName : defaultPatchName;
-                std::snprintf(patchDisplay->name, PatchDisplayConfig::NameCapacity, "%s", patchName);
+                const char* patchLongName =
+                    (patchNumber == alternatePatchNumber) ? alternatePatchLongName : defaultPatchLongName;
+                const char* patchDisplayName =
+                    (enableLongPatchName && patchLongName[0] != '\0') ? patchLongName : patchName;
+                std::snprintf(patchDisplay->name, PatchDisplayConfig::NameCapacity, "%s", patchDisplayName);
             }
         }
 
@@ -249,9 +253,12 @@ class MockButtonOverrideStore : public IButtonOverrideStore
     bool enableMomentaryOverride = false;
     bool enablePatchButtonOverride = false;
     bool enablePatchName = false;
+    bool enableLongPatchName = false;
     bool enableTapOverride = false;
     char defaultPatchName[PatchDisplayConfig::NameCapacity] = "Big Sky Intro";
     char alternatePatchName[PatchDisplayConfig::NameCapacity] = "Massive Lead Wall";
+    char defaultPatchLongName[PatchDisplayConfig::NameCapacity] = "";
+    char alternatePatchLongName[PatchDisplayConfig::NameCapacity] = "";
     byte alternatePatchNumber = 9;
     byte tapButtonIndex = 3;
 };
@@ -385,8 +392,8 @@ void test_activate_sets_play_labels()
     TEST_ASSERT_EQUAL_STRING("Lead", fixture.touchButtonManager.getButton(2)->label());
     TEST_ASSERT_EQUAL_STRING(" ", fixture.touchButtonManager.getButton(3)->label());
     TEST_ASSERT_EQUAL_STRING("Patch", fixture.touchButtonManager.getButton(4)->label());
-    TEST_ASSERT_EQUAL_STRING("Gig", fixture.touchButtonManager.getButton(5)->label());
-    TEST_ASSERT_EQUAL_STRING(" ", fixture.touchButtonManager.getButton(6)->label());
+    TEST_ASSERT_EQUAL_STRING(" ", fixture.touchButtonManager.getButton(5)->label());
+    TEST_ASSERT_EQUAL_STRING("Gig", fixture.touchButtonManager.getButton(6)->label());
     TEST_ASSERT_EQUAL_STRING("Tuner", fixture.touchButtonManager.getButton(7)->label());
 }
 
@@ -409,6 +416,32 @@ void test_activate_renders_patch_name_with_prefix_when_provided()
     fixture.mode.activate();
 
     TEST_ASSERT_TRUE(findDrawTextCallIndex(fixture.ui, "Patch: Big Sky Intro", TFT_WHITE) >= 0);
+}
+
+void test_activate_prefers_patch_long_name_when_provided()
+{
+    PlayModeFixture fixture;
+    fixture.overrideStore.enablePatchName = true;
+    fixture.overrideStore.enableLongPatchName = true;
+    std::snprintf(fixture.overrideStore.defaultPatchName, sizeof(fixture.overrideStore.defaultPatchName), "%s", "Big Sky");
+    std::snprintf(fixture.overrideStore.defaultPatchLongName, sizeof(fixture.overrideStore.defaultPatchLongName), "%s",
+                  "Big Sky Intro");
+
+    fixture.mode.activate();
+
+    TEST_ASSERT_TRUE(findDrawTextCallIndex(fixture.ui, "Patch: Big Sky Intro", TFT_WHITE) >= 0);
+}
+
+void test_activate_renders_patch_name_five_pixels_higher()
+{
+    PlayModeFixture fixture;
+    fixture.overrideStore.enablePatchName = true;
+
+    fixture.mode.activate();
+
+    const int patchNameCallIndex = findDrawTextCallIndex(fixture.ui, "Patch: Big Sky Intro", TFT_WHITE);
+    TEST_ASSERT_TRUE(patchNameCallIndex >= 0);
+    TEST_ASSERT_EQUAL_INT(115, fixture.ui.drawTextLog[patchNameCallIndex].y);
 }
 
 void test_activate_without_patch_name_does_not_render_patch_name_prefix()
@@ -479,8 +512,8 @@ void test_activate_selects_single_button_and_dims_others()
     TEST_ASSERT_NOT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(1)->pillColour());
     TEST_ASSERT_NOT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(2)->pillColour());
     TEST_ASSERT_NOT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(4)->pillColour());
-    TEST_ASSERT_NOT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(5)->pillColour());
-    TEST_ASSERT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(6)->pillColour());
+    TEST_ASSERT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(5)->pillColour());
+    TEST_ASSERT_NOT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(6)->pillColour());
     TEST_ASSERT_NOT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(7)->pillColour());
 }
 
@@ -522,7 +555,7 @@ void test_momentary_override_uses_button_down_and_release_and_suppresses_short_a
     TEST_ASSERT_EQUAL_UINT8(21, fixture.midiManager.lastControlChangeNumber);
     TEST_ASSERT_EQUAL_UINT8(127, fixture.midiManager.lastControlChangeValue);
 
-    fixture.mode.buttonPressed(5);
+    fixture.mode.buttonPressed(6);
     fixture.mode.buttonLongPressed(5);
     TEST_ASSERT_EQUAL_INT(0, fixture.transitionDelegate.calls);
     TEST_ASSERT_EQUAL_INT(baselineControlChanges + 1, fixture.midiManager.controlChangeCalls);
@@ -664,14 +697,14 @@ void test_gig_view_button_opens_gig_view_without_changing_scene_selection()
     PlayModeFixture fixture;
 
     fixture.mode.activate();
-    fixture.mode.buttonPressed(5);
+    fixture.mode.buttonPressed(6);
 
     TEST_ASSERT_EQUAL_INT(1, fixture.midiProvider.setGigViewCalls);
     TEST_ASSERT_TRUE(fixture.midiProvider.lastGigViewEnabled);
     TEST_ASSERT_EQUAL_INT(1, fixture.midiProvider.selectSceneCalls);
     TEST_ASSERT_EQUAL_INT(0, fixture.midiManager.controlChangeCalls);
     TEST_ASSERT_TRUE(fixture.touchButtonManager.getButton(0)->hasBorder());
-    TEST_ASSERT_FALSE(fixture.touchButtonManager.getButton(5)->hasBorder());
+    TEST_ASSERT_FALSE(fixture.touchButtonManager.getButton(6)->hasBorder());
 }
 
 void test_gig_view_button_second_short_press_closes_gig_view()
@@ -679,8 +712,8 @@ void test_gig_view_button_second_short_press_closes_gig_view()
     PlayModeFixture fixture;
 
     fixture.mode.activate();
-    fixture.mode.buttonPressed(5);
-    fixture.mode.buttonPressed(5);
+    fixture.mode.buttonPressed(6);
+    fixture.mode.buttonPressed(6);
 
     TEST_ASSERT_EQUAL_INT(2, fixture.midiProvider.setGigViewCalls);
     TEST_ASSERT_FALSE(fixture.midiProvider.lastGigViewEnabled);
@@ -692,7 +725,7 @@ void test_gig_view_button_long_press_is_noop()
     PlayModeFixture fixture;
 
     fixture.mode.activate();
-    fixture.mode.buttonLongPressed(5);
+    fixture.mode.buttonLongPressed(6);
 
     TEST_ASSERT_EQUAL_INT(0, fixture.midiProvider.setGigViewCalls);
     TEST_ASSERT_EQUAL_INT(0, fixture.midiManager.controlChangeCalls);
@@ -703,10 +736,10 @@ void test_gig_view_button_ring_is_dim_until_toggled_on()
     PlayModeFixture fixture;
 
     fixture.mode.activate();
-    const uint32_t dimColour = ringPixelColour(fixture, 5);
+    const uint32_t dimColour = ringPixelColour(fixture, 6);
 
-    fixture.mode.buttonPressed(5);
-    const uint32_t fullColour = ringPixelColour(fixture, 5);
+    fixture.mode.buttonPressed(6);
+    const uint32_t fullColour = ringPixelColour(fixture, 6);
 
     TEST_ASSERT_NOT_EQUAL(0U, dimColour);
     TEST_ASSERT_TRUE(fullColour > dimColour);
@@ -1262,6 +1295,8 @@ int main(int argc, char** argv)
     RUN_TEST(test_activate_sets_play_labels);
     RUN_TEST(test_activate_applies_tap_to_configured_button);
     RUN_TEST(test_activate_renders_patch_name_with_prefix_when_provided);
+    RUN_TEST(test_activate_prefers_patch_long_name_when_provided);
+    RUN_TEST(test_activate_renders_patch_name_five_pixels_higher);
     RUN_TEST(test_activate_without_patch_name_does_not_render_patch_name_prefix);
     RUN_TEST(test_patch_name_is_truncated_for_long_labels);
     RUN_TEST(test_tap_tempo_button_label_updates_to_bpm_when_interval_is_known);

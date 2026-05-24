@@ -76,6 +76,41 @@ void test_apply_overrides_reads_patch_name_without_button_overrides()
     TEST_ASSERT_EQUAL_STRING(" ", functions[0].label());
 }
 
+void test_apply_overrides_prefers_patch_long_name_for_play_mode_display()
+{
+    MockTextFileStore fileStore;
+    std::strcpy(fileStore.contents,
+                "{\"playModes\":{\"Project7\":{\"patches\":{\"5\":{\"name\":\"Big Sky\",\"longName\":\"Big Sky Intro\"}}}}}");
+    fileStore.hasContents = true;
+
+    ButtonOverrideStore store(&fileStore);
+    TEST_ASSERT_TRUE(store.refresh());
+
+    Function functions[8] = {};
+    PatchDisplayConfig patchDisplay;
+    store.applyOverrides(2, 5, functions, 8, &patchDisplay);
+
+    TEST_ASSERT_EQUAL_STRING("Big Sky Intro", patchDisplay.name);
+    TEST_ASSERT_EQUAL_STRING(" ", functions[0].label());
+}
+
+void test_apply_overrides_falls_back_to_patch_name_when_long_name_is_empty()
+{
+    MockTextFileStore fileStore;
+    std::strcpy(fileStore.contents,
+                "{\"playModes\":{\"Project7\":{\"patches\":{\"5\":{\"name\":\"Big Sky Intro\",\"longName\":\"\"}}}}}");
+    fileStore.hasContents = true;
+
+    ButtonOverrideStore store(&fileStore);
+    TEST_ASSERT_TRUE(store.refresh());
+
+    Function functions[8] = {};
+    PatchDisplayConfig patchDisplay;
+    store.applyOverrides(2, 5, functions, 8, &patchDisplay);
+
+    TEST_ASSERT_EQUAL_STRING("Big Sky Intro", patchDisplay.name);
+}
+
 void test_apply_overrides_sets_toggle_flag_when_configured()
 {
     MockTextFileStore fileStore;
@@ -204,6 +239,8 @@ int main(int argc, char** argv)
     UNITY_BEGIN();
     RUN_TEST(test_refresh_parses_tap_alias_for_blank_default_button);
     RUN_TEST(test_apply_overrides_reads_patch_name_without_button_overrides);
+    RUN_TEST(test_apply_overrides_prefers_patch_long_name_for_play_mode_display);
+    RUN_TEST(test_apply_overrides_falls_back_to_patch_name_when_long_name_is_empty);
     RUN_TEST(test_apply_overrides_sets_toggle_flag_when_configured);
     RUN_TEST(test_apply_overrides_matches_playlist_and_patch);
     RUN_TEST(test_apply_overrides_can_reparse_same_config_multiple_times);

@@ -21,7 +21,7 @@ const int32_t PlayPatchBadgeRightMargin = 20;
 const int32_t PlaySnapshotLabelOffsetY = 72;
 const int32_t PlayPatchBadgeTitleBorderOffset = 5;
 const int32_t PlayPatchBadgeNumberOffset = 22;
-const int32_t PlayPatchNameOffsetY = 40;
+const int32_t PlayPatchNameOffsetY = 35;
 const size_t PlayPatchNameMaxChars = 18;
 const char* PlayPatchNamePrefix = "Patch: ";
 
@@ -29,7 +29,7 @@ const int32_t PlaySnapshotLabelLeftX = 40;
 const byte FirstSnapshotButtonIndex = 0;
 const byte LastSnapshotButtonIndex = 2;
 const byte PatchButtonIndex = 4;
-const byte GigViewButtonIndex = 5;
+const byte GigViewButtonIndex = 6;
 const uint16_t GigViewButtonColour = 0xF81F;
 const byte TapTempoCc = 44;
 const byte TapTempoValue = 100;
@@ -108,11 +108,13 @@ void PlayMode::setupFunctions()
 
     _functions[3] = Function();
     configurePatchButton();
-    _functions[5] = Function("Gig", GigViewButtonColour, ActionType::SetGigView, 1, ActionType::SetGigView, 0);
-    _functions[5].setToggle(true);
-    _functions[6] = Function();
-    _functions[7] = Function("Tuner", TunerButtonColour, ActionType::SetTuner, 1, ActionType::SetTuner, 0);
-    _functions[7].setToggle(true);
+    _functions[5] = Function();
+    _functions[GigViewButtonIndex] = Function("Gig", GigViewButtonColour, ActionType::SetGigView, 1,
+                                              ActionType::SetGigView, 0);
+    _functions[GigViewButtonIndex].setToggle(true);
+    _functions[TunerButtonIndex] = Function("Tuner", TunerButtonColour, ActionType::SetTuner, 1, ActionType::SetTuner,
+                                            0);
+    _functions[TunerButtonIndex].setToggle(true);
 }
 
 void PlayMode::configurePatchButton()

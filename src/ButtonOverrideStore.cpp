@@ -152,9 +152,12 @@ void ButtonOverrideStore::applyOverrides(byte playlistIndex, byte patchNumber, F
     if (patchDisplay != nullptr)
     {
         const char* patchName = patchObject["name"].as<const char*>();
-        if (patchName != nullptr)
+        const char* patchLongName = patchObject["longName"].as<const char*>();
+        const char* patchDisplayName =
+            (patchLongName != nullptr && patchLongName[0] != '\0') ? patchLongName : patchName;
+        if (patchDisplayName != nullptr)
         {
-            std::strncpy(patchDisplay->name, patchName, PatchDisplayConfig::NameCapacity - 1U);
+            std::strncpy(patchDisplay->name, patchDisplayName, PatchDisplayConfig::NameCapacity - 1U);
             patchDisplay->name[PatchDisplayConfig::NameCapacity - 1U] = '\0';
         }
     }
