@@ -52,6 +52,22 @@ class ModeSpy : public IMode
     int releasedCalls = 0;
 };
 
+class SwitchingModeSpy : public ModeSpy
+{
+  public:
+    SwitchingModeSpy(IMode*& activeMode, IMode* nextMode) : _activeMode(activeMode), _nextMode(nextMode) {}
+
+    void buttonPressed(const byte number) override
+    {
+        ModeSpy::buttonPressed(number);
+        _activeMode = _nextMode;
+    }
+
+  private:
+    IMode*& _activeMode;
+    IMode* _nextMode;
+};
+
 class ButtonHandlerFixture
 {
   public:
@@ -145,6 +161,25 @@ void test_button_handler_reads_active_mode_pointer_by_reference()
     TEST_ASSERT_EQUAL_INT(1, fixture.modeSpy.pressedCalls);
     TEST_ASSERT_EQUAL_UINT8(6, fixture.modeSpy.lastPressed);
 }
+
+void test_button_release_stays_with_mode_that_received_press()
+{
+    Adafruit_NeoPixel strip(RingManager::LedCount, 0, NEO_GRB + NEO_KHZ800);
+    RingManager ringManager(strip);
+    IMode* activeMode = nullptr;
+    ButtonHandler handler(activeMode, ringManager);
+    ModeSpy releasedMode;
+    SwitchingModeSpy pressingMode(activeMode, &releasedMode);
+    activeMode = &pressingMode;
+
+    handler.buttonDown(4);
+    handler.buttonPressed(4);
+    handler.buttonReleased(4);
+
+    TEST_ASSERT_EQUAL_INT(1, pressingMode.pressedCalls);
+    TEST_ASSERT_EQUAL_INT(1, pressingMode.releasedCalls);
+    TEST_ASSERT_EQUAL_INT(0, releasedMode.releasedCalls);
+}
 } // namespace
 
 void setUp()
@@ -168,5 +203,6 @@ int main(int argc, char** argv)
     RUN_TEST(test_button_pressed_does_nothing_when_no_active_mode);
     RUN_TEST(test_button_long_pressed_no_mode_does_not_select_touch_button);
     RUN_TEST(test_button_handler_reads_active_mode_pointer_by_reference);
+    RUN_TEST(test_button_release_stays_with_mode_that_received_press);
     return UNITY_END();
 }

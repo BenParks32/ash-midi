@@ -1,0 +1,106 @@
+{
+  "playModes": {
+    "Project7": {
+      "patches": {
+        "1": {
+          "name": "Zombie",
+          "buttons": {
+            "0": {
+              "label": "Verse"
+            },
+            "1": {
+              "label": "Chorus"
+            }
+          }
+        },
+        "2": {
+          "name": "Boulevard",
+          "buttons": {
+            "0": {
+              "label": "Verse"
+            },
+            "1": {
+              "label": "Chorus"
+            }
+          }
+        }
+      }
+    },
+    "OPR": {
+      "patches": {
+        "1": {
+          "name": "Boulevard",
+          "buttons": {
+            "0": {
+              "label": "Verse"
+            },
+            "1": {
+              "label": "Chorus"
+            },
+            "3": {
+              "label": "Tap",
+              "colour": "001F",
+              "function": {
+                "shortPress": "Tap"
+              }
+            }
+          }
+        }
+      }
+    },
+    "CodeRed": {
+      "patches": {
+        "0": {
+          "buttons": {
+            "6": {
+              "label": "E Flat",
+              "colour": "FD20",
+              "toggle": true,
+              "function": {
+                "shortPress": {
+                  "action": "SendMidiControlChange",
+                  "value": 35,
+                  "secondaryValue": 100
+                }
+              }
+            }
+          }
+        },
+        "1": {
+          "name": "With",
+          "buttons": {
+            "3": {
+              "label": "Freeze",
+              "colour": "867D",
+              "function": {
+                "press": {
+                  "action": "SendMidiControlChange",
+                  "value": 36,
+                  "secondaryValue": 100
+                },
+                "release": {
+                  "action": "SendMidiControlChange",
+                  "value": 36,
+                  "secondaryValue": 100
+                }
+              }
+            }
+          }
+        },
+        "2": {
+          "name": "Killing",
+          "buttons": {
+            "0": {
+              "label": "Crunch",
+              "colour": "001F"
+            },
+            "1": {
+              "label": "Flange",
+              "colour": "0x801F"
+            }
+          }
+        }
+      }
+    }
+  }
+}

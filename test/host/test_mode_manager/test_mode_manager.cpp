@@ -34,9 +34,10 @@ void test_enter_mode_switches_active_and_activates_target()
     FakeMode patch;
     FakeMode menu;
     FakeMode buttonDiagnostic;
+    FakeMode patches;
 
     IMode* activeMode = &home;
-    IMode* modes[ModeCount] = {&home, &play, &patch, &menu, &buttonDiagnostic};
+    IMode* modes[ModeCount] = {&home, &play, &patch, &menu, &buttonDiagnostic, &patches};
     ModeManager manager(activeMode, modes);
 
     manager.enterMode(Modes::Play, 42);
@@ -55,9 +56,10 @@ void test_enter_mode_ignores_null_target_mode()
     FakeMode play;
     FakeMode menu;
     FakeMode buttonDiagnostic;
+    FakeMode patches;
 
     IMode* activeMode = &home;
-    IMode* modes[ModeCount] = {&home, &play, nullptr, &menu, &buttonDiagnostic};
+    IMode* modes[ModeCount] = {&home, &play, nullptr, &menu, &buttonDiagnostic, &patches};
     ModeManager manager(activeMode, modes);
 
     manager.enterMode(Modes::Patch, 10);
@@ -73,9 +75,10 @@ void test_enter_mode_ignores_out_of_range_mode()
     FakeMode patch;
     FakeMode menu;
     FakeMode buttonDiagnostic;
+    FakeMode patches;
 
     IMode* activeMode = &home;
-    IMode* modes[ModeCount] = {&home, &play, &patch, &menu, &buttonDiagnostic};
+    IMode* modes[ModeCount] = {&home, &play, &patch, &menu, &buttonDiagnostic, &patches};
     ModeManager manager(activeMode, modes);
 
     manager.enterMode(static_cast<Modes>(ModeCount), 99);
@@ -86,6 +89,7 @@ void test_enter_mode_ignores_out_of_range_mode()
     TEST_ASSERT_EQUAL_INT(0, patch.activateCalls);
     TEST_ASSERT_EQUAL_INT(0, menu.activateCalls);
     TEST_ASSERT_EQUAL_INT(0, buttonDiagnostic.activateCalls);
+    TEST_ASSERT_EQUAL_INT(0, patches.activateCalls);
 }
 
 void test_enter_mode_can_switch_to_home()
@@ -95,9 +99,10 @@ void test_enter_mode_can_switch_to_home()
     FakeMode patch;
     FakeMode menu;
     FakeMode buttonDiagnostic;
+    FakeMode patches;
 
     IMode* activeMode = &play;
-    IMode* modes[ModeCount] = {&home, &play, &patch, &menu, &buttonDiagnostic};
+    IMode* modes[ModeCount] = {&home, &play, &patch, &menu, &buttonDiagnostic, &patches};
     ModeManager manager(activeMode, modes);
 
     manager.enterMode(Modes::Home, 7);
@@ -115,9 +120,10 @@ void test_enter_mode_can_switch_to_patch()
     FakeMode patch;
     FakeMode menu;
     FakeMode buttonDiagnostic;
+    FakeMode patches;
 
     IMode* activeMode = &play;
-    IMode* modes[ModeCount] = {&home, &play, &patch, &menu, &buttonDiagnostic};
+    IMode* modes[ModeCount] = {&home, &play, &patch, &menu, &buttonDiagnostic, &patches};
     ModeManager manager(activeMode, modes);
 
     manager.enterMode(Modes::Patch, 33);
@@ -136,9 +142,10 @@ void test_enter_mode_can_switch_to_button_diagnostic()
     FakeMode patch;
     FakeMode menu;
     FakeMode buttonDiagnostic;
+    FakeMode patches;
 
     IMode* activeMode = &menu;
-    IMode* modes[ModeCount] = {&home, &play, &patch, &menu, &buttonDiagnostic};
+    IMode* modes[ModeCount] = {&home, &play, &patch, &menu, &buttonDiagnostic, &patches};
     ModeManager manager(activeMode, modes);
 
     manager.enterMode(Modes::ButtonDiagnostic, ModeTransitionNone);
@@ -148,6 +155,28 @@ void test_enter_mode_can_switch_to_button_diagnostic()
     TEST_ASSERT_EQUAL_UINT16(ModeTransitionNone, buttonDiagnostic.lastTransitionValue);
     TEST_ASSERT_EQUAL_INT(1, buttonDiagnostic.activateCalls);
     TEST_ASSERT_EQUAL_INT(1, menu.deactivateCalls);
+}
+
+void test_enter_mode_can_switch_to_patches()
+{
+    FakeMode home;
+    FakeMode play;
+    FakeMode patch;
+    FakeMode menu;
+    FakeMode buttonDiagnostic;
+    FakeMode patches;
+
+    IMode* activeMode = &play;
+    IMode* modes[ModeCount] = {&home, &play, &patch, &menu, &buttonDiagnostic, &patches};
+    ModeManager manager(activeMode, modes);
+
+    manager.enterMode(Modes::Patches, 123);
+
+    TEST_ASSERT_EQUAL_PTR(&patches, activeMode);
+    TEST_ASSERT_EQUAL_INT(1, patches.setTransitionValueCalls);
+    TEST_ASSERT_EQUAL_UINT16(123, patches.lastTransitionValue);
+    TEST_ASSERT_EQUAL_INT(1, patches.activateCalls);
+    TEST_ASSERT_EQUAL_INT(1, play.deactivateCalls);
 }
 } // namespace
 
@@ -167,5 +196,6 @@ int main(int argc, char** argv)
     RUN_TEST(test_enter_mode_can_switch_to_home);
     RUN_TEST(test_enter_mode_can_switch_to_patch);
     RUN_TEST(test_enter_mode_can_switch_to_button_diagnostic);
+    RUN_TEST(test_enter_mode_can_switch_to_patches);
     return UNITY_END();
 }

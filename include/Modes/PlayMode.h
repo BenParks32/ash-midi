@@ -21,6 +21,7 @@ class PlayMode : public FunctionModeBase
     void buttonLongPressed(byte number) override;
     void buttonReleased(byte number) override;
     void frameTick() override;
+    void encoderPressed() override;
     void setTransitionValue(ModeTransitionValue transitionValue) override;
 
   private:
@@ -72,6 +73,7 @@ class PlayMode : public FunctionModeBase
     bool isToggleButton(byte number) const;
     ActionType toggleActionTypeForButton(byte number) const;
     bool isToggleActionEnabled(ActionType actionType) const;
+    void configurePatchButton();
     bool usesSelectionBorder(byte number) const override;
     uint8_t ringBrightnessForButton(byte number) const override;
     void setupFunctions();

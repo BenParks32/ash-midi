@@ -25,7 +25,12 @@ class ButtonHandler : public IButtonDelegate, public ITouchButtonDelegate
     void buttonReleased(const byte number) override;
 
   private:
+    IMode* modeForButton(byte number) const;
+    void clearTrackedMode(byte number);
+
+  private:
     IMode*& _activeMode;
     RingManager& _ringManager;
     Button* _buttons[ButtonCount];
+    IMode* _trackedModes[ButtonCount];
 };

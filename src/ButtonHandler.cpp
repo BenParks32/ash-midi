@@ -10,7 +10,7 @@ const byte kButtonPins[ButtonHandler::ButtonCount] = {PB12, PB13, PB14, PB15, PA
 }
 
 ButtonHandler::ButtonHandler(IMode*& activeMode, RingManager& ringManager)
-    : _activeMode(activeMode), _ringManager(ringManager), _buttons{nullptr}
+    : _activeMode(activeMode), _ringManager(ringManager), _buttons{nullptr}, _trackedModes{nullptr}
 {
 }
 
@@ -50,17 +50,24 @@ void ButtonHandler::updateButtons()
 
 void ButtonHandler::buttonDown(const byte number)
 {
-    if (_activeMode != nullptr)
+    if (number >= ButtonCount)
     {
-        _activeMode->buttonDown(number);
+        return;
+    }
+
+    _trackedModes[number] = _activeMode;
+    if (_trackedModes[number] != nullptr)
+    {
+        _trackedModes[number]->buttonDown(number);
     }
 }
 
 void ButtonHandler::buttonPressed(const byte number)
 {
-    if (_activeMode != nullptr)
+    IMode* const mode = modeForButton(number);
+    if (mode != nullptr)
     {
-        _activeMode->buttonPressed(number);
+        mode->buttonPressed(number);
         return;
     }
 
@@ -69,9 +76,10 @@ void ButtonHandler::buttonPressed(const byte number)
 
 void ButtonHandler::buttonLongPressed(const byte number)
 {
-    if (_activeMode != nullptr)
+    IMode* const mode = modeForButton(number);
+    if (mode != nullptr)
     {
-        _activeMode->buttonLongPressed(number);
+        mode->buttonLongPressed(number);
         return;
     }
 
@@ -80,8 +88,34 @@ void ButtonHandler::buttonLongPressed(const byte number)
 
 void ButtonHandler::buttonReleased(const byte number)
 {
-    if (_activeMode != nullptr)
+    IMode* const mode = modeForButton(number);
+    if (mode != nullptr)
     {
-        _activeMode->buttonReleased(number);
+        mode->buttonReleased(number);
+    }
+
+    clearTrackedMode(number);
+}
+
+IMode* ButtonHandler::modeForButton(byte number) const
+{
+    if (number >= ButtonCount)
+    {
+        return _activeMode;
+    }
+
+    if (_trackedModes[number] != nullptr)
+    {
+        return _trackedModes[number];
+    }
+
+    return _activeMode;
+}
+
+void ButtonHandler::clearTrackedMode(byte number)
+{
+    if (number < ButtonCount)
+    {
+        _trackedModes[number] = nullptr;
     }
 }

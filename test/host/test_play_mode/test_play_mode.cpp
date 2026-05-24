@@ -225,6 +225,12 @@ class MockButtonOverrideStore : public IButtonOverrideStore
             functions[6].setToggle(true);
         }
 
+        if (enablePatchButtonOverride && functionCount > 4)
+        {
+            functions[4] = Function("Override", 0xF800, ActionType::ChangeMode, static_cast<byte>(Modes::Home),
+                                    ActionType::ChangeMode, static_cast<byte>(Modes::Home));
+        }
+
         if (!enableTapOverride || tapButtonIndex >= functionCount)
         {
             return;
@@ -241,6 +247,7 @@ class MockButtonOverrideStore : public IButtonOverrideStore
     bool disableTunerToggle = false;
     bool enableGenericToggleOverride = false;
     bool enableMomentaryOverride = false;
+    bool enablePatchButtonOverride = false;
     bool enablePatchName = false;
     bool enableTapOverride = false;
     char defaultPatchName[PatchDisplayConfig::NameCapacity] = "Big Sky Intro";
@@ -1134,12 +1141,26 @@ void test_long_press_is_noop()
     TEST_ASSERT_EQUAL_INT(0, fixture.transitionDelegate.calls);
 }
 
-void test_button_five_long_press_transitions_to_home()
+void test_button_five_long_press_transitions_to_patch_mode()
+{
+    PlayModeFixture fixture;
+
+    fixture.mode.setSelectedPreset(6);
+    fixture.mode.activate();
+    fixture.mode.buttonLongPressed(4);
+
+    TEST_ASSERT_EQUAL_INT(1, fixture.transitionDelegate.calls);
+    TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(Modes::Patch),
+                            static_cast<uint8_t>(fixture.transitionDelegate.lastMode));
+    TEST_ASSERT_EQUAL_UINT16(6, fixture.transitionDelegate.lastTransitionValue);
+}
+
+void test_encoder_press_transitions_to_home()
 {
     PlayModeFixture fixture;
 
     fixture.mode.activate();
-    fixture.mode.buttonLongPressed(4);
+    fixture.mode.encoderPressed();
 
     TEST_ASSERT_EQUAL_INT(1, fixture.transitionDelegate.calls);
     TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(Modes::Home),
@@ -1160,7 +1181,7 @@ void test_tap_tempo_button_does_not_change_mode()
     TEST_ASSERT_EQUAL_INT(0, fixture.midiManager.controlChangeCalls);
 }
 
-void test_button_five_transitions_to_patch_mode()
+void test_button_five_short_press_transitions_to_patches_mode()
 {
     PlayModeFixture fixture;
 
@@ -1169,12 +1190,13 @@ void test_button_five_transitions_to_patch_mode()
     fixture.mode.buttonPressed(4);
 
     TEST_ASSERT_EQUAL_INT(1, fixture.transitionDelegate.calls);
-    TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(Modes::Patch),
+    TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(Modes::Patches),
                             static_cast<uint8_t>(fixture.transitionDelegate.lastMode));
-    TEST_ASSERT_EQUAL_UINT16(6, fixture.transitionDelegate.lastTransitionValue);
+    TEST_ASSERT_EQUAL_UINT16(makePlayModeTransition(fixture.midiProvider.defaultPlaylistIndex(), 6, false),
+                             fixture.transitionDelegate.lastTransitionValue);
 }
 
-void test_button_five_uses_patch_return_value_for_next_patch_entry()
+void test_button_five_uses_patch_return_value_for_next_patches_entry()
 {
     PlayModeFixture fixture;
 
@@ -1183,12 +1205,13 @@ void test_button_five_uses_patch_return_value_for_next_patch_entry()
     fixture.mode.buttonPressed(4);
 
     TEST_ASSERT_EQUAL_INT(1, fixture.transitionDelegate.calls);
-    TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(Modes::Patch),
+    TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(Modes::Patches),
                             static_cast<uint8_t>(fixture.transitionDelegate.lastMode));
-    TEST_ASSERT_EQUAL_UINT16(11, fixture.transitionDelegate.lastTransitionValue);
+    TEST_ASSERT_EQUAL_UINT16(makePlayModeTransition(fixture.midiProvider.defaultPlaylistIndex(), 11, false),
+                             fixture.transitionDelegate.lastTransitionValue);
 }
 
-void test_button_five_uses_home_playlist_preset_zero_for_next_patch_entry()
+void test_button_five_uses_home_playlist_preset_zero_for_next_patches_entry()
 {
     PlayModeFixture fixture;
 
@@ -1197,9 +1220,27 @@ void test_button_five_uses_home_playlist_preset_zero_for_next_patch_entry()
     fixture.mode.buttonPressed(4);
 
     TEST_ASSERT_EQUAL_INT(1, fixture.transitionDelegate.calls);
-    TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(Modes::Patch),
+    TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(Modes::Patches),
                             static_cast<uint8_t>(fixture.transitionDelegate.lastMode));
-    TEST_ASSERT_EQUAL_UINT16(0, fixture.transitionDelegate.lastTransitionValue);
+    TEST_ASSERT_EQUAL_UINT16(makePlayModeTransition(CodeRedPlaylistIndex, 0, false),
+                             fixture.transitionDelegate.lastTransitionValue);
+}
+
+void test_button_five_override_is_ignored()
+{
+    PlayModeFixture fixture;
+    fixture.overrideStore.enablePatchButtonOverride = true;
+
+    fixture.mode.setSelectedPreset(4);
+    fixture.mode.activate();
+    fixture.mode.buttonPressed(4);
+
+    TEST_ASSERT_EQUAL_STRING("Patch", fixture.touchButtonManager.getButton(4)->label());
+    TEST_ASSERT_EQUAL_INT(1, fixture.transitionDelegate.calls);
+    TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(Modes::Patches),
+                            static_cast<uint8_t>(fixture.transitionDelegate.lastMode));
+    TEST_ASSERT_EQUAL_UINT16(makePlayModeTransition(fixture.midiProvider.defaultPlaylistIndex(), 4, false),
+                             fixture.transitionDelegate.lastTransitionValue);
 }
 } // namespace
 
@@ -1265,10 +1306,12 @@ int main(int argc, char** argv)
     RUN_TEST(test_button_press_changes_selection_to_single_button);
     RUN_TEST(test_button_pressed_ignores_disabled_button);
     RUN_TEST(test_long_press_is_noop);
-    RUN_TEST(test_button_five_long_press_transitions_to_home);
+    RUN_TEST(test_button_five_long_press_transitions_to_patch_mode);
+    RUN_TEST(test_encoder_press_transitions_to_home);
     RUN_TEST(test_tap_tempo_button_does_not_change_mode);
-    RUN_TEST(test_button_five_transitions_to_patch_mode);
-    RUN_TEST(test_button_five_uses_patch_return_value_for_next_patch_entry);
-    RUN_TEST(test_button_five_uses_home_playlist_preset_zero_for_next_patch_entry);
+    RUN_TEST(test_button_five_short_press_transitions_to_patches_mode);
+    RUN_TEST(test_button_five_uses_patch_return_value_for_next_patches_entry);
+    RUN_TEST(test_button_five_uses_home_playlist_preset_zero_for_next_patches_entry);
+    RUN_TEST(test_button_five_override_is_ignored);
     return UNITY_END();
 }

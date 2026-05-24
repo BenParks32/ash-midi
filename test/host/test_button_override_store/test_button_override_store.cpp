@@ -2,6 +2,7 @@
 #include <unity.h>
 
 #include "ButtonOverrideStore.h"
+#include "Modes/Mode.h"
 
 #include "../../../src/Function.cpp"
 #include "../../../src/ButtonOverrideStore.cpp"
@@ -145,6 +146,50 @@ void test_apply_overrides_can_reparse_same_config_multiple_times()
     store.applyOverrides(4, 1, patchOneFunctions, 8);
     TEST_ASSERT_EQUAL_STRING("CC37", patchOneFunctions[3].label());
 }
+
+void test_list_patches_preserves_buttons_jsn_order()
+{
+    MockTextFileStore fileStore;
+    std::strcpy(fileStore.contents,
+                "{\"playModes\":{\"Project7\":{\"patches\":{\"7\":{\"name\":\"Outro\"},\"0\":{\"name\":\"Main\"},"
+                "\"abc\":{\"name\":\"Ignored\"},\"3\":{\"name\":\"Verse\"}}}}}");
+    fileStore.hasContents = true;
+
+    ButtonOverrideStore store(&fileStore);
+    TEST_ASSERT_TRUE(store.refresh());
+
+    PatchListEntry entries[4] = {};
+    const size_t count = store.listPatches(2, entries, 4);
+
+    TEST_ASSERT_EQUAL_UINT32(3, count);
+    TEST_ASSERT_EQUAL_UINT8(7, entries[0].patchNumber);
+    TEST_ASSERT_EQUAL_STRING("Outro", entries[0].name);
+    TEST_ASSERT_EQUAL_UINT8(0, entries[1].patchNumber);
+    TEST_ASSERT_EQUAL_STRING("Main", entries[1].name);
+    TEST_ASSERT_EQUAL_UINT8(3, entries[2].patchNumber);
+    TEST_ASSERT_EQUAL_STRING("Verse", entries[2].name);
+}
+
+void test_apply_overrides_parses_change_mode_patches_value()
+{
+    MockTextFileStore fileStore;
+    std::strcpy(fileStore.contents,
+                "{\"playModes\":{\"Project7\":{\"patches\":{\"5\":{\"buttons\":{\"4\":{\"function\":{\"shortPress\":"
+                "{\"action\":\"ChangeMode\",\"value\":\"Patches\"}}}}}}}}}");
+    fileStore.hasContents = true;
+
+    ButtonOverrideStore store(&fileStore);
+    TEST_ASSERT_TRUE(store.refresh());
+
+    Function functions[8] = {};
+    functions[4] = Function("Patch", 0xFFE0, ActionType::ChangeMode, static_cast<byte>(Modes::Patch), ActionType::None, 0);
+    store.applyOverrides(2, 5, functions, 8);
+
+    TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(ActionType::ChangeMode),
+                            static_cast<uint8_t>(functions[4].action(FunctionBehaviour::ShortPress).type));
+    TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(Modes::Patches),
+                            functions[4].action(FunctionBehaviour::ShortPress).value);
+}
 } // namespace
 
 void setUp() {}
@@ -162,5 +207,7 @@ int main(int argc, char** argv)
     RUN_TEST(test_apply_overrides_sets_toggle_flag_when_configured);
     RUN_TEST(test_apply_overrides_matches_playlist_and_patch);
     RUN_TEST(test_apply_overrides_can_reparse_same_config_multiple_times);
+    RUN_TEST(test_list_patches_preserves_buttons_jsn_order);
+    RUN_TEST(test_apply_overrides_parses_change_mode_patches_value);
     return UNITY_END();
 }

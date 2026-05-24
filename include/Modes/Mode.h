@@ -7,7 +7,8 @@ enum class Modes : uint8_t
     Play = 1,
     Patch = 2,
     Menu = 3,
-  ButtonDiagnostic = 4,
+    ButtonDiagnostic = 4,
+    Patches = 5,
     Count,
 };
 
@@ -18,6 +19,41 @@ static constexpr ModeTransitionValue ModeTransitionPatchReturnFlag = 0x0100;
 static constexpr ModeTransitionValue ModeTransitionHomePlaylistFlag = 0x0200;
 static constexpr ModeTransitionValue ModeTransitionPatchValueMask = 0x00FF;
 static constexpr ModeTransitionValue ModeTransitionHomePlaylistValueMask = 0x00FF;
+static constexpr ModeTransitionValue ModeTransitionPlayContextFlag = 0x8000;
+static constexpr ModeTransitionValue ModeTransitionPlayReturnFlag = 0x4000;
+static constexpr ModeTransitionValue ModeTransitionPlayPlaylistMask = 0x0F00;
+static constexpr uint8_t ModeTransitionPlayPlaylistShift = 8;
+static constexpr ModeTransitionValue ModeTransitionPlayPatchValueMask = 0x00FF;
+
+inline ModeTransitionValue makePlayModeTransition(byte playlistIndex, byte patchNumber, bool shouldRecall)
+{
+    return static_cast<ModeTransitionValue>(
+        ModeTransitionPlayContextFlag |
+        (shouldRecall ? 0 : ModeTransitionPlayReturnFlag) |
+        ((static_cast<ModeTransitionValue>(playlistIndex) << ModeTransitionPlayPlaylistShift) &
+         ModeTransitionPlayPlaylistMask) |
+        (static_cast<ModeTransitionValue>(patchNumber) & ModeTransitionPlayPatchValueMask));
+}
+
+inline bool isPlayModeTransition(ModeTransitionValue transitionValue)
+{
+    return (transitionValue & ModeTransitionPlayContextFlag) != 0;
+}
+
+inline bool playModeTransitionShouldRecall(ModeTransitionValue transitionValue)
+{
+    return (transitionValue & ModeTransitionPlayReturnFlag) == 0;
+}
+
+inline byte playModeTransitionPlaylist(ModeTransitionValue transitionValue)
+{
+    return static_cast<byte>((transitionValue & ModeTransitionPlayPlaylistMask) >> ModeTransitionPlayPlaylistShift);
+}
+
+inline byte playModeTransitionPatch(ModeTransitionValue transitionValue)
+{
+    return static_cast<byte>(transitionValue & ModeTransitionPlayPatchValueMask);
+}
 
 class IModeTransistionDelegate
 {

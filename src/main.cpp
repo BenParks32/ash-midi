@@ -16,6 +16,7 @@
 #include "Modes/Mode.h"
 #include "Modes/ModeManager.h"
 #include "Modes/PatchMode.h"
+#include "Modes/PatchesMode.h"
 #include "Modes/PlayMode.h"
 #include "Resources.h"
 #include "RingManager.h"
@@ -68,6 +69,8 @@ IMode* modeRegistry[ModeCount] = {nullptr};
 ModeManager modeManager(activeMode, modeRegistry);
 PlayMode playMode(touchButtonManager, ringManager, screenUi, midiManager, midiProvider, buttonOverrideStore, modeManager);
 PatchMode patchMode(touchButtonManager, ringManager, screenUi, midiManager, midiProvider, modeManager);
+PatchesMode patchesMode(touchButtonManager, ringManager, screenUi, midiManager, midiProvider, buttonOverrideStore,
+                        modeManager);
 HomeMode homeMode(touchButtonManager, ringManager, screenUi, midiManager, modeManager);
 MenuMode menuMode(touchButtonManager, ringManager, screenUi, midiManager, modeManager, settingsStore, resources,
                   touchCalibrator, appSettings);
@@ -128,6 +131,7 @@ void setup()
     modeRegistry[static_cast<uint8_t>(Modes::Patch)] = &patchMode;
     modeRegistry[static_cast<uint8_t>(Modes::Menu)] = &menuMode;
     modeRegistry[static_cast<uint8_t>(Modes::ButtonDiagnostic)] = &buttonDiagnosticMode;
+    modeRegistry[static_cast<uint8_t>(Modes::Patches)] = &patchesMode;
 
     activeMode = &homeMode;
     activeMode->activate();

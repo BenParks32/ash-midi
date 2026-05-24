@@ -408,6 +408,11 @@ bool ButtonOverrideStore::parseModeValue(const char* name, byte& outModeValue)
         outModeValue = 4;
         return true;
     }
+    if (std::strcmp(name, "Patches") == 0)
+    {
+        outModeValue = 5;
+        return true;
+    }
 
     return false;
 }
@@ -486,6 +491,77 @@ bool ButtonOverrideStore::parseActionObject(const JsonVariantConst& actionValue,
 
     outAction = FunctionAction(actionType, value, secondaryValue);
     return true;
+}
+
+size_t ButtonOverrideStore::listPatches(byte playlistIndex, PatchListEntry* entries, size_t capacity) const
+{
+    if (entries == nullptr || capacity == 0)
+    {
+        return 0;
+    }
+
+    if (_configBuffer == nullptr)
+    {
+        return 0;
+    }
+
+    DynamicJsonDocument document((kMaxConfigBytes * JsonCapacityMultiplier) + JsonCapacityPadding);
+    const char* jsonText = _configBuffer;
+    const DeserializationError error = deserializeJson(document, jsonText);
+    if (error)
+    {
+        Serial.printf("Button overrides: JSON reparse failed while listing patches: %s\n", error.c_str());
+        return 0;
+    }
+
+    const char* modeKey = modeKeyForPlaylistIndex(playlistIndex);
+    if (modeKey == nullptr)
+    {
+        return 0;
+    }
+
+    const JsonObjectConst patches = document["playModes"][modeKey]["patches"].as<JsonObjectConst>();
+    if (patches.isNull())
+    {
+        Serial.printf("Button overrides: no patches object for playlist %u.\n", static_cast<unsigned int>(playlistIndex));
+        return 0;
+    }
+
+    size_t parsedCount = 0;
+    for (JsonPairConst patchPair : patches)
+    {
+        if (parsedCount >= capacity)
+        {
+            break;
+        }
+
+        byte patchNumber = 0;
+        if (!parsePatchNumber(patchPair.key().c_str(), patchNumber))
+        {
+            Serial.printf("Button overrides: skipping patch key '%s' because it is invalid.\n", patchPair.key().c_str());
+            continue;
+        }
+
+        const JsonObjectConst patchObject = patchPair.value().as<JsonObjectConst>();
+        if (patchObject.isNull())
+        {
+            Serial.printf("Button overrides: skipping patch %u because entry is not an object.\n",
+                          static_cast<unsigned int>(patchNumber));
+            continue;
+        }
+
+        PatchListEntry& entry = entries[parsedCount++];
+        entry.patchNumber = patchNumber;
+        entry.name[0] = '\0';
+
+        const char* patchName = patchObject["name"].as<const char*>();
+        if (patchName != nullptr)
+        {
+            std::strncpy(entry.name, patchName, PatchDisplayConfig::NameCapacity - 1U);
+            entry.name[PatchDisplayConfig::NameCapacity - 1U] = '\0';
+        }
+    }
+    return parsedCount;
 }
 
 void ButtonOverrideStore::clearButtonOverride(ParsedButtonOverride& buttonOverride)

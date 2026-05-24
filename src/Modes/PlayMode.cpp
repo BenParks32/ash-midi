@@ -42,54 +42,6 @@ bool isHomePlaylistTransition(ModeTransitionValue transitionValue)
 {
     return (transitionValue & ModeTransitionHomePlaylistFlag) != 0;
 }
-
-const char* playPlaylistName(byte playlistIndex)
-{
-    switch (playlistIndex)
-    {
-    case 2:
-        return "Project7";
-    case 3:
-        return "OPR";
-    case 4:
-        return "CodeRed";
-    default:
-        return "Unknown";
-    }
-}
-
-const char* actionTypeName(ActionType action)
-{
-    switch (action)
-    {
-    case ActionType::None:
-        return "None";
-    case ActionType::SendMidiProgramChange:
-        return "SendMidiProgramChange";
-    case ActionType::SendMidiControlChange:
-        return "SendMidiControlChange";
-    case ActionType::ChangeMode:
-        return "ChangeMode";
-    case ActionType::SelectScene:
-        return "SelectScene";
-    case ActionType::SetTuner:
-        return "SetTuner";
-    case ActionType::SelectHomePlaylist:
-        return "SelectHomePlaylist";
-    case ActionType::TapTempo:
-        return "Tap";
-    case ActionType::SetGigView:
-        return "SetGigView";
-    default:
-        return "Unknown";
-    }
-}
-
-void logFunctionAction(const char* prefix, const FunctionAction& action)
-{
-    Serial.printf("%s%s(value=%u, secondary=%u)", prefix, actionTypeName(action.type),
-                  static_cast<unsigned int>(action.value), static_cast<unsigned int>(action.secondaryValue));
-}
 } // namespace
 
 PlayMode::PlayMode(TouchButtonManager& touchButtonManager, RingManager& ringManager, IScreenUi& screenUi,
@@ -122,6 +74,14 @@ void PlayMode::setTransitionValue(ModeTransitionValue transitionValue)
         return;
     }
 
+    if (isPlayModeTransition(transitionValue))
+    {
+        _selectedPlaylist = playModeTransitionPlaylist(transitionValue);
+        _selectedPreset = playModeTransitionPatch(transitionValue);
+        _hasSelectedPreset = playModeTransitionShouldRecall(transitionValue);
+        return;
+    }
+
     if ((transitionValue & ModeTransitionPatchReturnFlag) != 0)
     {
         _selectedPreset = static_cast<byte>(transitionValue & ModeTransitionPatchValueMask);
@@ -147,8 +107,7 @@ void PlayMode::setupFunctions()
     _functions[2] = Function("Lead", 0xF800, ActionType::SelectScene, 2, ActionType::None, 0);
 
     _functions[3] = Function();
-    _functions[4] = Function("Patch", 0xFFE0, ActionType::ChangeMode, static_cast<byte>(Modes::Patch),
-                             ActionType::ChangeMode, static_cast<byte>(Modes::Home));
+    configurePatchButton();
     _functions[5] = Function("Gig", GigViewButtonColour, ActionType::SetGigView, 1, ActionType::SetGigView, 0);
     _functions[5].setToggle(true);
     _functions[6] = Function();
@@ -156,34 +115,21 @@ void PlayMode::setupFunctions()
     _functions[7].setToggle(true);
 }
 
+void PlayMode::configurePatchButton()
+{
+    _functions[4] = Function("Patch", 0xFFE0, ActionType::ChangeMode, static_cast<byte>(Modes::Patches),
+                             ActionType::ChangeMode, static_cast<byte>(Modes::Patch));
+}
+
 void PlayMode::activate()
 {
     _midiProvider.selectPlaylist(_selectedPlaylist);
     setupFunctions();
     _patchDisplayConfig.name[0] = '\0';
-    const bool didRefreshOverrides = _buttonOverrideStore.refresh();
+    _buttonOverrideStore.refresh();
     _buttonOverrideStore.applyOverrides(_selectedPlaylist, _selectedPreset, _functions, TouchButtonManager::BUTTON_COUNT,
                                         &_patchDisplayConfig);
-    Serial.printf("Play mode: activate playlist=%s(%u) patch=%u refresh=%s\n", playPlaylistName(_selectedPlaylist),
-                  static_cast<unsigned int>(_selectedPlaylist), static_cast<unsigned int>(_selectedPreset),
-                  didRefreshOverrides ? "ok" : "failed");
-    for (byte buttonIndex = 0; buttonIndex < TouchButtonManager::BUTTON_COUNT; ++buttonIndex)
-    {
-        const Function& func = getFunction(buttonIndex);
-        const bool enabled = isButtonEnabled(buttonIndex);
-        Serial.printf("Play mode: button %u label='%s' colour=0x%04X enabled=%s momentary=%s ",
-                      static_cast<unsigned int>(buttonIndex + 1U), func.label(),
-                      static_cast<unsigned int>(func.colour()), enabled ? "yes" : "no",
-                      func.hasMomentaryBehaviour() ? "yes" : "no");
-        logFunctionAction("press=", func.action(FunctionBehaviour::ButtonDown));
-        Serial.print(" ");
-        logFunctionAction("release=", func.action(FunctionBehaviour::ButtonRelease));
-        Serial.print(" ");
-        logFunctionAction("short=", func.action(FunctionBehaviour::ShortPress));
-        Serial.print(" ");
-        logFunctionAction("long=", func.action(FunctionBehaviour::LongPress));
-        Serial.println();
-    }
+    configurePatchButton();
     _isTapTempoLit = true;
     const uint32_t now = millis();
     if (_tapTempoEngine.hasFlashInterval() && _tapTempoFlashUntilMs != 0 &&
@@ -734,6 +680,8 @@ void PlayMode::frameTick()
     }
 }
 
+void PlayMode::encoderPressed() { _transitionDelegate.enterMode(Modes::Home, ModeTransitionNone); }
+
 void PlayMode::executeAction(const FunctionAction& action)
 {
     switch (action.type)
@@ -770,6 +718,10 @@ void PlayMode::executeAction(const FunctionAction& action)
         else if (targetMode == Modes::Patch)
         {
             _transitionDelegate.enterMode(targetMode, _selectedPreset);
+        }
+        else if (targetMode == Modes::Patches)
+        {
+            _transitionDelegate.enterMode(targetMode, makePlayModeTransition(_selectedPlaylist, _selectedPreset, false));
         }
         break;
     }

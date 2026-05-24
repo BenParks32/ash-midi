@@ -16,6 +16,14 @@ struct PatchDisplayConfig
     PatchDisplayConfig() : name{0} {}
 };
 
+struct PatchListEntry
+{
+    byte patchNumber;
+    char name[PatchDisplayConfig::NameCapacity];
+
+    PatchListEntry() : patchNumber(0), name{0} {}
+};
+
 class IButtonOverrideStore
 {
   public:
@@ -24,6 +32,13 @@ class IButtonOverrideStore
     virtual bool refresh() = 0;
     virtual void applyOverrides(byte playlistIndex, byte patchNumber, Function* functions, size_t functionCount,
                                 PatchDisplayConfig* patchDisplay = nullptr) const = 0;
+    virtual size_t listPatches(byte playlistIndex, PatchListEntry* entries, size_t capacity) const
+    {
+        (void)playlistIndex;
+        (void)entries;
+        (void)capacity;
+        return 0;
+    }
 };
 
 class ButtonOverrideStore : public IButtonOverrideStore
@@ -35,6 +50,7 @@ class ButtonOverrideStore : public IButtonOverrideStore
     bool refresh() override;
     void applyOverrides(byte playlistIndex, byte patchNumber, Function* functions, size_t functionCount,
                         PatchDisplayConfig* patchDisplay = nullptr) const override;
+    size_t listPatches(byte playlistIndex, PatchListEntry* entries, size_t capacity) const override;
 
   private:
     static constexpr const char* kPrimaryConfigPath = "/BUTTONS.JSN";
