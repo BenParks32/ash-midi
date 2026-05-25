@@ -16,18 +16,38 @@ class SongsMode : public FunctionModeBase
     void buttonPressed(byte number) override;
     void buttonLongPressed(byte number) override;
     void frameTick() override;
+    void encoderRotated(int16_t steps) override;
+    void encoderPressed() override;
     void setTransitionValue(ModeTransitionValue transitionValue) override;
 
   private:
-    static constexpr byte InvalidSongIndex = 0xFF;
+    static constexpr size_t MaxSongs = 64;
 
   private:
     void resetButtons();
-    void populateButtons();
-    void configureButton(byte buttonIndex, byte songIndex, const char* label);
+    void loadSongs();
+    void initializeSelection();
+    void moveSelection(int16_t steps);
+    void selectHighlightedSong();
     void configureBackButton();
-    void renderCenterTitle(uint16_t textColour);
-    static void formatSongLabel(const char* songName, byte patchNumber, char* buffer, size_t bufferSize);
+    void configureSelectButton();
+    void configureDownButton();
+    void configureUpButton();
+    void renderList() const;
+    void renderVisibleSongs() const;
+    void renderSongRow(size_t songListIndex, bool highlighted) const;
+    void clearListArea() const;
+    void renderEmptyState() const;
+    size_t visibleSongCapacity() const;
+    size_t visibleSongStartIndexFor(size_t songListIndex) const;
+    int32_t songListStartX() const;
+    int32_t songListStartY() const;
+    int32_t songListWidth() const;
+    int32_t songListHeight() const;
+    int32_t songRowGap() const;
+    int32_t songRowY(size_t visibleRow) const;
+    int32_t songColumnWidth() const;
+    int32_t songColumnX(size_t columnIndex) const;
     uint8_t ringBrightnessForButton(byte number) const override;
 
   private:
@@ -37,5 +57,7 @@ class SongsMode : public FunctionModeBase
     byte _currentPatch;
     byte _currentSongIndex;
     bool _hasCurrentSong;
-    byte _buttonSongIndices[TouchButtonManager::BUTTON_COUNT];
+    SongListEntry _songEntries[MaxSongs];
+    size_t _songCount;
+    size_t _highlightedSongListIndex;
 };

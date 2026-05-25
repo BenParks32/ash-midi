@@ -90,6 +90,7 @@ class ButtonOverrideStore : public IButtonOverrideStore
     static constexpr const char* kPrimaryConfigPath = "/BUTTONS.JSN";
     static constexpr const char* kLegacyConfigPath = "/buttons.json";
     static constexpr size_t kMaxConfigBytes = 4096;
+    static constexpr size_t kMaxSongsConfigBytes = 8192;
 
     struct ParsedActionOverride
     {
@@ -124,10 +125,12 @@ class ButtonOverrideStore : public IButtonOverrideStore
     static bool parseColourValue(const char* rawValue, uint16_t& outColour);
     static bool parseActionName(const char* name, ActionType& outActionType);
     static bool parseModeValue(const char* name, byte& outModeValue);
+    static const char* songsConfigPathForPlaylist(byte playlistIndex);
     static bool parseActionObject(const JsonVariantConst& actionValue, FunctionAction& outAction);
     static void clearButtonOverride(ParsedButtonOverride& buttonOverride);
     static void applyButtonOverride(const ParsedButtonOverride& buttonOverride, Function& target);
     static bool parseButtonOverrideObject(const JsonObjectConst& buttonObject, ParsedButtonOverride& outButtonOverride);
+    bool loadSongsArray(byte playlistIndex, DynamicJsonDocument& document, JsonArrayConst& outSongs) const;
 
     void clearOverrides();
 

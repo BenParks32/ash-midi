@@ -1,3 +1,4 @@
+#include <cstdio>
 #include <cstring>
 #include <unity.h>
 
@@ -15,13 +16,27 @@
 
 namespace
 {
+constexpr size_t TestSongCapacity = 64;
+
 class FakeScreenUi : public IScreenUi
 {
   public:
-    struct DrawCenteredTextCall
+    struct DrawTextCall
     {
         char label[64];
+        int32_t x;
+        int32_t y;
         uint16_t textColour;
+        uint16_t backgroundColour;
+    };
+
+    struct FillRectCall
+    {
+        int32_t x;
+        int32_t y;
+        int32_t width;
+        int32_t height;
+        uint16_t colour;
     };
 
     void drawBackgroundAndBorder() override { ++drawBackgroundAndBorderCalls; }
@@ -36,23 +51,38 @@ class FakeScreenUi : public IScreenUi
     {
         ++drawLogoWithColoursCalls;
     }
-    void drawText(const GFXfont*, uint8_t, const char*, int32_t, int32_t, uint16_t, uint16_t) override
+    void drawText(const GFXfont*, uint8_t, const char* label, int32_t x, int32_t y, uint16_t textColour,
+                  uint16_t backgroundColour) override
     {
         ++drawTextCalls;
+        if (drawTextCallCount < MaxDrawTextCalls)
+        {
+            DrawTextCall& call = drawTextLog[drawTextCallCount++];
+            std::snprintf(call.label, sizeof(call.label), "%s", label != nullptr ? label : "");
+            call.x = x;
+            call.y = y;
+            call.textColour = textColour;
+            call.backgroundColour = backgroundColour;
+        }
     }
-    void fillRect(int32_t, int32_t, int32_t, int32_t, uint16_t) override { ++fillRectCalls; }
+    void fillRect(int32_t x, int32_t y, int32_t width, int32_t height, uint16_t colour) override
+    {
+        ++fillRectCalls;
+        if (fillRectCallCount < MaxFillRectCalls)
+        {
+            FillRectCall& call = fillRectLog[fillRectCallCount++];
+            call.x = x;
+            call.y = y;
+            call.width = width;
+            call.height = height;
+            call.colour = colour;
+        }
+    }
     void drawRect(int32_t, int32_t, int32_t, int32_t, uint16_t) override { ++drawRectCalls; }
     void drawSmallText(const char*, int32_t, int32_t, uint16_t, uint16_t) override { ++drawSmallTextCalls; }
-    void drawCenteredText(const GFXfont*, uint8_t, const char* label, int32_t, int32_t, uint16_t textColour,
-                          uint16_t) override
+    void drawCenteredText(const GFXfont*, uint8_t, const char*, int32_t, int32_t, uint16_t, uint16_t) override
     {
         ++drawCenteredTextCalls;
-        if (drawCenteredTextCallCount < MaxDrawCenteredTextCalls)
-        {
-            DrawCenteredTextCall& call = drawCenteredTextLog[drawCenteredTextCallCount++];
-            std::snprintf(call.label, sizeof(call.label), "%s", label != nullptr ? label : "");
-            call.textColour = textColour;
-        }
     }
     void drawTouchButtonLabelAndPill(const char*, const Point&, const Size&, uint16_t, bool, uint16_t,
                                      uint16_t) override
@@ -73,10 +103,12 @@ class FakeScreenUi : public IScreenUi
     int32_t bottomRowY() const override { return 240; }
     Size boxSize() const override { return {120, 80}; }
 
+    static constexpr int MaxDrawTextCalls = 128;
+    static constexpr int MaxFillRectCalls = 128;
+
+    DrawTextCall drawTextLog[MaxDrawTextCalls] = {};
+    FillRectCall fillRectLog[MaxFillRectCalls] = {};
     int drawBackgroundAndBorderCalls = 0;
-    static constexpr int MaxDrawCenteredTextCalls = 16;
-    DrawCenteredTextCall drawCenteredTextLog[MaxDrawCenteredTextCalls] = {};
-    int drawCenteredTextCallCount = 0;
     int drawCenteredFrameCalls = 0;
     int drawLogoCalls = 0;
     int drawLogoWithColoursCalls = 0;
@@ -93,6 +125,8 @@ class FakeScreenUi : public IScreenUi
     int setSdStatusNotMountedCalls = 0;
     int hideSdStatusCalls = 0;
     int redrawSdStatusCalls = 0;
+    int drawTextCallCount = 0;
+    int fillRectCallCount = 0;
 };
 
 class MockMidiManager : public IMidiManager
@@ -163,6 +197,7 @@ class MockButtonOverrideStore : public IButtonOverrideStore
     size_t listSongs(byte playlistIndex, SongListEntry* entries, size_t capacity) const override
     {
         lastPlaylistIndex = playlistIndex;
+        lastCapacity = capacity;
         const size_t copyCount = (entryCount < capacity) ? entryCount : capacity;
         for (size_t i = 0; i < copyCount; ++i)
         {
@@ -172,7 +207,8 @@ class MockButtonOverrideStore : public IButtonOverrideStore
     }
 
     mutable byte lastPlaylistIndex = 0;
-    SongListEntry storedEntries[8] = {};
+    mutable size_t lastCapacity = 0;
+    SongListEntry storedEntries[TestSongCapacity] = {};
     size_t entryCount = 0;
 };
 
@@ -197,76 +233,193 @@ class SongsModeFixture
     SongsMode mode;
 };
 
-void test_activate_populates_song_buttons_and_back_button()
+void seedSongs(SongsModeFixture& fixture, size_t count)
+{
+    fixture.overrideStore.entryCount = count;
+    for (size_t i = 0; i < count; ++i)
+    {
+        fixture.overrideStore.storedEntries[i].songIndex = static_cast<byte>(i);
+        fixture.overrideStore.storedEntries[i].patchNumber = static_cast<byte>(i + 1);
+        std::snprintf(fixture.overrideStore.storedEntries[i].name, sizeof(fixture.overrideStore.storedEntries[i].name),
+                      "Song %u", static_cast<unsigned int>(i));
+    }
+}
+
+int findLatestDrawTextCallIndex(const FakeScreenUi& ui, const char* label)
+{
+    for (int i = ui.drawTextCallCount - 1; i >= 0; --i)
+    {
+        if (std::strcmp(ui.drawTextLog[i].label, label) == 0)
+        {
+            return i;
+        }
+    }
+
+    return -1;
+}
+
+void test_activate_clears_screen_and_renders_top_left_song_list()
 {
     SongsModeFixture fixture;
-    fixture.overrideStore.entryCount = 7;
-    for (byte i = 0; i < 7; ++i)
-    {
-        fixture.overrideStore.storedEntries[i].songIndex = i;
-        fixture.overrideStore.storedEntries[i].patchNumber = static_cast<byte>(i + 1);
-    }
-    std::strcpy(fixture.overrideStore.storedEntries[0].name, "Zombie");
-    std::strcpy(fixture.overrideStore.storedEntries[1].name, "Verse");
-    std::strcpy(fixture.overrideStore.storedEntries[2].name, "Bridge");
-    std::strcpy(fixture.overrideStore.storedEntries[3].name, "Solo");
-    std::strcpy(fixture.overrideStore.storedEntries[4].name, "Outro");
-    std::strcpy(fixture.overrideStore.storedEntries[5].name, "Clean");
-    std::strcpy(fixture.overrideStore.storedEntries[6].name, "Heavy");
+    seedSongs(fixture, 18);
 
     fixture.mode.setTransitionValue(makePlayModeSongTransition(4, 2, false));
     fixture.mode.activate();
 
+    TEST_ASSERT_EQUAL_INT(0, fixture.ui.drawBackgroundAndBorderCalls);
     TEST_ASSERT_EQUAL_UINT8(4, fixture.overrideStore.lastPlaylistIndex);
-    TEST_ASSERT_EQUAL_STRING("Zombie", fixture.touchButtonManager.getButton(0)->label());
-    TEST_ASSERT_EQUAL_STRING("Verse", fixture.touchButtonManager.getButton(1)->label());
-    TEST_ASSERT_EQUAL_STRING("Bridge", fixture.touchButtonManager.getButton(2)->label());
-    TEST_ASSERT_EQUAL_STRING("Solo", fixture.touchButtonManager.getButton(3)->label());
+    TEST_ASSERT_EQUAL_UINT32(static_cast<uint32_t>(TestSongCapacity), static_cast<uint32_t>(fixture.overrideStore.lastCapacity));
+    TEST_ASSERT_EQUAL_STRING("PgDn", fixture.touchButtonManager.getButton(2)->label());
+    TEST_ASSERT_EQUAL_STRING("Down", fixture.touchButtonManager.getButton(3)->label());
     TEST_ASSERT_EQUAL_STRING("Back", fixture.touchButtonManager.getButton(4)->label());
-    TEST_ASSERT_EQUAL_STRING("Outro", fixture.touchButtonManager.getButton(5)->label());
-    TEST_ASSERT_EQUAL_STRING("Clean", fixture.touchButtonManager.getButton(6)->label());
-    TEST_ASSERT_EQUAL_STRING("Heavy", fixture.touchButtonManager.getButton(7)->label());
-    TEST_ASSERT_EQUAL_INT(2, fixture.ui.drawCenteredTextCallCount);
-    TEST_ASSERT_EQUAL_STRING("Code Red", fixture.ui.drawCenteredTextLog[0].label);
-    TEST_ASSERT_EQUAL_STRING("songs", fixture.ui.drawCenteredTextLog[1].label);
+    TEST_ASSERT_EQUAL_STRING("Select", fixture.touchButtonManager.getButton(5)->label());
+    TEST_ASSERT_EQUAL_STRING("PgUp", fixture.touchButtonManager.getButton(6)->label());
+    TEST_ASSERT_EQUAL_STRING("Up", fixture.touchButtonManager.getButton(7)->label());
+    TEST_ASSERT_TRUE(fixture.touchButtonManager.getButton(2)->isEnabled());
+    TEST_ASSERT_TRUE(fixture.touchButtonManager.getButton(3)->isEnabled());
+    TEST_ASSERT_TRUE(fixture.touchButtonManager.getButton(4)->isEnabled());
+    TEST_ASSERT_TRUE(fixture.touchButtonManager.getButton(5)->isEnabled());
+    TEST_ASSERT_TRUE(fixture.touchButtonManager.getButton(6)->isEnabled());
+    TEST_ASSERT_TRUE(fixture.touchButtonManager.getButton(7)->isEnabled());
+
+    const int song0CallIndex = findLatestDrawTextCallIndex(fixture.ui, "Song 0");
+    const int song1CallIndex = findLatestDrawTextCallIndex(fixture.ui, "Song 1");
+    const int song4CallIndex = findLatestDrawTextCallIndex(fixture.ui, "Song 4");
+    const int song2CallIndex = findLatestDrawTextCallIndex(fixture.ui, "Song 2");
+    TEST_ASSERT_TRUE(song0CallIndex >= 0);
+    TEST_ASSERT_TRUE(song1CallIndex >= 0);
+    TEST_ASSERT_TRUE(song4CallIndex >= 0);
+    TEST_ASSERT_TRUE(song2CallIndex >= 0);
+    TEST_ASSERT_EQUAL_INT(15, fixture.ui.drawTextLog[song0CallIndex].x);
+    TEST_ASSERT_EQUAL_INT(91, fixture.ui.drawTextLog[song0CallIndex].y);
+    TEST_ASSERT_EQUAL_INT(15, fixture.ui.drawTextLog[song1CallIndex].x);
+    TEST_ASSERT_EQUAL_INT(130, fixture.ui.drawTextLog[song1CallIndex].y);
+    TEST_ASSERT_EQUAL_INT(252, fixture.ui.drawTextLog[song4CallIndex].x);
+    TEST_ASSERT_EQUAL_INT(91, fixture.ui.drawTextLog[song4CallIndex].y);
+    TEST_ASSERT_EQUAL_HEX16(TFT_BLACK, fixture.ui.drawTextLog[song2CallIndex].textColour);
+    TEST_ASSERT_EQUAL_HEX16(TFT_WHITE, fixture.ui.drawTextLog[song2CallIndex].backgroundColour);
 }
 
-void test_button_press_enters_play_on_selected_song()
+void test_selection_moves_down_first_column_then_right_column_and_wraps()
 {
     SongsModeFixture fixture;
-    fixture.overrideStore.entryCount = 2;
-    fixture.overrideStore.storedEntries[0].songIndex = 0;
-    fixture.overrideStore.storedEntries[0].patchNumber = 5;
-    std::strcpy(fixture.overrideStore.storedEntries[0].name, "Solo");
-    fixture.overrideStore.storedEntries[1].songIndex = 1;
-    fixture.overrideStore.storedEntries[1].patchNumber = 6;
-    std::strcpy(fixture.overrideStore.storedEntries[1].name, "Outro");
+    seedSongs(fixture, 16);
+
+    fixture.mode.activate();
+    fixture.mode.encoderRotated(4);
+
+    int highlightedSongCallIndex = findLatestDrawTextCallIndex(fixture.ui, "Song 4");
+    TEST_ASSERT_TRUE(highlightedSongCallIndex >= 0);
+    TEST_ASSERT_EQUAL_INT(252, fixture.ui.drawTextLog[highlightedSongCallIndex].x);
+    TEST_ASSERT_EQUAL_INT(91, fixture.ui.drawTextLog[highlightedSongCallIndex].y);
+    TEST_ASSERT_EQUAL_HEX16(TFT_BLACK, fixture.ui.drawTextLog[highlightedSongCallIndex].textColour);
+
+    fixture.mode.encoderRotated(12);
+    highlightedSongCallIndex = findLatestDrawTextCallIndex(fixture.ui, "Song 0");
+    TEST_ASSERT_TRUE(highlightedSongCallIndex >= 0);
+    TEST_ASSERT_EQUAL_HEX16(TFT_BLACK, fixture.ui.drawTextLog[highlightedSongCallIndex].textColour);
+    TEST_ASSERT_EQUAL_HEX16(TFT_WHITE, fixture.ui.drawTextLog[highlightedSongCallIndex].backgroundColour);
+}
+
+void test_page_change_repaints_next_song_page()
+{
+    SongsModeFixture fixture;
+    seedSongs(fixture, 18);
+
+    fixture.mode.activate();
+    const int drawTextCallCountAfterActivate = fixture.ui.drawTextCallCount;
+    fixture.mode.encoderRotated(16);
+
+    const int song0CallIndex = findLatestDrawTextCallIndex(fixture.ui, "Song 0");
+    const int song16CallIndex = findLatestDrawTextCallIndex(fixture.ui, "Song 16");
+    TEST_ASSERT_TRUE(song0CallIndex >= 0);
+    TEST_ASSERT_TRUE(song16CallIndex >= 0);
+    TEST_ASSERT_TRUE(song0CallIndex < drawTextCallCountAfterActivate);
+    TEST_ASSERT_TRUE(song16CallIndex >= drawTextCallCountAfterActivate);
+    TEST_ASSERT_EQUAL_INT(15, fixture.ui.drawTextLog[song16CallIndex].x);
+    TEST_ASSERT_EQUAL_INT(91, fixture.ui.drawTextLog[song16CallIndex].y);
+    TEST_ASSERT_EQUAL_HEX16(TFT_BLACK, fixture.ui.drawTextLog[song16CallIndex].textColour);
+}
+
+void test_same_page_selection_updates_only_changed_rows()
+{
+    SongsModeFixture fixture;
+    seedSongs(fixture, 10);
+
+    fixture.mode.activate();
+    const int fillRectCallsAfterActivate = fixture.ui.fillRectCallCount;
+    const int drawTextCallsAfterActivate = fixture.ui.drawTextCallCount;
+
+    fixture.mode.encoderRotated(1);
+
+    TEST_ASSERT_EQUAL_INT(fillRectCallsAfterActivate + 2, fixture.ui.fillRectCallCount);
+    TEST_ASSERT_EQUAL_INT(drawTextCallsAfterActivate + 2, fixture.ui.drawTextCallCount);
+}
+
+void test_button_navigation_supports_song_and_page_moves()
+{
+    SongsModeFixture fixture;
+    seedSongs(fixture, 18);
+
+    fixture.mode.activate();
+    fixture.mode.buttonPressed(3);
+
+    int highlightedSongCallIndex = findLatestDrawTextCallIndex(fixture.ui, "Song 1");
+    TEST_ASSERT_TRUE(highlightedSongCallIndex >= 0);
+    TEST_ASSERT_EQUAL_HEX16(TFT_BLACK, fixture.ui.drawTextLog[highlightedSongCallIndex].textColour);
+
+    fixture.mode.buttonPressed(7);
+    highlightedSongCallIndex = findLatestDrawTextCallIndex(fixture.ui, "Song 0");
+    TEST_ASSERT_TRUE(highlightedSongCallIndex >= 0);
+    TEST_ASSERT_EQUAL_HEX16(TFT_BLACK, fixture.ui.drawTextLog[highlightedSongCallIndex].textColour);
+
+    fixture.mode.buttonPressed(2);
+
+    highlightedSongCallIndex = findLatestDrawTextCallIndex(fixture.ui, "Song 8");
+    TEST_ASSERT_TRUE(highlightedSongCallIndex >= 0);
+    TEST_ASSERT_EQUAL_HEX16(TFT_BLACK, fixture.ui.drawTextLog[highlightedSongCallIndex].textColour);
+    TEST_ASSERT_EQUAL_INT(15, fixture.ui.drawTextLog[highlightedSongCallIndex].x);
+
+    fixture.mode.buttonPressed(6);
+    highlightedSongCallIndex = findLatestDrawTextCallIndex(fixture.ui, "Song 0");
+    TEST_ASSERT_TRUE(highlightedSongCallIndex >= 0);
+    TEST_ASSERT_EQUAL_HEX16(TFT_BLACK, fixture.ui.drawTextLog[highlightedSongCallIndex].textColour);
+}
+
+void test_encoder_press_selects_highlighted_song()
+{
+    SongsModeFixture fixture;
+    seedSongs(fixture, 6);
 
     fixture.mode.setTransitionValue(makePlayModeTransition(3, 2, false));
     fixture.mode.activate();
-    fixture.mode.buttonPressed(0);
+    fixture.mode.encoderRotated(5);
+    fixture.mode.encoderPressed();
 
     TEST_ASSERT_EQUAL_INT(1, fixture.transitionDelegate.calls);
     TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(Modes::Play), static_cast<uint8_t>(fixture.transitionDelegate.lastMode));
-    TEST_ASSERT_EQUAL_UINT16(makePlayModeSongTransition(3, 0, true), fixture.transitionDelegate.lastTransitionValue);
+    TEST_ASSERT_EQUAL_UINT16(makePlayModeSongTransition(3, 5, true), fixture.transitionDelegate.lastTransitionValue);
 }
 
-void test_back_button_returns_to_play_without_recall_for_patch_context()
+void test_select_button_selects_highlighted_song()
 {
     SongsModeFixture fixture;
+    seedSongs(fixture, 6);
 
-    fixture.mode.setTransitionValue(makePlayModeTransition(4, 9, false));
+    fixture.mode.setTransitionValue(makePlayModeTransition(3, 2, false));
     fixture.mode.activate();
-    fixture.mode.buttonPressed(4);
+    fixture.mode.encoderRotated(4);
+    fixture.mode.buttonPressed(5);
 
     TEST_ASSERT_EQUAL_INT(1, fixture.transitionDelegate.calls);
     TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(Modes::Play), static_cast<uint8_t>(fixture.transitionDelegate.lastMode));
-    TEST_ASSERT_EQUAL_UINT16(makePlayModeTransition(4, 9, false), fixture.transitionDelegate.lastTransitionValue);
+    TEST_ASSERT_EQUAL_UINT16(makePlayModeSongTransition(3, 4, true), fixture.transitionDelegate.lastTransitionValue);
 }
 
 void test_back_button_returns_to_play_without_recall_for_song_context()
 {
     SongsModeFixture fixture;
+    seedSongs(fixture, 6);
 
     fixture.mode.setTransitionValue(makePlayModeSongTransition(4, 3, true));
     fixture.mode.activate();
@@ -277,18 +430,41 @@ void test_back_button_returns_to_play_without_recall_for_song_context()
     TEST_ASSERT_EQUAL_UINT16(makePlayModeSongTransition(4, 3, false), fixture.transitionDelegate.lastTransitionValue);
 }
 
-void test_deactivate_clears_center_title()
+void test_empty_list_keeps_back_enabled_and_blocks_selection()
 {
     SongsModeFixture fixture;
+
+    fixture.mode.setTransitionValue(makePlayModeTransition(4, 9, false));
+    fixture.mode.activate();
+    fixture.mode.encoderPressed();
+    fixture.mode.buttonPressed(5);
+    fixture.mode.buttonPressed(2);
+    fixture.mode.buttonPressed(6);
+
+    TEST_ASSERT_EQUAL_INT(0, fixture.transitionDelegate.calls);
+    TEST_ASSERT_TRUE(findLatestDrawTextCallIndex(fixture.ui, "No songs") >= 0);
+
+    fixture.mode.buttonPressed(4);
+
+    TEST_ASSERT_EQUAL_INT(1, fixture.transitionDelegate.calls);
+    TEST_ASSERT_EQUAL_UINT16(makePlayModeTransition(4, 9, false), fixture.transitionDelegate.lastTransitionValue);
+}
+
+void test_deactivate_clears_list_area()
+{
+    SongsModeFixture fixture;
+    seedSongs(fixture, 4);
 
     fixture.mode.setTransitionValue(makePlayModeSongTransition(4, 3, false));
     fixture.mode.activate();
     fixture.mode.deactivate();
 
-    TEST_ASSERT_EQUAL_STRING("Code Red", fixture.ui.drawCenteredTextLog[2].label);
-    TEST_ASSERT_EQUAL_HEX16(TFT_BLACK, fixture.ui.drawCenteredTextLog[2].textColour);
-    TEST_ASSERT_EQUAL_STRING("songs", fixture.ui.drawCenteredTextLog[3].label);
-    TEST_ASSERT_EQUAL_HEX16(TFT_BLACK, fixture.ui.drawCenteredTextLog[3].textColour);
+    const FakeScreenUi::FillRectCall& lastFillRectCall = fixture.ui.fillRectLog[fixture.ui.fillRectCallCount - 1];
+    TEST_ASSERT_EQUAL_INT(5, lastFillRectCall.x);
+    TEST_ASSERT_EQUAL_INT(85, lastFillRectCall.y);
+    TEST_ASSERT_EQUAL_INT(470, lastFillRectCall.width);
+    TEST_ASSERT_EQUAL_INT(150, lastFillRectCall.height);
+    TEST_ASSERT_EQUAL_HEX16(TFT_BLACK, lastFillRectCall.colour);
 }
 } // namespace
 
@@ -306,10 +482,15 @@ int main(int argc, char** argv)
     (void)argv;
 
     UNITY_BEGIN();
-    RUN_TEST(test_activate_populates_song_buttons_and_back_button);
-    RUN_TEST(test_button_press_enters_play_on_selected_song);
-    RUN_TEST(test_back_button_returns_to_play_without_recall_for_patch_context);
+    RUN_TEST(test_activate_clears_screen_and_renders_top_left_song_list);
+    RUN_TEST(test_selection_moves_down_first_column_then_right_column_and_wraps);
+    RUN_TEST(test_page_change_repaints_next_song_page);
+    RUN_TEST(test_same_page_selection_updates_only_changed_rows);
+    RUN_TEST(test_button_navigation_supports_song_and_page_moves);
+    RUN_TEST(test_encoder_press_selects_highlighted_song);
+    RUN_TEST(test_select_button_selects_highlighted_song);
     RUN_TEST(test_back_button_returns_to_play_without_recall_for_song_context);
-    RUN_TEST(test_deactivate_clears_center_title);
+    RUN_TEST(test_empty_list_keeps_back_enabled_and_blocks_selection);
+    RUN_TEST(test_deactivate_clears_list_area);
     return UNITY_END();
 }

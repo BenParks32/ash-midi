@@ -1,34 +1,39 @@
 #include "Modes/SongsMode.h"
 
-#include <cstdio>
-#include <cstring>
+#include <TFT_eSPI.h>
 
 namespace
 {
+const byte PageDownButtonIndex = 2;
+const byte SongDownButtonIndex = 3;
 const byte BackButtonIndex = 4;
-const uint16_t SongButtonColour = 0x07FF;
-const uint16_t BackButtonColour = 0xFFFF;
-const char* BackLabel = "Back";
-const char* SongsSubtitle = "songs";
-const uint8_t SongsTitleScale = 1;
-const uint8_t SongsSubtitleScale = 1;
-const int32_t SongsTitleOffsetY = 26;
-const int32_t SongsSubtitleOffsetY = 72;
+const byte SelectButtonIndex = 5;
+const byte PageUpButtonIndex = 6;
+const byte SongUpButtonIndex = 7;
 
-const char* songsDisplayTitle(byte playlistIndex)
-{
-    switch (playlistIndex)
-    {
-    case 2:
-        return "Project7";
-    case 3:
-        return "OPR";
-    case 4:
-        return "Code Red";
-    default:
-        return "Unknown";
-    }
-}
+const uint16_t PageDownButtonColour = 0x07FF;
+const uint16_t SongDownButtonColour = 0x07FF;
+const uint16_t BackButtonColour = 0xFFFF;
+const uint16_t SelectButtonColour = 0x07E0;
+const uint16_t PageUpButtonColour = 0xFD20;
+const uint16_t SongUpButtonColour = 0xFD20;
+
+const char* PageDownLabel = "PgDn";
+const char* SongDownLabel = "Down";
+const char* BackLabel = "Back";
+const char* SelectLabel = "Select";
+const char* PageUpLabel = "PgUp";
+const char* SongUpLabel = "Up";
+const char* NoSongsLabel = "No songs";
+
+const uint8_t SongsRowLabelScale = 1;
+const int32_t SongsListPadding = 5;
+const int32_t SongsColumnGap = 5;
+const int32_t SongsRowHeight = 32;
+const int32_t SongsRowTextInsetX = 10;
+const int32_t SongsRowTextInsetY = 6;
+const size_t SongsColumnCount = 2;
+const size_t SongsVisibleRowCount = 4;
 } // namespace
 
 SongsMode::SongsMode(TouchButtonManager& touchButtonManager, RingManager& ringManager, IScreenUi& screenUi,
@@ -37,19 +42,21 @@ SongsMode::SongsMode(TouchButtonManager& touchButtonManager, RingManager& ringMa
     : FunctionModeBase(touchButtonManager, ringManager, screenUi, midiManager, transitionDelegate),
       _midiProvider(midiProvider), _buttonOverrideStore(buttonOverrideStore),
       _selectedPlaylist(midiProvider.defaultPlaylistIndex()), _currentPatch(0), _currentSongIndex(0), _hasCurrentSong(false),
-      _buttonSongIndices{InvalidSongIndex}
+      _songEntries{}, _songCount(0), _highlightedSongListIndex(0)
 {
     resetButtons();
 }
 
 void SongsMode::activate()
 {
-    populateButtons();
+    loadSongs();
+    initializeSelection();
+    clearListArea();
     renderAllButtons();
-    renderCenterTitle(TFT_WHITE);
+    renderList();
 }
 
-void SongsMode::deactivate() { renderCenterTitle(TFT_BLACK); }
+void SongsMode::deactivate() { clearListArea(); }
 
 void SongsMode::buttonPressed(byte number)
 {
@@ -67,13 +74,34 @@ void SongsMode::buttonPressed(byte number)
         return;
     }
 
-    const byte songIndex = _buttonSongIndices[number];
-    if (songIndex == InvalidSongIndex)
+    if (number == SelectButtonIndex)
     {
+        selectHighlightedSong();
         return;
     }
 
-    _transitionDelegate.enterMode(Modes::Play, makePlayModeSongTransition(_selectedPlaylist, songIndex, true));
+    if (number == SongDownButtonIndex)
+    {
+        moveSelection(1);
+        return;
+    }
+
+    if (number == PageDownButtonIndex)
+    {
+        moveSelection(static_cast<int16_t>(visibleSongCapacity()));
+        return;
+    }
+
+    if (number == PageUpButtonIndex)
+    {
+        moveSelection(-static_cast<int16_t>(visibleSongCapacity()));
+        return;
+    }
+
+    if (number == SongUpButtonIndex)
+    {
+        moveSelection(-1);
+    }
 }
 
 void SongsMode::buttonLongPressed(byte number)
@@ -85,6 +113,10 @@ void SongsMode::frameTick()
 {
     // Songs mode currently has no per-frame work.
 }
+
+void SongsMode::encoderRotated(int16_t steps) { moveSelection(steps); }
+
+void SongsMode::encoderPressed() { selectHighlightedSong(); }
 
 void SongsMode::setTransitionValue(ModeTransitionValue transitionValue)
 {
@@ -128,79 +160,197 @@ void SongsMode::resetButtons()
     for (byte buttonIndex = 0; buttonIndex < TouchButtonManager::BUTTON_COUNT; ++buttonIndex)
     {
         _functions[buttonIndex] = Function();
-        _buttonSongIndices[buttonIndex] = InvalidSongIndex;
     }
-}
 
-void SongsMode::populateButtons()
-{
-    resetButtons();
+    configureDownButton();
     configureBackButton();
-
-    SongListEntry entries[TouchButtonManager::BUTTON_COUNT] = {};
-    const size_t entryCount = _buttonOverrideStore.listSongs(_selectedPlaylist, entries, TouchButtonManager::BUTTON_COUNT);
-    byte nextButtonIndex = 0;
-    for (size_t entryIndex = 0; entryIndex < entryCount && nextButtonIndex < TouchButtonManager::BUTTON_COUNT; ++entryIndex)
-    {
-        if (nextButtonIndex == BackButtonIndex)
-        {
-            ++nextButtonIndex;
-        }
-
-        if (nextButtonIndex >= TouchButtonManager::BUTTON_COUNT)
-        {
-            break;
-        }
-
-        char label[Function::LabelCapacity] = {'\0'};
-        formatSongLabel(entries[entryIndex].name, entries[entryIndex].patchNumber, label, sizeof(label));
-        configureButton(nextButtonIndex, entries[entryIndex].songIndex, label);
-        ++nextButtonIndex;
-    }
+    configureSelectButton();
+    configureUpButton();
 }
 
-void SongsMode::configureButton(byte buttonIndex, byte songIndex, const char* label)
+void SongsMode::loadSongs()
 {
-    if (buttonIndex >= TouchButtonManager::BUTTON_COUNT)
+    _songCount = _buttonOverrideStore.listSongs(_selectedPlaylist, _songEntries, MaxSongs);
+}
+
+void SongsMode::initializeSelection()
+{
+    _highlightedSongListIndex = 0;
+
+    if (_songCount == 0)
     {
         return;
     }
 
-    _functions[buttonIndex] = Function(label, SongButtonColour, ActionType::None, ActionType::None);
-    _buttonSongIndices[buttonIndex] = songIndex;
+    if (_hasCurrentSong)
+    {
+        for (size_t songListIndex = 0; songListIndex < _songCount; ++songListIndex)
+        {
+            if (_songEntries[songListIndex].songIndex == _currentSongIndex)
+            {
+                _highlightedSongListIndex = songListIndex;
+                break;
+            }
+        }
+    }
+}
+
+void SongsMode::moveSelection(int16_t steps)
+{
+    if (steps == 0 || _songCount == 0)
+    {
+        return;
+    }
+
+    const size_t previousSongListIndex = _highlightedSongListIndex;
+    const size_t previousVisibleSongStartIndex = visibleSongStartIndexFor(previousSongListIndex);
+    const int32_t songCount = static_cast<int32_t>(_songCount);
+    int32_t nextIndex = (static_cast<int32_t>(_highlightedSongListIndex) + steps) % songCount;
+    if (nextIndex < 0)
+    {
+        nextIndex += songCount;
+    }
+
+    _highlightedSongListIndex = static_cast<size_t>(nextIndex);
+    const size_t nextVisibleSongStartIndex = visibleSongStartIndexFor(_highlightedSongListIndex);
+    if (previousVisibleSongStartIndex != nextVisibleSongStartIndex)
+    {
+        renderList();
+        return;
+    }
+
+    renderSongRow(previousSongListIndex, false);
+    renderSongRow(_highlightedSongListIndex, true);
+}
+
+void SongsMode::selectHighlightedSong()
+{
+    if (_songCount == 0 || _highlightedSongListIndex >= _songCount)
+    {
+        return;
+    }
+
+    const byte songIndex = _songEntries[_highlightedSongListIndex].songIndex;
+    _transitionDelegate.enterMode(Modes::Play, makePlayModeSongTransition(_selectedPlaylist, songIndex, true));
 }
 
 void SongsMode::configureBackButton()
 {
     _functions[BackButtonIndex] = Function(BackLabel, BackButtonColour, ActionType::None, ActionType::None);
-    _buttonSongIndices[BackButtonIndex] = InvalidSongIndex;
 }
 
-void SongsMode::renderCenterTitle(uint16_t textColour)
+void SongsMode::configureSelectButton()
 {
-    const int32_t centerX = _screenUi.boxWidth() * 2;
-    const int32_t centerTopY = _screenUi.boxHeight();
-
-    _screenUi.drawCenteredText(FF32, SongsTitleScale, songsDisplayTitle(_selectedPlaylist), centerX,
-                               centerTopY + SongsTitleOffsetY, textColour, TFT_BLACK);
-    _screenUi.drawCenteredText(FF22, SongsSubtitleScale, SongsSubtitle, centerX,
-                               centerTopY + SongsSubtitleOffsetY, textColour, TFT_BLACK);
+    _functions[SelectButtonIndex] = Function(SelectLabel, SelectButtonColour, ActionType::None, ActionType::None);
 }
 
-void SongsMode::formatSongLabel(const char* songName, byte patchNumber, char* buffer, size_t bufferSize)
+void SongsMode::configureDownButton()
 {
-    if (buffer == nullptr || bufferSize == 0U)
+    _functions[PageDownButtonIndex] = Function(PageDownLabel, PageDownButtonColour, ActionType::None, ActionType::None);
+    _functions[SongDownButtonIndex] = Function(SongDownLabel, SongDownButtonColour, ActionType::None, ActionType::None);
+}
+
+void SongsMode::configureUpButton()
+{
+    _functions[PageUpButtonIndex] = Function(PageUpLabel, PageUpButtonColour, ActionType::None, ActionType::None);
+    _functions[SongUpButtonIndex] = Function(SongUpLabel, SongUpButtonColour, ActionType::None, ActionType::None);
+}
+
+void SongsMode::renderList() const
+{
+    clearListArea();
+    if (_songCount == 0)
+    {
+        renderEmptyState();
+        return;
+    }
+
+    renderVisibleSongs();
+}
+
+void SongsMode::renderVisibleSongs() const
+{
+    const size_t visibleSongStartIndex = visibleSongStartIndexFor(_highlightedSongListIndex);
+    const size_t visibleSongCount = ((_songCount - visibleSongStartIndex) < visibleSongCapacity())
+                                        ? (_songCount - visibleSongStartIndex)
+                                        : visibleSongCapacity();
+
+    for (size_t visibleIndex = 0; visibleIndex < visibleSongCount; ++visibleIndex)
+    {
+        renderSongRow(visibleSongStartIndex + visibleIndex,
+                      (visibleSongStartIndex + visibleIndex) == _highlightedSongListIndex);
+    }
+}
+
+void SongsMode::renderSongRow(size_t songListIndex, bool highlighted) const
+{
+    if (songListIndex >= _songCount)
     {
         return;
     }
 
-    if (songName != nullptr && songName[0] != '\0')
-    {
-        std::snprintf(buffer, bufferSize, "%s", songName);
-        return;
-    }
+    const size_t visibleSongStartIndex = visibleSongStartIndexFor(songListIndex);
+    const size_t visibleSlotIndex = songListIndex - visibleSongStartIndex;
+    const size_t columnIndex = visibleSlotIndex / SongsVisibleRowCount;
+    const size_t rowIndex = visibleSlotIndex % SongsVisibleRowCount;
+    const int32_t rowX = songColumnX(columnIndex);
+    const int32_t rowY = songRowY(rowIndex);
+    const uint16_t backgroundColour = highlighted ? TFT_WHITE : TFT_BLACK;
+    const uint16_t textColour = highlighted ? TFT_BLACK : TFT_WHITE;
 
-    std::snprintf(buffer, bufferSize, "%02u", static_cast<unsigned int>(patchNumber));
+    _screenUi.fillRect(rowX, rowY, songColumnWidth(), SongsRowHeight, backgroundColour);
+    _screenUi.drawText(FF22, SongsRowLabelScale, _songEntries[songListIndex].name, rowX + SongsRowTextInsetX,
+                       rowY + SongsRowTextInsetY, textColour, backgroundColour);
+}
+
+void SongsMode::clearListArea() const
+{
+    _screenUi.fillRect(songListStartX(), songListStartY(), songListWidth(), songListHeight(), TFT_BLACK);
+}
+
+void SongsMode::renderEmptyState() const
+{
+    _screenUi.drawText(FF22, SongsRowLabelScale, NoSongsLabel, songListStartX() + SongsRowTextInsetX,
+                       songListStartY() + SongsRowTextInsetY, TFT_WHITE, TFT_BLACK);
+}
+
+size_t SongsMode::visibleSongCapacity() const { return SongsVisibleRowCount * SongsColumnCount; }
+
+size_t SongsMode::visibleSongStartIndexFor(size_t songListIndex) const
+{
+    return (songListIndex / visibleSongCapacity()) * visibleSongCapacity();
+}
+
+int32_t SongsMode::songListStartX() const { return SongsListPadding; }
+
+int32_t SongsMode::songListStartY() const { return _screenUi.boxHeight() + SongsListPadding; }
+
+int32_t SongsMode::songListWidth() const { return (_screenUi.boxWidth() * 4) - (SongsListPadding * 2); }
+
+int32_t SongsMode::songListHeight() const
+{
+    return (_screenUi.bottomRowY() - _screenUi.boxHeight()) - (SongsListPadding * 2);
+}
+
+int32_t SongsMode::songRowGap() const
+{
+    const int32_t totalGapHeight = songListHeight() - (static_cast<int32_t>(SongsVisibleRowCount) * SongsRowHeight);
+    return totalGapHeight / static_cast<int32_t>(SongsVisibleRowCount - 1);
+}
+
+int32_t SongsMode::songRowY(size_t visibleRow) const
+{
+    return songListStartY() + (static_cast<int32_t>(visibleRow) * (SongsRowHeight + songRowGap()));
+}
+
+int32_t SongsMode::songColumnWidth() const
+{
+    return (songListWidth() - SongsColumnGap) / static_cast<int32_t>(SongsColumnCount);
+}
+
+int32_t SongsMode::songColumnX(size_t columnIndex) const
+{
+    return songListStartX() + (static_cast<int32_t>(columnIndex) * (songColumnWidth() + SongsColumnGap));
 }
 
 uint8_t SongsMode::ringBrightnessForButton(byte number) const

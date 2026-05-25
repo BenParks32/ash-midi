@@ -24,7 +24,7 @@ class FunctionModeBase : public IMode
     const Function& getFunction(byte number) const;
     bool isButtonEnabled(byte number) const;
     static bool isEmptyLabel(const char* label);
-    void renderAllButtons();
+    void renderAllButtons(bool drawTouchButtons = true);
     virtual bool usesSelectionBorder(byte number) const;
     virtual uint8_t ringBrightnessForButton(byte number) const = 0;
 
