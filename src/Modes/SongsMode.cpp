@@ -4,24 +4,30 @@
 
 namespace
 {
+const byte SelectButtonIndex = 0;
+const byte LastButtonIndex = 1;
 const byte PageDownButtonIndex = 2;
 const byte SongDownButtonIndex = 3;
 const byte BackButtonIndex = 4;
-const byte SelectButtonIndex = 5;
+const byte FirstButtonIndex = 5;
 const byte PageUpButtonIndex = 6;
 const byte SongUpButtonIndex = 7;
 
-const uint16_t PageDownButtonColour = 0x07FF;
-const uint16_t SongDownButtonColour = 0x07FF;
-const uint16_t BackButtonColour = 0xFFFF;
 const uint16_t SelectButtonColour = 0x07E0;
-const uint16_t PageUpButtonColour = 0xFD20;
-const uint16_t SongUpButtonColour = 0xFD20;
+const uint16_t LastButtonColour = 0x780F;
+const uint16_t PageDownButtonColour = 0x001F;
+const uint16_t SongDownButtonColour = 0xFD20;
+const uint16_t BackButtonColour = 0xFFFF;
+const uint16_t FirstButtonColour = 0xF81F;
+const uint16_t PageUpButtonColour = 0x07FF;
+const uint16_t SongUpButtonColour = 0xFFE0;
 
+const char* SelectLabel = "Select";
+const char* LastLabel = "Last";
 const char* PageDownLabel = "PgDn";
 const char* SongDownLabel = "Down";
 const char* BackLabel = "Back";
-const char* SelectLabel = "Select";
+const char* FirstLabel = "First";
 const char* PageUpLabel = "PgUp";
 const char* SongUpLabel = "Up";
 const char* NoSongsLabel = "No songs";
@@ -80,6 +86,15 @@ void SongsMode::buttonPressed(byte number)
         return;
     }
 
+    if (number == LastButtonIndex)
+    {
+        if (_songCount > 0)
+        {
+            setHighlightedSongListIndex(_songCount - 1);
+        }
+        return;
+    }
+
     if (number == SongDownButtonIndex)
     {
         moveSelection(1);
@@ -89,6 +104,15 @@ void SongsMode::buttonPressed(byte number)
     if (number == PageDownButtonIndex)
     {
         moveSelection(static_cast<int16_t>(visibleSongCapacity()));
+        return;
+    }
+
+    if (number == FirstButtonIndex)
+    {
+        if (_songCount > 0)
+        {
+            setHighlightedSongListIndex(0);
+        }
         return;
     }
 
@@ -202,8 +226,6 @@ void SongsMode::moveSelection(int16_t steps)
         return;
     }
 
-    const size_t previousSongListIndex = _highlightedSongListIndex;
-    const size_t previousVisibleSongStartIndex = visibleSongStartIndexFor(previousSongListIndex);
     const int32_t songCount = static_cast<int32_t>(_songCount);
     int32_t nextIndex = (static_cast<int32_t>(_highlightedSongListIndex) + steps) % songCount;
     if (nextIndex < 0)
@@ -211,7 +233,19 @@ void SongsMode::moveSelection(int16_t steps)
         nextIndex += songCount;
     }
 
-    _highlightedSongListIndex = static_cast<size_t>(nextIndex);
+    setHighlightedSongListIndex(static_cast<size_t>(nextIndex));
+}
+
+void SongsMode::setHighlightedSongListIndex(size_t songListIndex)
+{
+    if (_songCount == 0 || songListIndex >= _songCount || songListIndex == _highlightedSongListIndex)
+    {
+        return;
+    }
+
+    const size_t previousSongListIndex = _highlightedSongListIndex;
+    const size_t previousVisibleSongStartIndex = visibleSongStartIndexFor(previousSongListIndex);
+    _highlightedSongListIndex = songListIndex;
     const size_t nextVisibleSongStartIndex = visibleSongStartIndexFor(_highlightedSongListIndex);
     if (previousVisibleSongStartIndex != nextVisibleSongStartIndex)
     {
@@ -246,12 +280,14 @@ void SongsMode::configureSelectButton()
 
 void SongsMode::configureDownButton()
 {
+    _functions[LastButtonIndex] = Function(LastLabel, LastButtonColour, ActionType::None, ActionType::None);
     _functions[PageDownButtonIndex] = Function(PageDownLabel, PageDownButtonColour, ActionType::None, ActionType::None);
     _functions[SongDownButtonIndex] = Function(SongDownLabel, SongDownButtonColour, ActionType::None, ActionType::None);
 }
 
 void SongsMode::configureUpButton()
 {
+    _functions[FirstButtonIndex] = Function(FirstLabel, FirstButtonColour, ActionType::None, ActionType::None);
     _functions[PageUpButtonIndex] = Function(PageUpLabel, PageUpButtonColour, ActionType::None, ActionType::None);
     _functions[SongUpButtonIndex] = Function(SongUpLabel, SongUpButtonColour, ActionType::None, ActionType::None);
 }

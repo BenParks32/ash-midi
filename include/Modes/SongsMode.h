@@ -28,6 +28,7 @@ class SongsMode : public FunctionModeBase
     void loadSongs();
     void initializeSelection();
     void moveSelection(int16_t steps);
+    void setHighlightedSongListIndex(size_t songListIndex);
     void selectHighlightedSong();
     void configureBackButton();
     void configureSelectButton();

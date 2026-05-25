@@ -269,12 +269,23 @@ void test_activate_clears_screen_and_renders_top_left_song_list()
     TEST_ASSERT_EQUAL_INT(0, fixture.ui.drawBackgroundAndBorderCalls);
     TEST_ASSERT_EQUAL_UINT8(4, fixture.overrideStore.lastPlaylistIndex);
     TEST_ASSERT_EQUAL_UINT32(static_cast<uint32_t>(TestSongCapacity), static_cast<uint32_t>(fixture.overrideStore.lastCapacity));
+    TEST_ASSERT_EQUAL_STRING("Select", fixture.touchButtonManager.getButton(0)->label());
+    TEST_ASSERT_EQUAL_STRING("Last", fixture.touchButtonManager.getButton(1)->label());
     TEST_ASSERT_EQUAL_STRING("PgDn", fixture.touchButtonManager.getButton(2)->label());
     TEST_ASSERT_EQUAL_STRING("Down", fixture.touchButtonManager.getButton(3)->label());
     TEST_ASSERT_EQUAL_STRING("Back", fixture.touchButtonManager.getButton(4)->label());
-    TEST_ASSERT_EQUAL_STRING("Select", fixture.touchButtonManager.getButton(5)->label());
+    TEST_ASSERT_EQUAL_STRING("First", fixture.touchButtonManager.getButton(5)->label());
     TEST_ASSERT_EQUAL_STRING("PgUp", fixture.touchButtonManager.getButton(6)->label());
     TEST_ASSERT_EQUAL_STRING("Up", fixture.touchButtonManager.getButton(7)->label());
+    TEST_ASSERT_EQUAL_HEX16(0x07E0, fixture.touchButtonManager.getButton(0)->pillColour());
+    TEST_ASSERT_EQUAL_HEX16(0x780F, fixture.touchButtonManager.getButton(1)->pillColour());
+    TEST_ASSERT_EQUAL_HEX16(0x001F, fixture.touchButtonManager.getButton(2)->pillColour());
+    TEST_ASSERT_EQUAL_HEX16(0xFD20, fixture.touchButtonManager.getButton(3)->pillColour());
+    TEST_ASSERT_EQUAL_HEX16(0xF81F, fixture.touchButtonManager.getButton(5)->pillColour());
+    TEST_ASSERT_EQUAL_HEX16(0x07FF, fixture.touchButtonManager.getButton(6)->pillColour());
+    TEST_ASSERT_EQUAL_HEX16(0xFFE0, fixture.touchButtonManager.getButton(7)->pillColour());
+    TEST_ASSERT_TRUE(fixture.touchButtonManager.getButton(0)->isEnabled());
+    TEST_ASSERT_TRUE(fixture.touchButtonManager.getButton(1)->isEnabled());
     TEST_ASSERT_TRUE(fixture.touchButtonManager.getButton(2)->isEnabled());
     TEST_ASSERT_TRUE(fixture.touchButtonManager.getButton(3)->isEnabled());
     TEST_ASSERT_TRUE(fixture.touchButtonManager.getButton(4)->isEnabled());
@@ -356,7 +367,7 @@ void test_same_page_selection_updates_only_changed_rows()
     TEST_ASSERT_EQUAL_INT(drawTextCallsAfterActivate + 2, fixture.ui.drawTextCallCount);
 }
 
-void test_button_navigation_supports_song_and_page_moves()
+void test_button_navigation_supports_song_page_first_and_last_moves()
 {
     SongsModeFixture fixture;
     seedSongs(fixture, 18);
@@ -381,6 +392,16 @@ void test_button_navigation_supports_song_and_page_moves()
     TEST_ASSERT_EQUAL_INT(15, fixture.ui.drawTextLog[highlightedSongCallIndex].x);
 
     fixture.mode.buttonPressed(6);
+    highlightedSongCallIndex = findLatestDrawTextCallIndex(fixture.ui, "Song 0");
+    TEST_ASSERT_TRUE(highlightedSongCallIndex >= 0);
+    TEST_ASSERT_EQUAL_HEX16(TFT_BLACK, fixture.ui.drawTextLog[highlightedSongCallIndex].textColour);
+
+    fixture.mode.buttonPressed(1);
+    highlightedSongCallIndex = findLatestDrawTextCallIndex(fixture.ui, "Song 17");
+    TEST_ASSERT_TRUE(highlightedSongCallIndex >= 0);
+    TEST_ASSERT_EQUAL_HEX16(TFT_BLACK, fixture.ui.drawTextLog[highlightedSongCallIndex].textColour);
+
+    fixture.mode.buttonPressed(5);
     highlightedSongCallIndex = findLatestDrawTextCallIndex(fixture.ui, "Song 0");
     TEST_ASSERT_TRUE(highlightedSongCallIndex >= 0);
     TEST_ASSERT_EQUAL_HEX16(TFT_BLACK, fixture.ui.drawTextLog[highlightedSongCallIndex].textColour);
@@ -409,7 +430,7 @@ void test_select_button_selects_highlighted_song()
     fixture.mode.setTransitionValue(makePlayModeTransition(3, 2, false));
     fixture.mode.activate();
     fixture.mode.encoderRotated(4);
-    fixture.mode.buttonPressed(5);
+    fixture.mode.buttonPressed(0);
 
     TEST_ASSERT_EQUAL_INT(1, fixture.transitionDelegate.calls);
     TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(Modes::Play), static_cast<uint8_t>(fixture.transitionDelegate.lastMode));
@@ -437,8 +458,9 @@ void test_empty_list_keeps_back_enabled_and_blocks_selection()
     fixture.mode.setTransitionValue(makePlayModeTransition(4, 9, false));
     fixture.mode.activate();
     fixture.mode.encoderPressed();
+    fixture.mode.buttonPressed(0);
+    fixture.mode.buttonPressed(1);
     fixture.mode.buttonPressed(5);
-    fixture.mode.buttonPressed(2);
     fixture.mode.buttonPressed(6);
 
     TEST_ASSERT_EQUAL_INT(0, fixture.transitionDelegate.calls);
@@ -486,7 +508,7 @@ int main(int argc, char** argv)
     RUN_TEST(test_selection_moves_down_first_column_then_right_column_and_wraps);
     RUN_TEST(test_page_change_repaints_next_song_page);
     RUN_TEST(test_same_page_selection_updates_only_changed_rows);
-    RUN_TEST(test_button_navigation_supports_song_and_page_moves);
+    RUN_TEST(test_button_navigation_supports_song_page_first_and_last_moves);
     RUN_TEST(test_encoder_press_selects_highlighted_song);
     RUN_TEST(test_select_button_selects_highlighted_song);
     RUN_TEST(test_back_button_returns_to_play_without_recall_for_song_context);
