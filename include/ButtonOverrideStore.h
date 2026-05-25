@@ -24,6 +24,24 @@ struct PatchListEntry
     PatchListEntry() : patchNumber(0), name{0} {}
 };
 
+struct SongListEntry
+{
+    byte songIndex;
+    byte patchNumber;
+    char name[PatchDisplayConfig::NameCapacity];
+
+    SongListEntry() : songIndex(0), patchNumber(0), name{0} {}
+};
+
+struct SongConfig
+{
+    byte patchNumber;
+    char name[PatchDisplayConfig::NameCapacity];
+    char displayName[PatchDisplayConfig::NameCapacity];
+
+    SongConfig() : patchNumber(0), name{0}, displayName{0} {}
+};
+
 class IButtonOverrideStore
 {
   public:
@@ -39,6 +57,20 @@ class IButtonOverrideStore
         (void)capacity;
         return 0;
     }
+    virtual size_t listSongs(byte playlistIndex, SongListEntry* entries, size_t capacity) const
+    {
+        (void)playlistIndex;
+        (void)entries;
+        (void)capacity;
+        return 0;
+    }
+    virtual bool songForIndex(byte playlistIndex, byte songIndex, SongConfig* outSong) const
+    {
+        (void)playlistIndex;
+        (void)songIndex;
+        (void)outSong;
+        return false;
+    }
 };
 
 class ButtonOverrideStore : public IButtonOverrideStore
@@ -51,11 +83,14 @@ class ButtonOverrideStore : public IButtonOverrideStore
     void applyOverrides(byte playlistIndex, byte patchNumber, Function* functions, size_t functionCount,
                         PatchDisplayConfig* patchDisplay = nullptr) const override;
     size_t listPatches(byte playlistIndex, PatchListEntry* entries, size_t capacity) const override;
+    size_t listSongs(byte playlistIndex, SongListEntry* entries, size_t capacity) const override;
+    bool songForIndex(byte playlistIndex, byte songIndex, SongConfig* outSong) const override;
 
   private:
     static constexpr const char* kPrimaryConfigPath = "/BUTTONS.JSN";
     static constexpr const char* kLegacyConfigPath = "/buttons.json";
     static constexpr size_t kMaxConfigBytes = 4096;
+    static constexpr size_t kMaxSongsConfigBytes = 8192;
 
     struct ParsedActionOverride
     {
@@ -90,10 +125,12 @@ class ButtonOverrideStore : public IButtonOverrideStore
     static bool parseColourValue(const char* rawValue, uint16_t& outColour);
     static bool parseActionName(const char* name, ActionType& outActionType);
     static bool parseModeValue(const char* name, byte& outModeValue);
+    static const char* songsConfigPathForPlaylist(byte playlistIndex);
     static bool parseActionObject(const JsonVariantConst& actionValue, FunctionAction& outAction);
     static void clearButtonOverride(ParsedButtonOverride& buttonOverride);
     static void applyButtonOverride(const ParsedButtonOverride& buttonOverride, Function& target);
     static bool parseButtonOverrideObject(const JsonObjectConst& buttonObject, ParsedButtonOverride& outButtonOverride);
+    bool loadSongsArray(byte playlistIndex, DynamicJsonDocument& document, JsonArrayConst& outSongs) const;
 
     void clearOverrides();
 

@@ -1,3 +1,4 @@
+#include <cstdio>
 #include <cstring>
 #include <unity.h>
 
@@ -9,6 +10,8 @@
 
 namespace
 {
+constexpr size_t MockConfigCapacity = 12288;
+
 class MockTextFileStore : public ITextFileStore
 {
   public:
@@ -16,25 +19,65 @@ class MockTextFileStore : public ITextFileStore
     {
         ++readCalls;
         lastPath = path;
-        if (!hasContents)
+
+        const char* source = contentsForPath(path);
+        if (source == nullptr)
         {
             return false;
         }
 
-        const size_t length = std::strlen(contents);
+        const size_t length = std::strlen(source);
         if ((length + 1U) > bufferSize)
         {
             return false;
         }
 
-        std::memcpy(buffer, contents, length + 1U);
+        std::memcpy(buffer, source, length + 1U);
         return true;
+    }
+
+    const char* contentsForPath(const char* path) const
+    {
+        if (path == nullptr)
+        {
+            return nullptr;
+        }
+
+        if ((std::strcmp(path, "/p7songs.jsn") == 0 || std::strcmp(path, "p7songs.jsn") == 0) && hasProject7SongsContents)
+        {
+            return project7SongsContents;
+        }
+
+        if ((std::strcmp(path, "/oprsongs.jsn") == 0 || std::strcmp(path, "oprsongs.jsn") == 0) && hasOprSongsContents)
+        {
+            return oprSongsContents;
+        }
+
+        if ((std::strcmp(path, "/crsongs.jsn") == 0 || std::strcmp(path, "crsongs.jsn") == 0) && hasCodeRedSongsContents)
+        {
+            return codeRedSongsContents;
+        }
+
+        if ((std::strcmp(path, "/BUTTONS.JSN") == 0 || std::strcmp(path, "BUTTONS.JSN") == 0 ||
+             std::strcmp(path, "/buttons.json") == 0 || std::strcmp(path, "buttons.json") == 0) &&
+            hasContents)
+        {
+            return contents;
+        }
+
+        return nullptr;
     }
 
     mutable int readCalls = 0;
     mutable const char* lastPath = nullptr;
     bool hasContents = false;
-    char contents[2048] = {0};
+    bool hasProject7SongsContents = false;
+    bool hasOprSongsContents = false;
+    bool hasCodeRedSongsContents = false;
+    char contents[MockConfigCapacity] = {0};
+    char project7SongsContents[MockConfigCapacity] = {0};
+    char oprSongsContents[MockConfigCapacity] = {0};
+    char codeRedSongsContents[MockConfigCapacity] = {0};
 };
 
 void test_refresh_parses_tap_alias_for_blank_default_button()
@@ -109,6 +152,129 @@ void test_apply_overrides_falls_back_to_patch_name_when_long_name_is_empty()
     store.applyOverrides(2, 5, functions, 8, &patchDisplay);
 
     TEST_ASSERT_EQUAL_STRING("Big Sky Intro", patchDisplay.name);
+}
+
+void test_list_songs_preserves_declared_order_and_song_indices()
+{
+    MockTextFileStore fileStore;
+    std::strcpy(fileStore.contents,
+                "{\"playModes\":{\"Project7\":{\"songs\":[{\"name\":\"Outro\",\"patch\":7},{\"name\":\"Main\","
+                "\"patch\":0},{\"name\":\"Verse\",\"patch\":3}]}}}");
+    fileStore.hasContents = true;
+
+    ButtonOverrideStore store(&fileStore);
+    TEST_ASSERT_TRUE(store.refresh());
+
+    SongListEntry entries[4] = {};
+    const size_t count = store.listSongs(2, entries, 4);
+
+    TEST_ASSERT_EQUAL_UINT32(3, count);
+    TEST_ASSERT_EQUAL_UINT8(0, entries[0].songIndex);
+    TEST_ASSERT_EQUAL_UINT8(7, entries[0].patchNumber);
+    TEST_ASSERT_EQUAL_STRING("Outro", entries[0].name);
+    TEST_ASSERT_EQUAL_UINT8(1, entries[1].songIndex);
+    TEST_ASSERT_EQUAL_UINT8(0, entries[1].patchNumber);
+    TEST_ASSERT_EQUAL_STRING("Main", entries[1].name);
+    TEST_ASSERT_EQUAL_UINT8(2, entries[2].songIndex);
+    TEST_ASSERT_EQUAL_UINT8(3, entries[2].patchNumber);
+    TEST_ASSERT_EQUAL_STRING("Verse", entries[2].name);
+}
+
+void test_song_for_index_reads_patch_and_prefers_long_name_for_display()
+{
+    MockTextFileStore fileStore;
+    std::strcpy(fileStore.contents,
+                "{\"playModes\":{\"Project7\":{\"songs\":[{\"name\":\"Big Sky\",\"longName\":\"Big Sky Intro\","
+                "\"patch\":5}]}}}");
+    fileStore.hasContents = true;
+
+    ButtonOverrideStore store(&fileStore);
+    TEST_ASSERT_TRUE(store.refresh());
+
+    SongConfig song = {};
+    TEST_ASSERT_TRUE(store.songForIndex(2, 0, &song));
+    TEST_ASSERT_EQUAL_UINT8(5, song.patchNumber);
+    TEST_ASSERT_EQUAL_STRING("Big Sky", song.name);
+    TEST_ASSERT_EQUAL_STRING("Big Sky Intro", song.displayName);
+}
+
+void test_song_for_index_falls_back_to_short_name_when_long_name_is_empty()
+{
+    MockTextFileStore fileStore;
+    std::strcpy(fileStore.contents,
+                "{\"playModes\":{\"Project7\":{\"songs\":[{\"name\":\"Big Sky\",\"longName\":\"\",\"patch\":5}]}}}");
+    fileStore.hasContents = true;
+
+    ButtonOverrideStore store(&fileStore);
+    TEST_ASSERT_TRUE(store.refresh());
+
+    SongConfig song = {};
+    TEST_ASSERT_TRUE(store.songForIndex(2, 0, &song));
+    TEST_ASSERT_EQUAL_STRING("Big Sky", song.name);
+    TEST_ASSERT_EQUAL_STRING("Big Sky", song.displayName);
+}
+
+void test_list_songs_reads_project7_external_song_file_when_present()
+{
+    MockTextFileStore fileStore;
+    std::strcpy(fileStore.contents, "{\"playModes\":{\"Project7\":{}}}");
+    std::strcpy(fileStore.project7SongsContents,
+                "[{\"name\":\"Zombie\",\"patch\":1},{\"name\":\"Boulevard\",\"patch\":2}]");
+    fileStore.hasContents = true;
+    fileStore.hasProject7SongsContents = true;
+
+    ButtonOverrideStore store(&fileStore);
+    TEST_ASSERT_TRUE(store.refresh());
+
+    SongListEntry entries[4] = {};
+    const size_t count = store.listSongs(2, entries, 4);
+
+    TEST_ASSERT_EQUAL_UINT32(2, count);
+    TEST_ASSERT_EQUAL_UINT8(0, entries[0].songIndex);
+    TEST_ASSERT_EQUAL_UINT8(1, entries[0].patchNumber);
+    TEST_ASSERT_EQUAL_STRING("Zombie", entries[0].name);
+    TEST_ASSERT_EQUAL_UINT8(1, entries[1].songIndex);
+    TEST_ASSERT_EQUAL_UINT8(2, entries[1].patchNumber);
+    TEST_ASSERT_EQUAL_STRING("Boulevard", entries[1].name);
+}
+
+void test_song_for_index_reads_project7_external_song_file_when_present()
+{
+    MockTextFileStore fileStore;
+    std::strcpy(fileStore.contents, "{\"playModes\":{\"Project7\":{}}}");
+    std::strcpy(fileStore.project7SongsContents,
+                "[{\"name\":\"Zombie\",\"patch\":1},{\"name\":\"Boulevard\",\"longName\":\"Boulevard of Broken "
+                "Dreams\",\"patch\":2}]");
+    fileStore.hasContents = true;
+    fileStore.hasProject7SongsContents = true;
+
+    ButtonOverrideStore store(&fileStore);
+    TEST_ASSERT_TRUE(store.refresh());
+
+    SongConfig song = {};
+    TEST_ASSERT_TRUE(store.songForIndex(2, 1, &song));
+    TEST_ASSERT_EQUAL_UINT8(2, song.patchNumber);
+    TEST_ASSERT_EQUAL_STRING("Boulevard", song.name);
+    TEST_ASSERT_EQUAL_STRING("Boulevard of Broken Dreams", song.displayName);
+}
+
+void test_list_songs_skips_entries_without_a_valid_patch()
+{
+    MockTextFileStore fileStore;
+    std::strcpy(fileStore.contents,
+                "{\"playModes\":{\"Project7\":{\"songs\":[{\"name\":\"Bad\"},{\"name\":\"Good\",\"patch\":9}]}}}");
+    fileStore.hasContents = true;
+
+    ButtonOverrideStore store(&fileStore);
+    TEST_ASSERT_TRUE(store.refresh());
+
+    SongListEntry entries[2] = {};
+    const size_t count = store.listSongs(2, entries, 2);
+
+    TEST_ASSERT_EQUAL_UINT32(1, count);
+    TEST_ASSERT_EQUAL_UINT8(1, entries[0].songIndex);
+    TEST_ASSERT_EQUAL_UINT8(9, entries[0].patchNumber);
+    TEST_ASSERT_EQUAL_STRING("Good", entries[0].name);
 }
 
 void test_apply_overrides_sets_toggle_flag_when_configured()
@@ -225,6 +391,36 @@ void test_apply_overrides_parses_change_mode_patches_value()
     TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(Modes::Patches),
                             functions[4].action(FunctionBehaviour::ShortPress).value);
 }
+
+void test_refresh_accepts_split_song_config()
+{
+    MockTextFileStore fileStore;
+    std::strcpy(fileStore.contents, "{\"playModes\":{\"Project7\":{}}}");
+    std::strcpy(fileStore.project7SongsContents, "[");
+    for (int songIndex = 0; songIndex < 50; ++songIndex)
+    {
+        char songEntry[160] = {0};
+        std::snprintf(songEntry, sizeof(songEntry),
+                      "{\"name\":\"Song %02d Longish Name For External Songs\",\"longName\":\"Song %02d Long Display "
+                      "Name For External Songs File\",\"patch\":%d}%s",
+                      songIndex, songIndex, (songIndex % 10) + 1, (songIndex < 49) ? "," : "");
+        std::strcat(fileStore.project7SongsContents, songEntry);
+    }
+    std::strcat(fileStore.project7SongsContents, "]");
+    fileStore.hasContents = true;
+    fileStore.hasProject7SongsContents = true;
+
+    TEST_ASSERT_TRUE(std::strlen(fileStore.project7SongsContents) > 4096U);
+
+    ButtonOverrideStore store(&fileStore);
+    TEST_ASSERT_TRUE(store.refresh());
+
+    SongListEntry entries[64] = {};
+    const size_t count = store.listSongs(2, entries, 64);
+    TEST_ASSERT_EQUAL_UINT32(50, count);
+    TEST_ASSERT_EQUAL_STRING("Song 00 Longish Name For External Songs", entries[0].name);
+    TEST_ASSERT_EQUAL_STRING("Song 49 Longish Name For External Songs", entries[49].name);
+}
 } // namespace
 
 void setUp() {}
@@ -241,10 +437,17 @@ int main(int argc, char** argv)
     RUN_TEST(test_apply_overrides_reads_patch_name_without_button_overrides);
     RUN_TEST(test_apply_overrides_prefers_patch_long_name_for_play_mode_display);
     RUN_TEST(test_apply_overrides_falls_back_to_patch_name_when_long_name_is_empty);
+    RUN_TEST(test_list_songs_preserves_declared_order_and_song_indices);
+    RUN_TEST(test_song_for_index_reads_patch_and_prefers_long_name_for_display);
+    RUN_TEST(test_song_for_index_falls_back_to_short_name_when_long_name_is_empty);
+    RUN_TEST(test_list_songs_reads_project7_external_song_file_when_present);
+    RUN_TEST(test_song_for_index_reads_project7_external_song_file_when_present);
+    RUN_TEST(test_list_songs_skips_entries_without_a_valid_patch);
     RUN_TEST(test_apply_overrides_sets_toggle_flag_when_configured);
     RUN_TEST(test_apply_overrides_matches_playlist_and_patch);
     RUN_TEST(test_apply_overrides_can_reparse_same_config_multiple_times);
     RUN_TEST(test_list_patches_preserves_buttons_jsn_order);
     RUN_TEST(test_apply_overrides_parses_change_mode_patches_value);
+    RUN_TEST(test_refresh_accepts_split_song_config);
     return UNITY_END();
 }

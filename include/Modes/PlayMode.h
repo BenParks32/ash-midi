@@ -51,9 +51,11 @@ class PlayMode : public FunctionModeBase
     void renderPatchBadge();
     void clearPatchBadge();
     void renderPatchBadgeNumber(byte patchNumber, uint16_t textColour);
+    void renderSongNameLabel(uint16_t textColour);
     void renderPatchNameLabel(uint16_t textColour);
     void renderSnapshotLabel(byte snapshotButton, uint16_t textColour);
     static void formatPatchNumberLabel(byte patchNumber, char* buffer, size_t bufferSize);
+    static void formatSongNameDisplayLabel(const char* songName, char* buffer, size_t bufferSize);
     static void formatPatchNameDisplayLabel(const char* patchName, char* buffer, size_t bufferSize);
     void formatSnapshotLabelUppercase(byte snapshotButton, char* buffer, size_t bufferSize) const;
     void updateTrackedTextLabel(TrackedTextLabel& trackedLabel, const char* newText, const GFXfont* font, uint8_t scale,
@@ -62,6 +64,8 @@ class PlayMode : public FunctionModeBase
     PatchBadgeMetrics patchBadgeMetrics() const;
     int32_t patchBadgeFrameCenterX() const;
     int32_t patchBadgeFrameTopY() const;
+    int32_t songAndPatchLabelLeftX() const;
+    int32_t songNameLabelY() const;
     int32_t patchNameLabelY() const;
     int32_t snapshotLabelY() const;
     void renderButton(byte number);
@@ -73,7 +77,12 @@ class PlayMode : public FunctionModeBase
     bool isToggleButton(byte number) const;
     ActionType toggleActionTypeForButton(byte number) const;
     bool isToggleActionEnabled(ActionType actionType) const;
+    bool hasSongDisplayName() const;
+    bool hasPatchDisplayName() const;
     void configurePatchButton();
+    void configureSongsButton();
+    bool resolveSelectedSong();
+    ModeTransitionValue currentPlayTransitionValue(bool shouldRecall) const;
     bool usesSelectionBorder(byte number) const override;
     uint8_t ringBrightnessForButton(byte number) const override;
     void setupFunctions();
@@ -83,7 +92,9 @@ class PlayMode : public FunctionModeBase
     IButtonOverrideStore& _buttonOverrideStore;
     byte _selectedPreset;
     byte _selectedPlaylist;
+    byte _selectedSongIndex;
     bool _hasSelectedPreset;
+    bool _hasSelectedSong;
     byte _selectedButton;
     TapTempoEngine _tapTempoEngine;
     uint32_t _nextTapTempoFlashToggleMs;
@@ -95,6 +106,8 @@ class PlayMode : public FunctionModeBase
     bool _isTunerFlashLit;
     bool _toggleStates[TouchButtonManager::BUTTON_COUNT];
     PatchDisplayConfig _patchDisplayConfig;
+    char _selectedSongDisplayName[PatchDisplayConfig::NameCapacity];
+    TrackedTextLabel _songNameLabel;
     TrackedTextLabel _patchNameLabel;
     TrackedTextLabel _snapshotLabel;
     char _tapTempoDisplayLabel[Function::LabelCapacity];

@@ -209,9 +209,9 @@ class MockButtonOverrideStore : public IButtonOverrideStore
             return;
         }
 
-        if (enableMomentaryOverride && functionCount > 5)
+        if (enableMomentaryOverride && functionCount > 3)
         {
-            functions[5] = Function("Hold", 0xF81F, FunctionAction(ActionType::SendMidiControlChange, 21, 127),
+            functions[3] = Function("Hold", 0xF81F, FunctionAction(ActionType::SendMidiControlChange, 21, 127),
                                     FunctionAction(ActionType::SendMidiControlChange, 21, 0),
                                     FunctionAction(ActionType::SelectScene, 2, 0),
                                     FunctionAction(ActionType::ChangeMode, static_cast<byte>(Modes::Home), 0));
@@ -243,9 +243,30 @@ class MockButtonOverrideStore : public IButtonOverrideStore
         functions[tapButtonIndex] = Function("Tap", 0x001F, ActionType::TapTempo, 0, ActionType::None, 0);
     }
 
+    bool songForIndex(byte playlistIndex, byte songIndex, SongConfig* outSong) const override
+    {
+        ++songLookupCalls;
+        lastSongPlaylistIndex = playlistIndex;
+        lastSongIndex = songIndex;
+
+        if (!enableSongLookup || outSong == nullptr || songIndex != configuredSongIndex)
+        {
+            return false;
+        }
+
+        outSong->patchNumber = configuredSongPatchNumber;
+        std::snprintf(outSong->name, sizeof(outSong->name), "%s", configuredSongName);
+        const char* displayName = (configuredSongLongName[0] != '\0') ? configuredSongLongName : configuredSongName;
+        std::snprintf(outSong->displayName, sizeof(outSong->displayName), "%s", displayName);
+        return true;
+    }
+
     mutable int applyCalls = 0;
     mutable byte lastPlaylistIndex = 0;
     mutable byte lastPatchNumber = 0;
+    mutable int songLookupCalls = 0;
+    mutable byte lastSongPlaylistIndex = 0;
+    mutable byte lastSongIndex = 0;
     int refreshCalls = 0;
     bool refreshResult = true;
     bool disableTunerToggle = false;
@@ -254,11 +275,16 @@ class MockButtonOverrideStore : public IButtonOverrideStore
     bool enablePatchButtonOverride = false;
     bool enablePatchName = false;
     bool enableLongPatchName = false;
+    bool enableSongLookup = false;
     bool enableTapOverride = false;
     char defaultPatchName[PatchDisplayConfig::NameCapacity] = "Big Sky Intro";
     char alternatePatchName[PatchDisplayConfig::NameCapacity] = "Massive Lead Wall";
     char defaultPatchLongName[PatchDisplayConfig::NameCapacity] = "";
     char alternatePatchLongName[PatchDisplayConfig::NameCapacity] = "";
+    char configuredSongName[PatchDisplayConfig::NameCapacity] = "Oughta";
+    char configuredSongLongName[PatchDisplayConfig::NameCapacity] = "Oughta Know";
+    byte configuredSongIndex = 2;
+    byte configuredSongPatchNumber = 9;
     byte alternatePatchNumber = 9;
     byte tapButtonIndex = 3;
 };
@@ -392,7 +418,7 @@ void test_activate_sets_play_labels()
     TEST_ASSERT_EQUAL_STRING("Lead", fixture.touchButtonManager.getButton(2)->label());
     TEST_ASSERT_EQUAL_STRING(" ", fixture.touchButtonManager.getButton(3)->label());
     TEST_ASSERT_EQUAL_STRING("Patch", fixture.touchButtonManager.getButton(4)->label());
-    TEST_ASSERT_EQUAL_STRING(" ", fixture.touchButtonManager.getButton(5)->label());
+    TEST_ASSERT_EQUAL_STRING("Songs", fixture.touchButtonManager.getButton(5)->label());
     TEST_ASSERT_EQUAL_STRING("Gig", fixture.touchButtonManager.getButton(6)->label());
     TEST_ASSERT_EQUAL_STRING("Tuner", fixture.touchButtonManager.getButton(7)->label());
 }
@@ -432,7 +458,7 @@ void test_activate_prefers_patch_long_name_when_provided()
     TEST_ASSERT_TRUE(findDrawTextCallIndex(fixture.ui, "Patch: Big Sky Intro", TFT_WHITE) >= 0);
 }
 
-void test_activate_renders_patch_name_five_pixels_higher()
+void test_activate_renders_patch_name_at_updated_offset()
 {
     PlayModeFixture fixture;
     fixture.overrideStore.enablePatchName = true;
@@ -441,7 +467,64 @@ void test_activate_renders_patch_name_five_pixels_higher()
 
     const int patchNameCallIndex = findDrawTextCallIndex(fixture.ui, "Patch: Big Sky Intro", TFT_WHITE);
     TEST_ASSERT_TRUE(patchNameCallIndex >= 0);
-    TEST_ASSERT_EQUAL_INT(115, fixture.ui.drawTextLog[patchNameCallIndex].y);
+    TEST_ASSERT_EQUAL_INT(24, fixture.ui.drawTextLog[patchNameCallIndex].x);
+    TEST_ASSERT_EQUAL_INT(130, fixture.ui.drawTextLog[patchNameCallIndex].y);
+}
+
+void test_activate_song_context_recalls_linked_patch_and_uses_song_display_name()
+{
+    PlayModeFixture fixture;
+    fixture.overrideStore.enablePatchName = true;
+    fixture.overrideStore.enableSongLookup = true;
+    fixture.mode.setTransitionValue(makePlayModeSongTransition(DefaultPlaylistIndex, fixture.overrideStore.configuredSongIndex, true));
+
+    fixture.mode.activate();
+
+    TEST_ASSERT_EQUAL_INT(1, fixture.overrideStore.songLookupCalls);
+    TEST_ASSERT_EQUAL_UINT8(DefaultPlaylistIndex, fixture.overrideStore.lastSongPlaylistIndex);
+    TEST_ASSERT_EQUAL_UINT8(fixture.overrideStore.configuredSongIndex, fixture.overrideStore.lastSongIndex);
+    TEST_ASSERT_EQUAL_UINT8(fixture.overrideStore.configuredSongPatchNumber, fixture.overrideStore.lastPatchNumber);
+    TEST_ASSERT_EQUAL_INT(1, fixture.midiProvider.recallPresetCalls);
+    TEST_ASSERT_EQUAL_UINT8(fixture.overrideStore.configuredSongPatchNumber, fixture.midiProvider.lastRecallPreset);
+    TEST_ASSERT_TRUE(findDrawTextCallIndex(fixture.ui, "Song: Oughta Know", TFT_WHITE) >= 0);
+    TEST_ASSERT_TRUE(findDrawTextCallIndex(fixture.ui, "Patch: Massive Lead Wall", TFT_WHITE) >= 0);
+}
+
+void test_activate_song_context_falls_back_to_song_short_name_when_long_name_missing()
+{
+    PlayModeFixture fixture;
+    fixture.overrideStore.enablePatchName = true;
+    fixture.overrideStore.enableSongLookup = true;
+    fixture.overrideStore.configuredSongLongName[0] = '\0';
+    fixture.mode.setTransitionValue(makePlayModeSongTransition(DefaultPlaylistIndex, fixture.overrideStore.configuredSongIndex, true));
+
+    fixture.mode.activate();
+
+    TEST_ASSERT_TRUE(findDrawTextCallIndex(fixture.ui, "Song: Oughta", TFT_WHITE) >= 0);
+}
+
+void test_activate_song_label_renders_above_patch_label()
+{
+    PlayModeFixture fixture;
+    fixture.overrideStore.enablePatchName = true;
+    fixture.overrideStore.enableSongLookup = true;
+    fixture.mode.setTransitionValue(makePlayModeSongTransition(DefaultPlaylistIndex, fixture.overrideStore.configuredSongIndex, true));
+
+    fixture.mode.activate();
+
+    const int songLabelCallIndex = findDrawTextCallIndex(fixture.ui, "Song: Oughta Know", TFT_WHITE);
+    const int patchLabelCallIndex = findDrawTextCallIndex(fixture.ui, "Patch: Massive Lead Wall", TFT_WHITE);
+    const int snapshotLabelCallIndex = findDrawTextCallIndex(fixture.ui, "CLEAN", TFT_WHITE);
+    TEST_ASSERT_TRUE(songLabelCallIndex >= 0);
+    TEST_ASSERT_TRUE(patchLabelCallIndex >= 0);
+    TEST_ASSERT_TRUE(snapshotLabelCallIndex >= 0);
+    TEST_ASSERT_EQUAL_INT(24, fixture.ui.drawTextLog[songLabelCallIndex].x);
+    TEST_ASSERT_EQUAL_INT(24, fixture.ui.drawTextLog[patchLabelCallIndex].x);
+    TEST_ASSERT_EQUAL_INT(93, fixture.ui.drawTextLog[songLabelCallIndex].y);
+    TEST_ASSERT_EQUAL_INT(130, fixture.ui.drawTextLog[patchLabelCallIndex].y);
+    TEST_ASSERT_EQUAL_INT(172, fixture.ui.drawTextLog[snapshotLabelCallIndex].y);
+    TEST_ASSERT_TRUE(fixture.ui.drawTextLog[songLabelCallIndex].y < fixture.ui.drawTextLog[patchLabelCallIndex].y);
+    TEST_ASSERT_TRUE(fixture.ui.drawTextLog[patchLabelCallIndex].y < fixture.ui.drawTextLog[snapshotLabelCallIndex].y);
 }
 
 void test_activate_without_patch_name_does_not_render_patch_name_prefix()
@@ -512,9 +595,38 @@ void test_activate_selects_single_button_and_dims_others()
     TEST_ASSERT_NOT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(1)->pillColour());
     TEST_ASSERT_NOT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(2)->pillColour());
     TEST_ASSERT_NOT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(4)->pillColour());
-    TEST_ASSERT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(5)->pillColour());
+    TEST_ASSERT_NOT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(5)->pillColour());
     TEST_ASSERT_NOT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(6)->pillColour());
     TEST_ASSERT_NOT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(7)->pillColour());
+}
+
+void test_songs_button_enters_song_mode_from_patch_context()
+{
+    PlayModeFixture fixture;
+
+    fixture.mode.setSelectedPreset(6);
+    fixture.mode.activate();
+    fixture.mode.buttonPressed(5);
+
+    TEST_ASSERT_EQUAL_INT(1, fixture.transitionDelegate.calls);
+    TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(Modes::Songs), static_cast<uint8_t>(fixture.transitionDelegate.lastMode));
+    TEST_ASSERT_EQUAL_UINT16(makePlayModeTransition(DefaultPlaylistIndex, 6, false), fixture.transitionDelegate.lastTransitionValue);
+}
+
+void test_songs_button_preserves_song_context_when_entering_song_mode()
+{
+    PlayModeFixture fixture;
+    fixture.overrideStore.enableSongLookup = true;
+
+    fixture.mode.setTransitionValue(makePlayModeSongTransition(DefaultPlaylistIndex, fixture.overrideStore.configuredSongIndex, true));
+    fixture.mode.activate();
+    fixture.mode.buttonPressed(5);
+
+    TEST_ASSERT_EQUAL_INT(1, fixture.transitionDelegate.calls);
+    TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(Modes::Songs), static_cast<uint8_t>(fixture.transitionDelegate.lastMode));
+    TEST_ASSERT_EQUAL_UINT16(
+        makePlayModeSongTransition(DefaultPlaylistIndex, fixture.overrideStore.configuredSongIndex, false),
+        fixture.transitionDelegate.lastTransitionValue);
 }
 
 void test_activate_recalls_selected_preset_before_scene_select()
@@ -547,20 +659,20 @@ void test_momentary_override_uses_button_down_and_release_and_suppresses_short_a
     fixture.mode.setSelectedPreset(9);
     fixture.mode.activate();
 
-    TEST_ASSERT_EQUAL_STRING("Hold", fixture.touchButtonManager.getButton(5)->label());
+    TEST_ASSERT_EQUAL_STRING("Hold", fixture.touchButtonManager.getButton(3)->label());
 
     const int baselineControlChanges = fixture.midiManager.controlChangeCalls;
-    fixture.mode.buttonDown(5);
+    fixture.mode.buttonDown(3);
     TEST_ASSERT_EQUAL_INT(baselineControlChanges + 1, fixture.midiManager.controlChangeCalls);
     TEST_ASSERT_EQUAL_UINT8(21, fixture.midiManager.lastControlChangeNumber);
     TEST_ASSERT_EQUAL_UINT8(127, fixture.midiManager.lastControlChangeValue);
 
     fixture.mode.buttonPressed(6);
-    fixture.mode.buttonLongPressed(5);
+    fixture.mode.buttonLongPressed(3);
     TEST_ASSERT_EQUAL_INT(0, fixture.transitionDelegate.calls);
     TEST_ASSERT_EQUAL_INT(baselineControlChanges + 1, fixture.midiManager.controlChangeCalls);
 
-    fixture.mode.buttonReleased(5);
+    fixture.mode.buttonReleased(3);
     TEST_ASSERT_EQUAL_INT(baselineControlChanges + 2, fixture.midiManager.controlChangeCalls);
     TEST_ASSERT_EQUAL_UINT8(21, fixture.midiManager.lastControlChangeNumber);
     TEST_ASSERT_EQUAL_UINT8(0, fixture.midiManager.lastControlChangeValue);
@@ -1115,6 +1227,21 @@ void test_deactivate_clears_rendered_patch_name_in_black()
     TEST_ASSERT_TRUE(findDrawTextCallIndex(fixture.ui, "Patch: Big Sky Intro", TFT_BLACK, drawTextCallsBeforeDeactivate) >= 0);
 }
 
+void test_deactivate_clears_rendered_song_name_in_black()
+{
+    PlayModeFixture fixture;
+    fixture.overrideStore.enablePatchName = true;
+    fixture.overrideStore.enableSongLookup = true;
+    fixture.mode.setTransitionValue(makePlayModeSongTransition(DefaultPlaylistIndex, fixture.overrideStore.configuredSongIndex, true));
+
+    fixture.mode.activate();
+    const int drawTextCallsBeforeDeactivate = fixture.ui.drawTextCallCount;
+
+    fixture.mode.deactivate();
+
+    TEST_ASSERT_TRUE(findDrawTextCallIndex(fixture.ui, "Song: Oughta Know", TFT_BLACK, drawTextCallsBeforeDeactivate) >= 0);
+}
+
 void test_patch_change_renders_new_patch_name_after_clearing_previous_one()
 {
     PlayModeFixture fixture;
@@ -1296,12 +1423,17 @@ int main(int argc, char** argv)
     RUN_TEST(test_activate_applies_tap_to_configured_button);
     RUN_TEST(test_activate_renders_patch_name_with_prefix_when_provided);
     RUN_TEST(test_activate_prefers_patch_long_name_when_provided);
-    RUN_TEST(test_activate_renders_patch_name_five_pixels_higher);
+    RUN_TEST(test_activate_renders_patch_name_at_updated_offset);
+    RUN_TEST(test_activate_song_context_recalls_linked_patch_and_uses_song_display_name);
+    RUN_TEST(test_activate_song_context_falls_back_to_song_short_name_when_long_name_missing);
+    RUN_TEST(test_activate_song_label_renders_above_patch_label);
     RUN_TEST(test_activate_without_patch_name_does_not_render_patch_name_prefix);
     RUN_TEST(test_patch_name_is_truncated_for_long_labels);
     RUN_TEST(test_tap_tempo_button_label_updates_to_bpm_when_interval_is_known);
     RUN_TEST(test_activate_refreshes_button_overrides_for_selected_playlist_and_patch);
     RUN_TEST(test_activate_selects_single_button_and_dims_others);
+    RUN_TEST(test_songs_button_enters_song_mode_from_patch_context);
+    RUN_TEST(test_songs_button_preserves_song_context_when_entering_song_mode);
     RUN_TEST(test_activate_recalls_selected_preset_before_scene_select);
     RUN_TEST(test_momentary_override_uses_button_down_and_release_and_suppresses_short_and_long_press);
     RUN_TEST(test_activate_recalls_selected_preset_zero);
@@ -1337,6 +1469,7 @@ int main(int argc, char** argv)
     RUN_TEST(test_tuner_button_flashes_when_enabled_without_redrawing_label);
     RUN_TEST(test_patch_change_reactivation_preserves_tuner_toggle_state);
     RUN_TEST(test_deactivate_clears_rendered_patch_name_in_black);
+    RUN_TEST(test_deactivate_clears_rendered_song_name_in_black);
     RUN_TEST(test_patch_change_renders_new_patch_name_after_clearing_previous_one);
     RUN_TEST(test_button_press_changes_selection_to_single_button);
     RUN_TEST(test_button_pressed_ignores_disabled_button);

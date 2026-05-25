@@ -4,6 +4,23 @@
 
 This repository contains firmware for an STM32 Black Pill (`blackpill_f401cc`) using PlatformIO and the Arduino framework. The codebase mixes hardware integration (MIDI, LEDs, display, SD card, touch input) with host-testable business logic.
 
+The firware implements a MIDI controller with an 8x8 grid of buttons, an 8 LED RGB ring under each button, a TFT touch display. An SD card reader provides customisation of the buttons and midi messages without having to rebuild the firmware. The device can operate in multiple modes that define different button behaviors and LED patterns.
+
+The firmware is structured to keep hardware-specific code separate from business logic, allowing most of the behavior to be tested on the host without requiring the actual hardware.
+
+The target device being controlled by the device is a Quad Cortex Mini guitar processor, but the firmware is designed to be adaptable to other MIDI-capable devices with similar control requirements. The main focus of the firmware is to provide a responsive and customizable user interface for controlling MIDI parameters in real-time during musical performances.
+
+## Notional concepts
+
+- Patch: A collection of settings that define the behavior of the MIDI controller, including button mappings, LED patterns, and display content. Patches can be switched in real-time to change the controller's behavior.
+- Mode: A specific configuration of the MIDI controller that defines how the buttons, LEDs, and display behave. The main availbe modes are defined in `src\Modes\` and include:
+  - `Home`: The default loaded at startup. It provides access to the "play modes" and menu. Each play mode represents a the configuration
+  - `Play`: Used for live performance, where buttons send MIDI messages according to the current patch configuration, and LEDs provide visual feedback on the current state.
+  - `Patches`: Used browsing the custom patches stored on the SD card for the selected play mode.
+  - `Patch`: Used to scroll through each patch in the selected play mode.
+  - `Songs`: Shows a list of songs on the SD card and allows selecting one to load its associated patches.
+  - `Menu`: Used to change global settings such as MIDI channel or display brightness.
+
 ## Repository layout
 
 - `src\` contains firmware sources.

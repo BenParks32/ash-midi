@@ -56,7 +56,7 @@ bool FunctionModeBase::usesSelectionBorder(byte number) const
     return false;
 }
 
-void FunctionModeBase::renderAllButtons()
+void FunctionModeBase::renderAllButtons(bool drawTouchButtons)
 {
     for (byte i = 0; i < TouchButtonManager::BUTTON_COUNT; ++i)
     {
@@ -107,6 +107,9 @@ void FunctionModeBase::renderAllButtons()
             applyButtonVisualFromFunctionColour(*button, colour565, desiredBorderVisible);
         }
 
-        button->draw(_screenUi);
+        if (drawTouchButtons)
+        {
+            button->draw(_screenUi);
+        }
     }
 }
