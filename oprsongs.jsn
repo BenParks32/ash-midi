@@ -1,1 +1,213 @@
-[]
+[
+    {
+        "name": "Alive",
+        "patch": 0
+    },
+    {
+        "name": "Australia",
+        "patch": 0
+    },
+    {
+        "name": "Boulevard",
+        "longName": "Boulevard of Broken Dreams",
+        "patch": 1
+    },
+    {
+        "name": "BreakFree",
+        "longName": "I Want To Break Free",
+        "patch": 0
+    },
+    {
+        "name": "Breath",
+        "longName": "Every Breath You Take",
+        "patch": 0
+    },
+    {
+        "name": "Brick",
+        "longName": "Another Brick In The Wall",
+        "patch": 0
+    },
+    {
+        "name": "Bulldog",
+        "longName": "Hey Bulldog",
+        "patch": 0
+    },
+    {
+        "name": "Calif",
+        "longName": "Californication",
+        "patch": 0
+    },
+    {
+        "name": "Cigs",
+        "longName": "Cigarettes & Alcohol",
+        "patch": 0
+    },
+    {
+        "name": "Creep",
+        "patch": 0
+    },
+    {
+        "name": "Dakota",
+        "patch": 0
+    },
+    {
+        "name": "Dani",
+        "longName": "Dani California",
+        "patch": 0
+    },
+    {
+        "name": "Dirtbag",
+        "longName": "Teenage Dirtbag",
+        "patch": 0
+    },
+    {
+        "name": "DontStop",
+        "longName": "Don't Stop Me Now",
+        "patch": 0
+    },
+    {
+        "name": "Fire",
+        "patch": 0
+    },
+    {
+        "name": "Flowers",
+        "patch": 0
+    },
+    {
+        "name": "Glory Box",
+        "patch": 0
+    },
+    {
+        "name": "Goes",
+        "longName": "There She Goes",
+        "patch": 0
+    },
+    {
+        "name": "Gold",
+        "longName": "Gold On The Ceiling",
+        "patch": 0
+    },
+    {
+        "name": "GoMyWay",
+        "longName": "Are You Gonna Go My Way",
+        "patch": 0
+    },
+    {
+        "name": "GoYrWay",
+        "longName": "Go Your Own Way",
+        "patch": 0
+    },
+    {
+        "name": "Gravity",
+        "patch": 0
+    },
+    {
+        "name": "Handle",
+        "longName": "Hard To Handle",
+        "patch": 0
+    },
+    {
+        "name": "Holiday",
+        "patch": 0
+    },
+    {
+        "name": "Honey",
+        "longName": "Me in Honey",
+        "patch": 0
+    },
+    {
+        "name": "JackFlash",
+        "longName": "Jumpin' Jack Flash",
+        "patch": 0
+    },
+    {
+        "name": "Jump",
+        "patch": 0
+    },
+    {
+        "name": "Lo/Hi",
+        "patch": 0
+    },
+    {
+        "name": "Malice",
+        "longName": "Town Called Malice",
+        "patch": 0
+    },
+    {
+        "name": "Outta",
+        "longName": "You Oughta Know",
+        "patch": 2
+    },
+    {
+        "name": "PickPart",
+        "longName": "Pick A Part That's New",
+        "patch": 0
+    },
+    {
+        "name": "PicThis",
+        "longName": "Picture This",
+        "patch": 0
+    },
+    {
+        "name": "RnRStar",
+        "longName": "Rock 'N Roll Star",
+        "patch": 0
+    },
+    {
+        "name": "Rockin'",
+        "longName": "Rocking' All Over The World",
+        "patch": 0
+    },
+    {
+        "name": "Run",
+        "patch": 0
+    },
+    {
+        "name": "SCoM",
+        "longName": "Sweet Child of Mine",
+        "patch": 0
+    },
+    {
+        "name": "Sex",
+        "longName": "Sex On Fire",
+        "patch": 0
+    },
+    {
+        "name": "SmThings",
+        "longName": "All The Small Things",
+        "patch": 0
+    },
+    {
+        "name": "Somebody",
+        "longName": "Somebody Told Me",
+        "patch": 0
+    },
+    {
+        "name": "Starlight",
+        "patch": 0
+    },
+    {
+        "name": "S'up",
+        "longName": "What's Up?",
+        "patch": 0
+    },
+    {
+        "name": "Times",
+        "longName": "Times Like These",
+        "patch": 0
+    },
+    {
+        "name": "Weak",
+        "patch": 0
+    },
+    {
+        "name": "Wild",
+        "longName": "Born To Be Wild",
+        "patch": 0
+    },
+    {
+        "name": "WiteRhm",
+        "longName": "White Room",
+        "patch": 0
+    }
+]

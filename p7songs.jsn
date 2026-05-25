@@ -49,6 +49,10 @@
         "patch": 0
     },
     {
+        "name": "Dakota",
+        "patch": 0
+    },
+    {
         "name": "Danger",
         "longName": "Danger Zone",
         "patch": 0
@@ -228,9 +232,5 @@
     {
         "name": "Zombie",
         "patch": 1
-    },
-    {
-        "name": "Dakota",
-        "patch": 0
     }
 ]
