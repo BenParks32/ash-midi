@@ -24,7 +24,22 @@
             }
           }
         }
-      }
+      },
+      "songs": [
+        {
+          "name": "Zombie",
+          "patch": 1
+        },
+        {
+          "name": "Boulevard",
+          "patch": 2
+        },
+        {
+          "name": "SCOM",
+          "longName": "Sweet Child",
+          "patch": 0
+        }
+      ]
     },
     "OPR": {
       "patches": {
@@ -65,7 +80,8 @@
             }
           }
         }
-      }
+      },
+      "songs": []
     },
     "CodeRed": {
       "patches": {
@@ -120,7 +136,8 @@
             }
           }
         }
-      }
+      },
+      "songs": []
     }
   }
 }

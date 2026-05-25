@@ -9,6 +9,7 @@ enum class Modes : uint8_t
     Menu = 3,
     ButtonDiagnostic = 4,
     Patches = 5,
+    Songs = 6,
     Count,
 };
 
@@ -21,6 +22,7 @@ static constexpr ModeTransitionValue ModeTransitionPatchValueMask = 0x00FF;
 static constexpr ModeTransitionValue ModeTransitionHomePlaylistValueMask = 0x00FF;
 static constexpr ModeTransitionValue ModeTransitionPlayContextFlag = 0x8000;
 static constexpr ModeTransitionValue ModeTransitionPlayReturnFlag = 0x4000;
+static constexpr ModeTransitionValue ModeTransitionPlaySongFlag = 0x1000;
 static constexpr ModeTransitionValue ModeTransitionPlayPlaylistMask = 0x0F00;
 static constexpr uint8_t ModeTransitionPlayPlaylistShift = 8;
 static constexpr ModeTransitionValue ModeTransitionPlayPatchValueMask = 0x00FF;
@@ -35,9 +37,26 @@ inline ModeTransitionValue makePlayModeTransition(byte playlistIndex, byte patch
         (static_cast<ModeTransitionValue>(patchNumber) & ModeTransitionPlayPatchValueMask));
 }
 
+inline ModeTransitionValue makePlayModeSongTransition(byte playlistIndex, byte songIndex, bool shouldRecall)
+{
+    return static_cast<ModeTransitionValue>(
+        ModeTransitionPlayContextFlag |
+        ModeTransitionPlaySongFlag |
+        (shouldRecall ? 0 : ModeTransitionPlayReturnFlag) |
+        ((static_cast<ModeTransitionValue>(playlistIndex) << ModeTransitionPlayPlaylistShift) &
+         ModeTransitionPlayPlaylistMask) |
+        (static_cast<ModeTransitionValue>(songIndex) & ModeTransitionPlayPatchValueMask));
+}
+
 inline bool isPlayModeTransition(ModeTransitionValue transitionValue)
 {
     return (transitionValue & ModeTransitionPlayContextFlag) != 0;
+}
+
+inline bool isPlayModeSongTransition(ModeTransitionValue transitionValue)
+{
+    return (transitionValue & (ModeTransitionPlayContextFlag | ModeTransitionPlaySongFlag)) ==
+           (ModeTransitionPlayContextFlag | ModeTransitionPlaySongFlag);
 }
 
 inline bool playModeTransitionShouldRecall(ModeTransitionValue transitionValue)
@@ -51,6 +70,11 @@ inline byte playModeTransitionPlaylist(ModeTransitionValue transitionValue)
 }
 
 inline byte playModeTransitionPatch(ModeTransitionValue transitionValue)
+{
+    return static_cast<byte>(transitionValue & ModeTransitionPlayPatchValueMask);
+}
+
+inline byte playModeTransitionSongIndex(ModeTransitionValue transitionValue)
 {
     return static_cast<byte>(transitionValue & ModeTransitionPlayPatchValueMask);
 }

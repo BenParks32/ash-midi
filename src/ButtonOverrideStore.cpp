@@ -30,6 +30,23 @@ const char* playlistName(byte playlistIndex)
 }
 
 const char* configPathCandidates[] = {"/BUTTONS.JSN", "BUTTONS.JSN", "/buttons.json", "buttons.json"};
+
+void copyConfigString(const char* source, char* destination, size_t destinationCapacity)
+{
+    if (destination == nullptr || destinationCapacity == 0U)
+    {
+        return;
+    }
+
+    destination[0] = '\0';
+    if (source == nullptr)
+    {
+        return;
+    }
+
+    std::strncpy(destination, source, destinationCapacity - 1U);
+    destination[destinationCapacity - 1U] = '\0';
+}
 }
 
 ButtonOverrideStore::ButtonOverrideStore(ITextFileStore* fileStore)
@@ -416,6 +433,11 @@ bool ButtonOverrideStore::parseModeValue(const char* name, byte& outModeValue)
         outModeValue = 5;
         return true;
     }
+    if (std::strcmp(name, "Songs") == 0)
+    {
+        outModeValue = 6;
+        return true;
+    }
 
     return false;
 }
@@ -565,6 +587,143 @@ size_t ButtonOverrideStore::listPatches(byte playlistIndex, PatchListEntry* entr
         }
     }
     return parsedCount;
+}
+
+size_t ButtonOverrideStore::listSongs(byte playlistIndex, SongListEntry* entries, size_t capacity) const
+{
+    if (entries == nullptr || capacity == 0)
+    {
+        return 0;
+    }
+
+    if (_configBuffer == nullptr)
+    {
+        return 0;
+    }
+
+    DynamicJsonDocument document((kMaxConfigBytes * JsonCapacityMultiplier) + JsonCapacityPadding);
+    const char* jsonText = _configBuffer;
+    const DeserializationError error = deserializeJson(document, jsonText);
+    if (error)
+    {
+        Serial.printf("Button overrides: JSON reparse failed while listing songs: %s\n", error.c_str());
+        return 0;
+    }
+
+    const char* modeKey = modeKeyForPlaylistIndex(playlistIndex);
+    if (modeKey == nullptr)
+    {
+        return 0;
+    }
+
+    const JsonArrayConst songs = document["playModes"][modeKey]["songs"].as<JsonArrayConst>();
+    if (songs.isNull())
+    {
+        Serial.printf("Button overrides: no songs array for playlist %u.\n", static_cast<unsigned int>(playlistIndex));
+        return 0;
+    }
+
+    size_t parsedCount = 0;
+    size_t songIndex = 0;
+    for (JsonVariantConst songValue : songs)
+    {
+        if (parsedCount >= capacity)
+        {
+            break;
+        }
+
+        const JsonObjectConst songObject = songValue.as<JsonObjectConst>();
+        if (songObject.isNull())
+        {
+            Serial.printf("Button overrides: skipping song %u because entry is not an object.\n",
+                          static_cast<unsigned int>(songIndex));
+            ++songIndex;
+            continue;
+        }
+
+        if (!songObject["patch"].is<uint8_t>())
+        {
+            Serial.printf("Button overrides: skipping song %u because patch is missing or invalid.\n",
+                          static_cast<unsigned int>(songIndex));
+            ++songIndex;
+            continue;
+        }
+
+        SongListEntry& entry = entries[parsedCount++];
+        entry.songIndex = static_cast<byte>(songIndex);
+        entry.patchNumber = songObject["patch"].as<byte>();
+        entry.name[0] = '\0';
+        copyConfigString(songObject["name"].as<const char*>(), entry.name, sizeof(entry.name));
+        ++songIndex;
+    }
+
+    return parsedCount;
+}
+
+bool ButtonOverrideStore::songForIndex(byte playlistIndex, byte songIndex, SongConfig* outSong) const
+{
+    if (outSong == nullptr)
+    {
+        return false;
+    }
+
+    outSong->patchNumber = 0;
+    outSong->name[0] = '\0';
+    outSong->displayName[0] = '\0';
+
+    if (_configBuffer == nullptr)
+    {
+        Serial.printf("Button overrides: no song matched for %s song %u.\n", playlistName(playlistIndex),
+                      static_cast<unsigned int>(songIndex));
+        return false;
+    }
+
+    DynamicJsonDocument document((kMaxConfigBytes * JsonCapacityMultiplier) + JsonCapacityPadding);
+    const char* jsonText = _configBuffer;
+    const DeserializationError error = deserializeJson(document, jsonText);
+    if (error)
+    {
+        Serial.printf("Button overrides: JSON reparse failed while reading song: %s\n", error.c_str());
+        return false;
+    }
+
+    const char* modeKey = modeKeyForPlaylistIndex(playlistIndex);
+    if (modeKey == nullptr)
+    {
+        Serial.printf("Button overrides: no mode key for playlist %u while reading song.\n",
+                      static_cast<unsigned int>(playlistIndex));
+        return false;
+    }
+
+    const JsonArrayConst songs = document["playModes"][modeKey]["songs"].as<JsonArrayConst>();
+    if (songs.isNull())
+    {
+        Serial.printf("Button overrides: no songs array for %s.\n", playlistName(playlistIndex));
+        return false;
+    }
+
+    if (songIndex >= songs.size())
+    {
+        Serial.printf("Button overrides: no song matched for %s song %u.\n", playlistName(playlistIndex),
+                      static_cast<unsigned int>(songIndex));
+        return false;
+    }
+
+    const JsonObjectConst songObject = songs[songIndex].as<JsonObjectConst>();
+    if (songObject.isNull() || !songObject["patch"].is<uint8_t>())
+    {
+        Serial.printf("Button overrides: invalid song entry for %s song %u.\n", playlistName(playlistIndex),
+                      static_cast<unsigned int>(songIndex));
+        return false;
+    }
+
+    outSong->patchNumber = songObject["patch"].as<byte>();
+    copyConfigString(songObject["name"].as<const char*>(), outSong->name, sizeof(outSong->name));
+
+    const char* longName = songObject["longName"].as<const char*>();
+    const char* displayName = (longName != nullptr && longName[0] != '\0') ? longName : outSong->name;
+    copyConfigString(displayName, outSong->displayName, sizeof(outSong->displayName));
+    return true;
 }
 
 void ButtonOverrideStore::clearButtonOverride(ParsedButtonOverride& buttonOverride)

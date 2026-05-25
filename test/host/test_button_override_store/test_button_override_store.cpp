@@ -111,6 +111,85 @@ void test_apply_overrides_falls_back_to_patch_name_when_long_name_is_empty()
     TEST_ASSERT_EQUAL_STRING("Big Sky Intro", patchDisplay.name);
 }
 
+void test_list_songs_preserves_declared_order_and_song_indices()
+{
+    MockTextFileStore fileStore;
+    std::strcpy(fileStore.contents,
+                "{\"playModes\":{\"Project7\":{\"songs\":[{\"name\":\"Outro\",\"patch\":7},{\"name\":\"Main\","
+                "\"patch\":0},{\"name\":\"Verse\",\"patch\":3}]}}}");
+    fileStore.hasContents = true;
+
+    ButtonOverrideStore store(&fileStore);
+    TEST_ASSERT_TRUE(store.refresh());
+
+    SongListEntry entries[4] = {};
+    const size_t count = store.listSongs(2, entries, 4);
+
+    TEST_ASSERT_EQUAL_UINT32(3, count);
+    TEST_ASSERT_EQUAL_UINT8(0, entries[0].songIndex);
+    TEST_ASSERT_EQUAL_UINT8(7, entries[0].patchNumber);
+    TEST_ASSERT_EQUAL_STRING("Outro", entries[0].name);
+    TEST_ASSERT_EQUAL_UINT8(1, entries[1].songIndex);
+    TEST_ASSERT_EQUAL_UINT8(0, entries[1].patchNumber);
+    TEST_ASSERT_EQUAL_STRING("Main", entries[1].name);
+    TEST_ASSERT_EQUAL_UINT8(2, entries[2].songIndex);
+    TEST_ASSERT_EQUAL_UINT8(3, entries[2].patchNumber);
+    TEST_ASSERT_EQUAL_STRING("Verse", entries[2].name);
+}
+
+void test_song_for_index_reads_patch_and_prefers_long_name_for_display()
+{
+    MockTextFileStore fileStore;
+    std::strcpy(fileStore.contents,
+                "{\"playModes\":{\"Project7\":{\"songs\":[{\"name\":\"Big Sky\",\"longName\":\"Big Sky Intro\","
+                "\"patch\":5}]}}}");
+    fileStore.hasContents = true;
+
+    ButtonOverrideStore store(&fileStore);
+    TEST_ASSERT_TRUE(store.refresh());
+
+    SongConfig song = {};
+    TEST_ASSERT_TRUE(store.songForIndex(2, 0, &song));
+    TEST_ASSERT_EQUAL_UINT8(5, song.patchNumber);
+    TEST_ASSERT_EQUAL_STRING("Big Sky", song.name);
+    TEST_ASSERT_EQUAL_STRING("Big Sky Intro", song.displayName);
+}
+
+void test_song_for_index_falls_back_to_short_name_when_long_name_is_empty()
+{
+    MockTextFileStore fileStore;
+    std::strcpy(fileStore.contents,
+                "{\"playModes\":{\"Project7\":{\"songs\":[{\"name\":\"Big Sky\",\"longName\":\"\",\"patch\":5}]}}}");
+    fileStore.hasContents = true;
+
+    ButtonOverrideStore store(&fileStore);
+    TEST_ASSERT_TRUE(store.refresh());
+
+    SongConfig song = {};
+    TEST_ASSERT_TRUE(store.songForIndex(2, 0, &song));
+    TEST_ASSERT_EQUAL_STRING("Big Sky", song.name);
+    TEST_ASSERT_EQUAL_STRING("Big Sky", song.displayName);
+}
+
+void test_list_songs_skips_entries_without_a_valid_patch()
+{
+    MockTextFileStore fileStore;
+    std::strcpy(fileStore.contents,
+                "{\"playModes\":{\"Project7\":{\"songs\":[{\"name\":\"Bad\"},{\"name\":\"Good\",\"patch\":9}]}}}");
+    fileStore.hasContents = true;
+
+    ButtonOverrideStore store(&fileStore);
+    TEST_ASSERT_TRUE(store.refresh());
+
+    SongListEntry entries[2] = {};
+    const size_t count = store.listSongs(2, entries, 2);
+
+    TEST_ASSERT_EQUAL_UINT32(1, count);
+    TEST_ASSERT_EQUAL_UINT8(1, entries[0].songIndex);
+    TEST_ASSERT_EQUAL_UINT8(9, entries[0].patchNumber);
+    TEST_ASSERT_EQUAL_STRING("Good", entries[0].name);
+}
+
 void test_apply_overrides_sets_toggle_flag_when_configured()
 {
     MockTextFileStore fileStore;
@@ -241,6 +320,10 @@ int main(int argc, char** argv)
     RUN_TEST(test_apply_overrides_reads_patch_name_without_button_overrides);
     RUN_TEST(test_apply_overrides_prefers_patch_long_name_for_play_mode_display);
     RUN_TEST(test_apply_overrides_falls_back_to_patch_name_when_long_name_is_empty);
+    RUN_TEST(test_list_songs_preserves_declared_order_and_song_indices);
+    RUN_TEST(test_song_for_index_reads_patch_and_prefers_long_name_for_display);
+    RUN_TEST(test_song_for_index_falls_back_to_short_name_when_long_name_is_empty);
+    RUN_TEST(test_list_songs_skips_entries_without_a_valid_patch);
     RUN_TEST(test_apply_overrides_sets_toggle_flag_when_configured);
     RUN_TEST(test_apply_overrides_matches_playlist_and_patch);
     RUN_TEST(test_apply_overrides_can_reparse_same_config_multiple_times);
