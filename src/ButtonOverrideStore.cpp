@@ -727,9 +727,10 @@ size_t ButtonOverrideStore::listSongs(byte playlistIndex, SongListEntry* entries
     JsonArrayConst songs;
     char* songsBuffer = nullptr;
     const bool hasExternalSongs = loadExternalSongsArray(playlistIndex, songsBuffer, externalDocument, songs);
+    const size_t embeddedSongsCapacity = hasExternalSongs ? 0U : ((kMaxSongsConfigBytes * JsonCapacityMultiplier) + JsonCapacityPadding);
+    DynamicJsonDocument embeddedDocument(embeddedSongsCapacity);
     if (!hasExternalSongs)
     {
-        DynamicJsonDocument embeddedDocument((kMaxSongsConfigBytes * JsonCapacityMultiplier) + JsonCapacityPadding);
         if (!loadEmbeddedSongsArray(playlistIndex, embeddedDocument, songs))
         {
             return 0;
@@ -793,9 +794,10 @@ bool ButtonOverrideStore::songForIndex(byte playlistIndex, byte songIndex, SongC
     JsonArrayConst songs;
     char* songsBuffer = nullptr;
     const bool hasExternalSongs = loadExternalSongsArray(playlistIndex, songsBuffer, externalDocument, songs);
+    const size_t embeddedSongsCapacity = hasExternalSongs ? 0U : ((kMaxSongsConfigBytes * JsonCapacityMultiplier) + JsonCapacityPadding);
+    DynamicJsonDocument embeddedDocument(embeddedSongsCapacity);
     if (!hasExternalSongs)
     {
-        DynamicJsonDocument embeddedDocument((kMaxSongsConfigBytes * JsonCapacityMultiplier) + JsonCapacityPadding);
         if (!loadEmbeddedSongsArray(playlistIndex, embeddedDocument, songs))
         {
             Serial.printf("Button overrides: no song matched for %s song %u.\n", playlistName(playlistIndex),
@@ -841,9 +843,10 @@ bool ButtonOverrideStore::songForId(byte playlistIndex, const char* songId, byte
     JsonArrayConst songs;
     char* songsBuffer = nullptr;
     const bool hasExternalSongs = loadExternalSongsArray(playlistIndex, songsBuffer, externalDocument, songs);
+    const size_t embeddedSongsCapacity = hasExternalSongs ? 0U : ((kMaxSongsConfigBytes * JsonCapacityMultiplier) + JsonCapacityPadding);
+    DynamicJsonDocument embeddedDocument(embeddedSongsCapacity);
     if (!hasExternalSongs)
     {
-        DynamicJsonDocument embeddedDocument((kMaxSongsConfigBytes * JsonCapacityMultiplier) + JsonCapacityPadding);
         if (!loadEmbeddedSongsArray(playlistIndex, embeddedDocument, songs))
         {
             return false;

@@ -232,9 +232,6 @@ size_t Resources::listTextFiles(const char* directoryPath, TextFilePathEntry* en
 {
     if (!_isMounted || directoryPath == nullptr || directoryPath[0] == '\0' || entries == nullptr || maxEntries == 0)
     {
-        Serial.printf("SD directory list: skipped for path '%s' (mounted=%s, maxEntries=%u).\n",
-                      directoryPath != nullptr ? directoryPath : "<null>", _isMounted ? "yes" : "no",
-                      static_cast<unsigned int>(maxEntries));
         return 0;
     }
 
@@ -258,8 +255,6 @@ size_t Resources::listTextFiles(const char* directoryPath, TextFilePathEntry* en
         return 0;
     }
 
-    Serial.printf("SD directory list: scanning '%s' (resolved from '%s').\n", resolvedPath, directoryPath);
-
     size_t count = 0;
     while (count < maxEntries)
     {
@@ -275,22 +270,14 @@ size_t Resources::listTextFiles(const char* directoryPath, TextFilePathEntry* en
             if (entryName != nullptr && entryName[0] != '\0')
             {
                 std::snprintf(entries[count].path, sizeof(entries[count].path), "%s/%s", directoryPath, entryName);
-                Serial.printf("SD directory list: file[%u] name='%s' storedPath='%s'.\n",
-                              static_cast<unsigned int>(count), entryName, entries[count].path);
                 ++count;
             }
-        }
-        else
-        {
-            Serial.printf("SD directory list: skipping nested directory '%s'.\n",
-                          entry.name() != nullptr ? entry.name() : "<unknown>");
         }
 
         entry.close();
     }
 
     directory.close();
-    Serial.printf("SD directory list: found %u file(s) in '%s'.\n", static_cast<unsigned int>(count), resolvedPath);
     return count;
 }
 

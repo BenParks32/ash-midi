@@ -37,7 +37,7 @@ struct SetListPart
 
 struct SetListSongEntry
 {
-    static constexpr size_t MaxSongIdLength = 32;
+    static constexpr size_t MaxSongIdLength = 41;
     static constexpr size_t MaxNameLength = 32;
 
     uint16_t number = 0;
@@ -97,18 +97,7 @@ class SetListStore final : public ISetListStore
 public:
     static constexpr size_t MaxPlaylistCount = 8;
     static constexpr size_t MaxJsonSize = 4096;
-    static constexpr size_t FullSetListJsonCapacity =
-        JSON_OBJECT_SIZE(3) +
-        JSON_ARRAY_SIZE(ActiveSetList::MaxParts) +
-        (ActiveSetList::MaxParts * JSON_OBJECT_SIZE(2)) +
-        JSON_ARRAY_SIZE(ActiveSetList::MaxSongs) +
-        (ActiveSetList::MaxSongs * JSON_OBJECT_SIZE(3));
-    static constexpr size_t SummaryJsonCapacity =
-        JSON_OBJECT_SIZE(3) +
-        JSON_ARRAY_SIZE(ActiveSetList::MaxParts) +
-        (ActiveSetList::MaxParts * JSON_OBJECT_SIZE(1)) +
-        JSON_ARRAY_SIZE(ActiveSetList::MaxSongs) +
-        (ActiveSetList::MaxSongs * JSON_OBJECT_SIZE(1));
+    static constexpr size_t SummaryNameJsonCapacity = JSON_OBJECT_SIZE(1);
 
     SetListStore(const ITextFileStore &textFileStore,
                  const ITextDirectoryStore &directoryStore,
@@ -138,6 +127,7 @@ private:
 
     bool loadSetList(byte playlistIndex, const char *path, ActiveSetList &setList) const;
     bool loadSetListSummary(const char *path, SetListSummary &summary) const;
+    static size_t fullSetListJsonCapacity(size_t partCount, size_t songCount);
     static bool directoryForPlaylist(byte playlistIndex, char *directoryPath, size_t directoryPathSize);
     static void sortParts(SetListPart *parts, size_t count);
     static void sortSongs(SetListSongEntry *songs, size_t count);

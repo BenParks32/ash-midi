@@ -50,6 +50,93 @@ bool songCompare(const SetListSongEntry &left, const SetListSongEntry &right)
 
     return strcmp(left.songId, right.songId) < 0;
 }
+
+size_t countObjectsInNamedArray(const char* json, const char* key)
+{
+    if (json == nullptr || key == nullptr)
+    {
+        return 0;
+    }
+
+    const char* keyLocation = strstr(json, key);
+    if (keyLocation == nullptr)
+    {
+        return 0;
+    }
+
+    const char* arrayStart = strchr(keyLocation, '[');
+    if (arrayStart == nullptr)
+    {
+        return 0;
+    }
+
+    bool inString = false;
+    bool escaped = false;
+    size_t arrayDepth = 1;
+    size_t objectCount = 0;
+
+    for (const char* cursor = arrayStart + 1; *cursor != '\0'; ++cursor)
+    {
+        const char current = *cursor;
+        if (inString)
+        {
+            if (escaped)
+            {
+                escaped = false;
+            }
+            else if (current == '\\')
+            {
+                escaped = true;
+            }
+            else if (current == '"')
+            {
+                inString = false;
+            }
+
+            continue;
+        }
+
+        if (current == '"')
+        {
+            inString = true;
+            continue;
+        }
+
+        if (current == '[')
+        {
+            ++arrayDepth;
+            continue;
+        }
+
+        if (current == ']')
+        {
+            if (arrayDepth == 0)
+            {
+                return objectCount;
+            }
+
+            --arrayDepth;
+            if (arrayDepth == 0)
+            {
+                return objectCount;
+            }
+
+            continue;
+        }
+
+        if (current == '{' && arrayDepth == 1)
+        {
+            ++objectCount;
+        }
+    }
+
+    return objectCount;
+}
+
+size_t clippedCount(size_t value, size_t maximum)
+{
+    return value < maximum ? value : maximum;
+}
 } // namespace
 
 SetListStore::SetListStore(const ITextFileStore &textFileStore,
@@ -65,9 +152,6 @@ size_t SetListStore::listSetLists(byte playlistIndex,
 {
     if (summaries == nullptr || maxSummaries == 0)
     {
-        Serial.printf("Set lists: list skipped for playlist %u (summaries=%s, max=%u).\n",
-                      static_cast<unsigned int>(playlistIndex), summaries != nullptr ? "set" : "null",
-                      static_cast<unsigned int>(maxSummaries));
         return 0;
     }
 
@@ -78,32 +162,21 @@ size_t SetListStore::listSetLists(byte playlistIndex,
         return 0;
     }
 
-    Serial.printf("Set lists: listing playlist %u from '%s'.\n", static_cast<unsigned int>(playlistIndex), directoryPath);
-
     TextFilePathEntry entries[ActiveSetList::MaxSongs];
     const size_t entryCount = _directoryStore.listTextFiles(directoryPath, entries, ActiveSetList::MaxSongs);
-    Serial.printf("Set lists: directory '%s' returned %u candidate file(s).\n", directoryPath,
-                  static_cast<unsigned int>(entryCount));
 
     size_t loadedCount = 0;
     for (size_t i = 0; i < entryCount && loadedCount < maxSummaries; ++i)
     {
-        Serial.printf("Set lists: loading summary from '%s'.\n", entries[i].path);
         if (!loadSetListSummary(entries[i].path, summaries[loadedCount]))
         {
             Serial.printf("Set lists: failed to load summary from '%s'.\n", entries[i].path);
             continue;
         }
 
-        Serial.printf("Set lists: summary[%u] name='%s' file='%s' songs=%u parts=%u.\n",
-                      static_cast<unsigned int>(loadedCount), summaries[loadedCount].name, summaries[loadedCount].fileName,
-                      static_cast<unsigned int>(summaries[loadedCount].songCount),
-                      static_cast<unsigned int>(summaries[loadedCount].partCount));
         ++loadedCount;
     }
 
-    Serial.printf("Set lists: playlist %u loaded %u visible set list(s).\n", static_cast<unsigned int>(playlistIndex),
-                  static_cast<unsigned int>(loadedCount));
     return loadedCount;
 }
 
@@ -134,7 +207,6 @@ bool SetListStore::activateSetList(byte playlistIndex, const char *fileName)
         snprintf(fullPath, sizeof(fullPath), "%s/%s", directoryPath, fileName);
     }
 
-    Serial.printf("Set lists: activating '%s' for playlist %u.\n", fullPath, static_cast<unsigned int>(playlistIndex));
     PlaylistState &state = _playlistStates[playlistIndex];
     state.setList = {};
     if (!loadSetList(playlistIndex, fullPath, state.setList))
@@ -145,8 +217,6 @@ bool SetListStore::activateSetList(byte playlistIndex, const char *fileName)
     }
 
     state.hasActiveSet = true;
-    Serial.printf("Set lists: active set for playlist %u is now '%s'.\n", static_cast<unsigned int>(playlistIndex),
-                  state.setList.name);
     return true;
 }
 
@@ -160,7 +230,6 @@ bool SetListStore::clearActiveSetList(byte playlistIndex)
 
     _playlistStates[playlistIndex].hasActiveSet = false;
     _playlistStates[playlistIndex].setList = {};
-    Serial.printf("Set lists: cleared active set for playlist %u.\n", static_cast<unsigned int>(playlistIndex));
     return true;
 }
 
@@ -243,11 +312,15 @@ bool SetListStore::loadSetList(byte playlistIndex, const char *path, ActiveSetLi
     }
 
     {
-        DynamicJsonDocument document(FullSetListJsonCapacity);
+        const size_t partCount = clippedCount(countObjectsInNamedArray(jsonBuffer, "\"parts\""), ActiveSetList::MaxParts);
+        const size_t songCount = clippedCount(countObjectsInNamedArray(jsonBuffer, "\"songs\""), ActiveSetList::MaxSongs);
+        const size_t jsonCapacity = fullSetListJsonCapacity(partCount, songCount);
+
+        DynamicJsonDocument document(jsonCapacity);
         if (document.capacity() == 0)
         {
             Serial.printf("Set lists: failed to allocate %u-byte JSON document for '%s'.\n",
-                          static_cast<unsigned int>(FullSetListJsonCapacity), path != nullptr ? path : "<null>");
+                          static_cast<unsigned int>(jsonCapacity), path != nullptr ? path : "<null>");
             free(jsonBuffer);
             return false;
         }
@@ -322,11 +395,16 @@ bool SetListStore::loadSetList(byte playlistIndex, const char *path, ActiveSetLi
 
     sortSongs(setList.songs, setList.songCount);
     setList.selectedSongIndex = 0;
-    Serial.printf("Set lists: loaded '%s' with %u part(s), %u song(s), %u resolved, %u unresolved.\n",
-                  path != nullptr ? path : "<null>", static_cast<unsigned int>(setList.partCount),
-                  static_cast<unsigned int>(setList.songCount), static_cast<unsigned int>(resolvedSongCount),
-                  static_cast<unsigned int>(unresolvedSongCount));
     return true;
+}
+
+size_t SetListStore::fullSetListJsonCapacity(size_t partCount, size_t songCount)
+{
+    return JSON_OBJECT_SIZE(3) +
+           JSON_ARRAY_SIZE(partCount) +
+           (partCount * JSON_OBJECT_SIZE(2)) +
+           JSON_ARRAY_SIZE(songCount) +
+           (songCount * JSON_OBJECT_SIZE(3));
 }
 
 bool SetListStore::loadSetListSummary(const char *path, SetListSummary &summary) const
@@ -345,19 +423,13 @@ bool SetListStore::loadSetListSummary(const char *path, SetListSummary &summary)
         return false;
     }
 
-    StaticJsonDocument<JSON_OBJECT_SIZE(3) + JSON_ARRAY_SIZE(2) + (2 * JSON_OBJECT_SIZE(1))> filter;
-    filter["name"] = true;
-    filter["parts"][0]["part"] = true;
-    filter["songs"][0]["songId"] = true;
+    summary.partCount = countObjectsInNamedArray(jsonBuffer, "\"parts\"");
+    summary.songCount = countObjectsInNamedArray(jsonBuffer, "\"songs\"");
 
-    DynamicJsonDocument document(SummaryJsonCapacity);
-    if (document.capacity() == 0)
-    {
-        Serial.printf("Set lists: failed to allocate %u-byte summary JSON document for '%s'.\n",
-                      static_cast<unsigned int>(SummaryJsonCapacity), path != nullptr ? path : "<null>");
-        free(jsonBuffer);
-        return false;
-    }
+    StaticJsonDocument<JSON_OBJECT_SIZE(1)> filter;
+    filter["name"] = true;
+
+    StaticJsonDocument<SummaryNameJsonCapacity> document;
 
     const DeserializationError error = deserializeJson(document, jsonBuffer, DeserializationOption::Filter(filter));
     if (error)
@@ -367,12 +439,9 @@ bool SetListStore::loadSetListSummary(const char *path, SetListSummary &summary)
         free(jsonBuffer);
         return false;
     }
-
     safeCopy(summary.name, sizeof(summary.name), document["name"] | fileNameFromPath(path));
     safeCopy(summary.fileName, sizeof(summary.fileName), fileNameFromPath(path));
-    summary.partCount = document["parts"].is<JsonArray>() ? document["parts"].as<JsonArray>().size() : 0;
-    summary.songCount = document["songs"].is<JsonArray>() ? document["songs"].as<JsonArray>().size() : 0;
-    Serial.printf("Set lists: parsed summary '%s' from '%s'.\n", summary.name, path != nullptr ? path : "<null>");
+    safeCopy(summary.fileName, sizeof(summary.fileName), fileNameFromPath(path));
     free(jsonBuffer);
     return true;
 }
@@ -406,9 +475,8 @@ bool SetListStore::directoryForPlaylist(byte playlistIndex, char *directoryPath,
         Serial.printf("Set lists: playlist %u has no configured set directory.\n", static_cast<unsigned int>(playlistIndex));
         return false;
     }
-
     safeCopy(directoryPath, directoryPathSize, path);
-    Serial.printf("Set lists: playlist %u directory is '%s'.\n", static_cast<unsigned int>(playlistIndex), directoryPath);
+    safeCopy(directoryPath, directoryPathSize, path);
     return true;
 }
 

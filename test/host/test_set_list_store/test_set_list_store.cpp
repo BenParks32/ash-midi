@@ -2,8 +2,12 @@
 
 #include <string.h>
 
+#include "ButtonOverrideStore.h"
+#include "Modes/Mode.h"
 #include "SetListStore.h"
 
+#include "../../../src/Function.cpp"
+#include "../../../src/ButtonOverrideStore.cpp"
 #include "../../../src/SetListStore.cpp"
 
 namespace
@@ -117,6 +121,37 @@ public:
     }
 };
 
+class ButtonOverrideSongResolver final : public ISetListSongResolver
+{
+public:
+    explicit ButtonOverrideSongResolver(IButtonOverrideStore& buttonOverrideStore)
+        : _buttonOverrideStore(buttonOverrideStore)
+    {
+    }
+
+    bool resolveSong(byte playlistIndex,
+                     const char* songId,
+                     byte& songIndex,
+                     SetListResolvedSong& song) const override
+    {
+        SongConfig resolvedSong = {};
+        if (!_buttonOverrideStore.songForId(playlistIndex, songId, songIndex, resolvedSong))
+        {
+            return false;
+        }
+
+        strncpy(song.name, resolvedSong.name, sizeof(song.name) - 1);
+        song.name[sizeof(song.name) - 1] = '\0';
+        strncpy(song.displayName, resolvedSong.displayName, sizeof(song.displayName) - 1);
+        song.displayName[sizeof(song.displayName) - 1] = '\0';
+        song.hasDisplayName = resolvedSong.displayName[0] != '\0';
+        song.patch = resolvedSong.patchNumber;
+        return true;
+    }
+
+    IButtonOverrideStore& _buttonOverrideStore;
+};
+
 const char *setListJson =
     "{"
     "\"name\":\"Friday Night\","
@@ -136,6 +171,29 @@ const char *otherSetListJson =
     "\"name\":\"Saturday Night\","
     "\"parts\":[{\"part\":1,\"name\":\"Full set\"}],"
     "\"songs\":[{\"number\":1,\"part\":1,\"songId\":\"song-a\"}]"
+    "}";
+
+const char* externalSongsConfigJson =
+    "["
+    "{\"id\":\"go-your-own-way\",\"name\":\"GoYrWay\",\"longName\":\"Go Your Own Way\",\"patch\":11},"
+    "{\"id\":\"champions\",\"name\":\"Champs\",\"longName\":\"Champions\",\"patch\":22}"
+    "]";
+
+const char* buttonsConfigJson =
+    "{"
+    "\"playModes\":{"
+    "\"Project7\":{}"
+    "}"
+    "}";
+
+const char* integratedSetListJson =
+    "{"
+    "\"name\":\"King's Head\","
+    "\"parts\":[{\"part\":1,\"name\":\"First half\"}],"
+    "\"songs\":["
+    "{\"number\":1,\"part\":1,\"songId\":\"go-your-own-way\"},"
+    "{\"number\":2,\"part\":1,\"songId\":\"champions\"}"
+    "]"
     "}";
 
 void test_activate_set_list_sorts_parts_and_songs_and_marks_missing_songs()
@@ -219,6 +277,36 @@ void test_select_song_tracks_current_selection()
     TEST_ASSERT_EQUAL_STRING("Song B", song.name);
     TEST_ASSERT_EQUAL(4, song.number);
 }
+
+void test_activate_set_list_resolves_songs_from_button_override_catalog()
+{
+    const FileFixture files[] = {
+        {"/BUTTONS.JSN", buttonsConfigJson},
+        {"/p7songs.jsn", externalSongsConfigJson},
+        {"/sets/p7/kings-head.jsn", integratedSetListJson},
+    };
+    FakeTextFileStore textFileStore(files, 3);
+    FakeDirectoryStore directoryStore("/sets/p7", "/sets/p7/kings-head.jsn");
+    ButtonOverrideStore buttonOverrideStore(&textFileStore);
+    TEST_ASSERT_TRUE(buttonOverrideStore.refresh());
+
+    ButtonOverrideSongResolver songResolver(buttonOverrideStore);
+    SetListStore store(textFileStore, directoryStore, songResolver);
+
+    TEST_ASSERT_TRUE(store.activateSetList(TestPlaylistIndex, "kings-head.jsn"));
+
+    ActiveSetList setList = {};
+    TEST_ASSERT_TRUE(store.activeSetList(TestPlaylistIndex, setList));
+    TEST_ASSERT_EQUAL(2, setList.songCount);
+    TEST_ASSERT_TRUE(setList.songs[0].available);
+    TEST_ASSERT_EQUAL_UINT8(0, setList.songs[0].songIndex);
+    TEST_ASSERT_EQUAL_UINT8(11, setList.songs[0].patch);
+    TEST_ASSERT_EQUAL_STRING("Go Your Own Way", setList.songs[0].name);
+    TEST_ASSERT_TRUE(setList.songs[1].available);
+    TEST_ASSERT_EQUAL_UINT8(1, setList.songs[1].songIndex);
+    TEST_ASSERT_EQUAL_UINT8(22, setList.songs[1].patch);
+    TEST_ASSERT_EQUAL_STRING("Champions", setList.songs[1].name);
+}
 } // namespace
 
 int main(int, char **)
@@ -227,6 +315,7 @@ int main(int, char **)
     RUN_TEST(test_activate_set_list_sorts_parts_and_songs_and_marks_missing_songs);
     RUN_TEST(test_list_set_lists_reads_summaries_from_directory_entries);
     RUN_TEST(test_select_song_tracks_current_selection);
+    RUN_TEST(test_activate_set_list_resolves_songs_from_button_override_catalog);
     return UNITY_END();
 }
 
