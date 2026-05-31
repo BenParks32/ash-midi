@@ -82,6 +82,18 @@
                   "secondaryValue": 100
                 }
               }
+            },
+            "3": {
+              "label": "Comp",
+              "colour": "9FF3",
+              "toggle": true,
+              "function": {
+                "shortPress": {
+                  "action": "SendMidiControlChange",
+                  "value": 39,
+                  "secondaryValue": 100
+                }
+              }
             }
           }
         },
