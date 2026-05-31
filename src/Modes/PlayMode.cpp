@@ -37,7 +37,6 @@ const byte PatchButtonIndex = 4;
 const byte SongsButtonIndex = 5;
 const uint16_t SongsButtonColour = 0x07FF;
 const byte GigViewButtonIndex = 6;
-const uint16_t GigViewButtonColour = 0xF81F;
 const byte TapTempoCc = 44;
 const byte TapTempoValue = 100;
 const uint32_t TapTempoFlashDurationMs = 10000;
@@ -136,11 +135,9 @@ void PlayMode::setupFunctions()
     _functions[3] = Function();
     configurePatchButton();
     configureSongsButton();
-    _functions[GigViewButtonIndex] = Function("Gig", GigViewButtonColour, ActionType::SetGigView, 1,
-                                              ActionType::SetGigView, 0);
-    _functions[GigViewButtonIndex].setToggle(true);
-    _functions[TunerButtonIndex] = Function("Tuner", TunerButtonColour, ActionType::SetTuner, 1, ActionType::SetTuner,
-                                            0);
+    _functions[GigViewButtonIndex] = Function();
+    _functions[TunerButtonIndex] =
+        Function("Tuner", TunerButtonColour, ActionType::SetTuner, 1, ActionType::SetGigView, 1);
     _functions[TunerButtonIndex].setToggle(true);
 }
 
@@ -755,12 +752,19 @@ void PlayMode::buttonLongPressed(byte number)
         return;
     }
 
+    const FunctionAction& longPressAction = func.action(FunctionBehaviour::LongPress);
     if (isToggleButton(number))
     {
+        const ActionType toggleActionType = toggleActionTypeForButton(number);
+        if ((longPressAction.type == ActionType::SetTuner || longPressAction.type == ActionType::SetGigView) &&
+            longPressAction.type != toggleActionType)
+        {
+            toggleAction(longPressAction.type);
+        }
         return;
     }
 
-    executeAction(func.action(FunctionBehaviour::LongPress));
+    executeAction(longPressAction);
 }
 
 void PlayMode::buttonReleased(byte number)

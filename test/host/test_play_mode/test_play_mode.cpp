@@ -419,7 +419,7 @@ void test_activate_sets_play_labels()
     TEST_ASSERT_EQUAL_STRING(" ", fixture.touchButtonManager.getButton(3)->label());
     TEST_ASSERT_EQUAL_STRING("Patch", fixture.touchButtonManager.getButton(4)->label());
     TEST_ASSERT_EQUAL_STRING("Songs", fixture.touchButtonManager.getButton(5)->label());
-    TEST_ASSERT_EQUAL_STRING("Gig", fixture.touchButtonManager.getButton(6)->label());
+    TEST_ASSERT_EQUAL_STRING(" ", fixture.touchButtonManager.getButton(6)->label());
     TEST_ASSERT_EQUAL_STRING("Tuner", fixture.touchButtonManager.getButton(7)->label());
 }
 
@@ -596,7 +596,7 @@ void test_activate_selects_single_button_and_dims_others()
     TEST_ASSERT_NOT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(2)->pillColour());
     TEST_ASSERT_NOT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(4)->pillColour());
     TEST_ASSERT_NOT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(5)->pillColour());
-    TEST_ASSERT_NOT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(6)->pillColour());
+    TEST_ASSERT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(6)->pillColour());
     TEST_ASSERT_NOT_EQUAL_UINT16(TFT_BLACK, fixture.touchButtonManager.getButton(7)->pillColour());
 }
 
@@ -804,57 +804,63 @@ void test_scene_c_selects_scene_two()
     TEST_ASSERT_EQUAL_UINT8(2, fixture.midiProvider.lastSceneIndex);
 }
 
-void test_gig_view_button_opens_gig_view_without_changing_scene_selection()
+void test_removed_gig_button_is_empty_and_inactive()
 {
     PlayModeFixture fixture;
 
     fixture.mode.activate();
     fixture.mode.buttonPressed(6);
+    fixture.mode.buttonLongPressed(6);
+
+    TEST_ASSERT_EQUAL_STRING(" ", fixture.touchButtonManager.getButton(6)->label());
+    TEST_ASSERT_EQUAL_INT(0, fixture.midiProvider.setGigViewCalls);
+    TEST_ASSERT_EQUAL_INT(0, fixture.midiProvider.setTunerCalls);
+    TEST_ASSERT_EQUAL_INT(1, fixture.midiProvider.selectSceneCalls);
+    TEST_ASSERT_EQUAL_INT(0, fixture.midiManager.controlChangeCalls);
+    TEST_ASSERT_EQUAL_UINT32(0U, ringPixelColour(fixture, 6));
+}
+
+void test_tuner_button_long_press_opens_gig_view_without_changing_scene_selection()
+{
+    PlayModeFixture fixture;
+
+    fixture.mode.activate();
+    fixture.mode.buttonLongPressed(7);
 
     TEST_ASSERT_EQUAL_INT(1, fixture.midiProvider.setGigViewCalls);
     TEST_ASSERT_TRUE(fixture.midiProvider.lastGigViewEnabled);
+    TEST_ASSERT_EQUAL_INT(0, fixture.midiProvider.setTunerCalls);
     TEST_ASSERT_EQUAL_INT(1, fixture.midiProvider.selectSceneCalls);
     TEST_ASSERT_EQUAL_INT(0, fixture.midiManager.controlChangeCalls);
     TEST_ASSERT_TRUE(fixture.touchButtonManager.getButton(0)->hasBorder());
-    TEST_ASSERT_FALSE(fixture.touchButtonManager.getButton(6)->hasBorder());
+    TEST_ASSERT_FALSE(fixture.touchButtonManager.getButton(7)->hasBorder());
 }
 
-void test_gig_view_button_second_short_press_closes_gig_view()
+void test_tuner_button_second_long_press_closes_gig_view()
 {
     PlayModeFixture fixture;
 
     fixture.mode.activate();
-    fixture.mode.buttonPressed(6);
-    fixture.mode.buttonPressed(6);
+    fixture.mode.buttonLongPressed(7);
+    fixture.mode.buttonLongPressed(7);
 
     TEST_ASSERT_EQUAL_INT(2, fixture.midiProvider.setGigViewCalls);
     TEST_ASSERT_FALSE(fixture.midiProvider.lastGigViewEnabled);
     TEST_ASSERT_EQUAL_INT(0, fixture.midiManager.controlChangeCalls);
 }
 
-void test_gig_view_button_long_press_is_noop()
+void test_tuner_button_long_press_does_not_light_removed_gig_button_ring()
 {
     PlayModeFixture fixture;
 
     fixture.mode.activate();
-    fixture.mode.buttonLongPressed(6);
+    const uint32_t initialColour = ringPixelColour(fixture, 6);
 
-    TEST_ASSERT_EQUAL_INT(0, fixture.midiProvider.setGigViewCalls);
-    TEST_ASSERT_EQUAL_INT(0, fixture.midiManager.controlChangeCalls);
-}
+    fixture.mode.buttonLongPressed(7);
+    const uint32_t afterLongPressColour = ringPixelColour(fixture, 6);
 
-void test_gig_view_button_ring_is_dim_until_toggled_on()
-{
-    PlayModeFixture fixture;
-
-    fixture.mode.activate();
-    const uint32_t dimColour = ringPixelColour(fixture, 6);
-
-    fixture.mode.buttonPressed(6);
-    const uint32_t fullColour = ringPixelColour(fixture, 6);
-
-    TEST_ASSERT_NOT_EQUAL(0U, dimColour);
-    TEST_ASSERT_TRUE(fullColour > dimColour);
+    TEST_ASSERT_EQUAL_UINT32(0U, initialColour);
+    TEST_ASSERT_EQUAL_UINT32(0U, afterLongPressColour);
 }
 
 void test_tap_tempo_button_does_not_send_midi_on_first_press_without_changing_scene_selection()
@@ -1134,14 +1140,18 @@ void test_tuner_button_second_short_press_disables_tuner()
     TEST_ASSERT_EQUAL_INT(0, fixture.midiManager.controlChangeCalls);
 }
 
-void test_tuner_button_long_press_is_noop()
+void test_tuner_button_short_press_and_long_press_toggle_independent_states()
 {
     PlayModeFixture fixture;
 
     fixture.mode.activate();
+    fixture.mode.buttonPressed(7);
     fixture.mode.buttonLongPressed(7);
 
-    TEST_ASSERT_EQUAL_INT(0, fixture.midiProvider.setTunerCalls);
+    TEST_ASSERT_EQUAL_INT(1, fixture.midiProvider.setTunerCalls);
+    TEST_ASSERT_TRUE(fixture.midiProvider.lastTunerEnabled);
+    TEST_ASSERT_EQUAL_INT(1, fixture.midiProvider.setGigViewCalls);
+    TEST_ASSERT_TRUE(fixture.midiProvider.lastGigViewEnabled);
     TEST_ASSERT_EQUAL_INT(0, fixture.midiManager.controlChangeCalls);
 }
 
@@ -1446,10 +1456,10 @@ int main(int argc, char** argv)
     RUN_TEST(test_scene_a_selects_scene_zero);
     RUN_TEST(test_scene_b_selects_scene_one);
     RUN_TEST(test_scene_c_selects_scene_two);
-    RUN_TEST(test_gig_view_button_opens_gig_view_without_changing_scene_selection);
-    RUN_TEST(test_gig_view_button_second_short_press_closes_gig_view);
-    RUN_TEST(test_gig_view_button_long_press_is_noop);
-    RUN_TEST(test_gig_view_button_ring_is_dim_until_toggled_on);
+    RUN_TEST(test_removed_gig_button_is_empty_and_inactive);
+    RUN_TEST(test_tuner_button_long_press_opens_gig_view_without_changing_scene_selection);
+    RUN_TEST(test_tuner_button_second_long_press_closes_gig_view);
+    RUN_TEST(test_tuner_button_long_press_does_not_light_removed_gig_button_ring);
     RUN_TEST(test_tap_tempo_button_does_not_send_midi_on_first_press_without_changing_scene_selection);
     RUN_TEST(test_tap_tempo_button_does_not_send_midi_on_second_press);
     RUN_TEST(test_tap_tempo_button_sends_cc44_value100_on_scheduled_interval_after_third_press);
@@ -1463,7 +1473,7 @@ int main(int argc, char** argv)
     RUN_TEST(test_tap_tempo_button_long_press_is_noop);
     RUN_TEST(test_tuner_button_enables_tuner_without_changing_scene_selection);
     RUN_TEST(test_tuner_button_second_short_press_disables_tuner);
-    RUN_TEST(test_tuner_button_long_press_is_noop);
+    RUN_TEST(test_tuner_button_short_press_and_long_press_toggle_independent_states);
     RUN_TEST(test_tuner_button_can_be_configured_as_non_toggle);
     RUN_TEST(test_generic_toggle_button_dims_until_pressed_and_toggles_on_second_press);
     RUN_TEST(test_tuner_button_flashes_when_enabled_without_redrawing_label);
