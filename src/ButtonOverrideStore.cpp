@@ -10,6 +10,8 @@ constexpr uint8_t MaxButtonIndex = 7;
 constexpr uint8_t MaxPatchIndex = 127;
 constexpr size_t JsonCapacityMultiplier = 2;
 constexpr size_t JsonCapacityPadding = 512;
+constexpr size_t ButtonOverrideFilterCapacity = 1024;
+constexpr size_t ButtonOverridePatchJsonCapacity = 3072;
 
 const char* playlistName(byte playlistIndex)
 {
@@ -66,6 +68,23 @@ void populateSongConfig(const JsonObjectConst& songObject, SongConfig& outSong)
     const char* displayName = (longName != nullptr && longName[0] != '\0') ? longName : outSong.name;
     copyConfigString(displayName, outSong.displayName, sizeof(outSong.displayName));
 }
+
+void buildPatchOverrideFilter(JsonDocument& filter, const char* modeKey, const char* patchKey)
+{
+    JsonObject playModesFilter = filter.createNestedObject("playModes");
+    JsonObject modeFilter = playModesFilter.createNestedObject(modeKey);
+    JsonObject patchesFilter = modeFilter.createNestedObject("patches");
+    JsonObject patchFilter = patchesFilter.createNestedObject(patchKey);
+    patchFilter["name"] = true;
+    patchFilter["longName"] = true;
+
+    JsonObject buttonsFilter = patchFilter.createNestedObject("buttons");
+    for (uint8_t buttonIndex = 0; buttonIndex <= MaxButtonIndex; ++buttonIndex)
+    {
+        char buttonKey[2] = {static_cast<char>('0' + buttonIndex), '\0'};
+        buttonsFilter[buttonKey] = true;
+    }
+}
 }
 
 ButtonOverrideStore::ButtonOverrideStore(ITextFileStore* fileStore)
@@ -113,29 +132,8 @@ bool ButtonOverrideStore::refresh()
         return false;
     }
 
-    Serial.printf("Button overrides: loaded config from '%s'.\n", loadedPath);
-
-    DynamicJsonDocument document((kMaxConfigBytes * JsonCapacityMultiplier) + JsonCapacityPadding);
-    const char* jsonText = buffer;
-    const DeserializationError error = deserializeJson(document, jsonText);
-
-    if (error)
-    {
-        delete[] buffer;
-        Serial.printf("Button overrides: JSON parse failed: %s\n", error.c_str());
-        return false;
-    }
-
-    const JsonObjectConst playModes = document["playModes"].as<JsonObjectConst>();
-    if (playModes.isNull())
-    {
-        delete[] buffer;
-        Serial.println("Button overrides: missing playModes object.");
-        return false;
-    }
-
     _configBuffer = buffer;
-    Serial.println("Button overrides: config validated.");
+    Serial.printf("Button overrides: loaded config from '%s'.\n", loadedPath);
     return true;
 }
 
@@ -154,15 +152,6 @@ void ButtonOverrideStore::applyOverrides(byte playlistIndex, byte patchNumber, F
         return;
     }
 
-    DynamicJsonDocument document((kMaxConfigBytes * JsonCapacityMultiplier) + JsonCapacityPadding);
-    const char* jsonText = _configBuffer;
-    const DeserializationError error = deserializeJson(document, jsonText);
-    if (error)
-    {
-        Serial.printf("Button overrides: JSON reparse failed: %s\n", error.c_str());
-        return;
-    }
-
     const char* modeKey = modeKeyForPlaylistIndex(playlistIndex);
     if (modeKey == nullptr)
     {
@@ -172,6 +161,25 @@ void ButtonOverrideStore::applyOverrides(byte playlistIndex, byte patchNumber, F
 
     char patchKey[4] = {'\0'};
     std::snprintf(patchKey, sizeof(patchKey), "%u", static_cast<unsigned int>(patchNumber));
+
+    DynamicJsonDocument document(ButtonOverridePatchJsonCapacity);
+    if (document.capacity() == 0U)
+    {
+        Serial.println("Button overrides: failed to allocate override patch JSON document.");
+        return;
+    }
+
+    StaticJsonDocument<ButtonOverrideFilterCapacity> filter;
+    buildPatchOverrideFilter(filter, modeKey, patchKey);
+
+    const char* jsonText = _configBuffer;
+    const DeserializationError error =
+        deserializeJson(document, jsonText, DeserializationOption::Filter(filter));
+    if (error)
+    {
+        Serial.printf("Button overrides: JSON reparse failed: %s\n", error.c_str());
+        return;
+    }
 
     const JsonObjectConst playModes = document["playModes"].as<JsonObjectConst>();
     const JsonObjectConst modeObject = playModes[modeKey].as<JsonObjectConst>();

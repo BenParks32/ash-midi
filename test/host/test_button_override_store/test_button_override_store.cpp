@@ -395,6 +395,32 @@ void test_apply_overrides_can_reparse_same_config_multiple_times()
     TEST_ASSERT_EQUAL_STRING("CC37", patchOneFunctions[3].label());
 }
 
+void test_apply_overrides_reads_code_red_e_flat_toggle_from_buttons_config()
+{
+    MockTextFileStore fileStore;
+    std::strcpy(fileStore.contents,
+                "{\"playModes\":{\"Project7\":{\"patches\":{\"1\":{\"name\":\"Zombie\"}}},\"CodeRed\":{\"patches\":{"
+                "\"0\":{\"buttons\":{\"6\":{\"label\":\"E Flat\",\"colour\":\"FD20\",\"toggle\":true,\"function\":{"
+                "\"shortPress\":{\"action\":\"SendMidiControlChange\",\"value\":35,\"secondaryValue\":100}}}}},"
+                "\"1\":{\"name\":\"With\"}}}}}");
+    fileStore.hasContents = true;
+
+    ButtonOverrideStore store(&fileStore);
+    TEST_ASSERT_TRUE(store.refresh());
+
+    Function functions[8] = {};
+    store.applyOverrides(CodeRedPlaylistIndex, 0, functions, 8);
+
+    TEST_ASSERT_EQUAL_STRING("E Flat", functions[6].label());
+    TEST_ASSERT_EQUAL_HEX16(0xFD20, functions[6].colour());
+    TEST_ASSERT_TRUE(functions[6].isToggle());
+    TEST_ASSERT_FALSE(functions[6].hasMomentaryBehaviour());
+    TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(ActionType::SendMidiControlChange),
+                            static_cast<uint8_t>(functions[6].action(FunctionBehaviour::ShortPress).type));
+    TEST_ASSERT_EQUAL_UINT8(35, functions[6].action(FunctionBehaviour::ShortPress).value);
+    TEST_ASSERT_EQUAL_UINT8(100, functions[6].action(FunctionBehaviour::ShortPress).secondaryValue);
+}
+
 void test_list_patches_preserves_buttons_jsn_order()
 {
     MockTextFileStore fileStore;
@@ -495,6 +521,7 @@ int main(int argc, char** argv)
     RUN_TEST(test_apply_overrides_sets_toggle_flag_when_configured);
     RUN_TEST(test_apply_overrides_matches_playlist_and_patch);
     RUN_TEST(test_apply_overrides_can_reparse_same_config_multiple_times);
+    RUN_TEST(test_apply_overrides_reads_code_red_e_flat_toggle_from_buttons_config);
     RUN_TEST(test_list_patches_preserves_buttons_jsn_order);
     RUN_TEST(test_apply_overrides_parses_change_mode_patches_value);
     RUN_TEST(test_refresh_accepts_split_song_config);
