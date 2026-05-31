@@ -3,6 +3,8 @@
 #include <Arduino.h>
 #include <stddef.h>
 
+constexpr size_t MaxTextFilePathLength = 127;
+
 class ITextFileStore
 {
   public:

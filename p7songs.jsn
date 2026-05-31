@@ -1,235 +1,284 @@
 [
     {
+        "id": "seven-nation-army",
         "name": "7NA",
         "longName": "Seven Nation Army",
         "patch": 0
     },
     {
+        "id": "basket-case",
         "name": "Basket",
         "longName": "Basket Case",
         "patch": 0
     },
     {
+        "id": "i-believe-in-a-thing-called-love",
         "name": "Believe",
         "longName": "I Believe In A Thing Called Love",
         "patch": 0
     },
     {
+        "id": "black-magic-woman",
         "name": "BMW",
         "longName": "Black Magic Woman",
         "patch": 0
     },
     {
+        "id": "boulevard",
         "name": "Boulevard",
         "patch": 2
     },
     {
+        "id": "mr-brightside",
         "name": "Brightside",
         "longName": "Mr Brightside",
         "patch": 0
     },
     {
+        "id": "chasing-cars",
         "name": "Cars",
         "longName": "Chasing Cars",
         "patch": 0
     },
     {
+        "id": "champions",
         "name": "Champs",
         "longName": "Champions",
         "patch": 0
     },
     {
+        "id": "come-together",
         "name": "ComTgtr",
         "longName": "Come Together",
         "patch": 0
     },
     {
+        "id": "crush-crush-crush",
         "name": "Crush",
         "longName": "Crush Crush Crush",
         "patch": 0
     },
     {
+        "id": "dakota",
         "name": "Dakota",
         "patch": 0
     },
     {
+        "id": "danger-zone",
         "name": "Danger",
         "longName": "Danger Zone",
         "patch": 0
     },
     {
+        "id": "teenage-dirtbag",
         "name": "Dirtbag",
         "longName": "Teenage Dirtbag",
         "patch": 0
     },
     {
+        "id": "disco-2000",
         "name": "Disco",
         "longName": "Disco 2000",
         "patch": 0
     },
     {
+        "id": "death-by-rock-and-roll",
         "name": "DthRnR",
         "longName": "Death By Rock And Roll",
         "patch": 0
     },
     {
+        "id": "shes-electric",
         "name": "Electric",
         "longName": "She's Electric",
         "patch": 0
     },
     {
+        "id": "everlong",
         "name": "Everlong",
         "patch": 0
     },
     {
+        "id": "are-you-gonna-go-my-way",
         "name": "GoMyWay",
         "longName": "Are You Gonna Go My Way",
         "patch": 0
     },
     {
+        "id": "go-your-own-way",
         "name": "GoYrWay",
         "longName": "Go Your Own Way",
         "patch": 0
     },
     {
+        "id": "hammer-to-fall",
         "name": "Hammer",
         "longName": "Hammer to Fall",
         "patch": 0
     },
     {
+        "id": "my-hero",
         "name": "Hero",
         "longName": "My Hero",
         "patch": 0
     },
     {
+        "id": "hysteria",
         "name": "Hysteria",
         "patch": 0
     },
     {
+        "id": "teenage-kicks",
         "name": "Kicks",
         "longName": "Teenage Kicks",
         "patch": 0
     },
     {
+        "id": "london-calling",
         "name": "LonCall",
         "longName": "London Calling",
         "patch": 0
     },
     {
+        "id": "town-called-malice",
         "name": "Malice",
         "longName": "Town Called Malice",
         "patch": 0
     },
     {
+        "id": "message-in-a-bottle",
         "name": "Message",
         "longName": "Message in a Bottle",
         "patch": 0
     },
     {
+        "id": "oh-my-god",
         "name": "OhMyGod",
         "longName": "Oh My God",
         "patch": 0
     },
     {
+        "id": "parklife",
         "name": "ParkLife",
         "patch": 0
     },
     {
+        "id": "place-your-hands",
         "name": "Place",
         "longName": "Place Your Hands",
         "patch": 0
     },
     {
+        "id": "i-predict-a-riot",
         "name": "Riot",
         "longName": "I Predict A Riot",
         "patch": 0
     },
     {
+        "id": "rock-n-roll-star",
         "name": "RnRStar",
         "longName": "Rock 'N' Roll Star",
         "patch": 0
     },
     {
+        "id": "rockin-all-over-the-world",
         "name": "Rockin'",
         "longName": "Rockin' All Over The World",
         "patch": 0
     },
     {
+        "id": "rocks",
         "name": "Rocks",
         "patch": 0
     },
     {
+        "id": "run-to-you",
         "name": "RunToU",
         "longName": "Run To You",
         "patch": 0
     },
     {
+        "id": "sweet-child",
         "name": "SCoM",
         "longName": "Sweet Child",
         "patch": 0
     },
     {
+        "id": "sex-on-fire",
         "name": "Sex",
         "longName": "Sex On Fire",
         "patch": 0
     },
     {
+        "id": "sit-down",
         "name": "SitDown",
         "longName": "Sit Down",
         "patch": 0
     },
     {
+        "id": "all-the-small-things",
         "name": "SmThings",
         "longName": "All The Small Things",
         "patch": 0
     },
     {
+        "id": "sultans-of-swing",
         "name": "Sultans",
         "longName": "Sultans Of Swing",
         "patch": 0
     },
     {
+        "id": "supermassive-black-hole",
         "name": "Supermassive",
         "longName": "Supermassive Black Hole",
         "patch": 0
     },
     {
+        "id": "superstition",
         "name": "Superstition",
         "patch": 0
     },
     {
+        "id": "take-it-easy",
         "name": "Take",
         "longName": "Take It Easy",
         "patch": 0
     },
     {
+        "id": "times-like-these",
         "name": "Times",
         "longName": "Times Like These",
         "patch": 0
     },
     {
+        "id": "just-tonight",
         "name": "Tonight",
         "longName": "Just Tonight",
         "patch": 0
     },
     {
+        "id": "umbrella",
         "name": "Umbrella",
         "patch": 0
     },
     {
+        "id": "vertigo",
         "name": "Vertigo",
         "patch": 0
     },
     {
+        "id": "white-wedding",
         "name": "Wedding",
         "longName": "White Wedding",
         "patch": 0
     },
     {
+        "id": "yellow",
         "name": "Yellow",
         "patch": 0
     },
     {
+        "id": "zombie",
         "name": "Zombie",
         "patch": 1
     }

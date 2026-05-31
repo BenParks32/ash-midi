@@ -1,0 +1,115 @@
+{
+    "name": "White Hart",
+    "parts": [
+        {
+            "part": 1,
+            "name": "First half"
+        },
+        {
+            "part": 2,
+            "name": "Second half"
+        }
+    ],
+    "songs": [
+        {
+            "number": 1,
+            "part": 1,
+            "songId": "are-you-gonna-go-my-way"
+        },
+        {
+            "number": 2,
+            "part": 1,
+            "songId": "yellow"
+        },
+        {
+            "number": 3,
+            "part": 1,
+            "songId": "message-in-a-bottle"
+        },
+        {
+            "number": 4,
+            "part": 1,
+            "songId": "times-like-these"
+        },
+        {
+            "number": 5,
+            "part": 1,
+            "songId": "death-by-rock-and-roll"
+        },
+        {
+            "number": 6,
+            "part": 1,
+            "songId": "parklife"
+        },
+        {
+            "number": 7,
+            "part": 1,
+            "songId": "supermassive-black-hole"
+        },
+        {
+            "number": 8,
+            "part": 1,
+            "songId": "sweet-child"
+        },
+        {
+            "number": 9,
+            "part": 1,
+            "songId": "chasing-cars"
+        },
+        {
+            "number": 10,
+            "part": 1,
+            "songId": "rocks"
+        },
+        {
+            "number": 1,
+            "part": 2,
+            "songId": "sultans-of-swing"
+        },
+        {
+            "number": 2,
+            "part": 2,
+            "songId": "hysteria"
+        },
+        {
+            "number": 3,
+            "part": 2,
+            "songId": "basket-case"
+        },
+        {
+            "number": 4,
+            "part": 2,
+            "songId": "zombie"
+        },
+        {
+            "number": 5,
+            "part": 2,
+            "songId": "go-your-own-way"
+        },
+        {
+            "number": 6,
+            "part": 2,
+            "songId": "teenage-kicks"
+        },
+        {
+            "number": 7,
+            "part": 2,
+            "songId": "place-your-hands"
+        },
+        {
+            "number": 8,
+            "part": 2,
+            "songId": "dakota"
+        },
+        {
+            "number": 9,
+            "part": 2,
+            "songId": "boulevard"
+        },
+        {
+            "number": 10,
+            "part": 2,
+            "songId": "take-it-easy"
+        }
+    ]
+}

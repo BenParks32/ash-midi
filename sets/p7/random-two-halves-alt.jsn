@@ -1,0 +1,115 @@
+{
+    "name": "Random Two Halves Alt",
+    "parts": [
+        {
+            "part": 1,
+            "name": "First half"
+        },
+        {
+            "part": 2,
+            "name": "Second half"
+        }
+    ],
+    "songs": [
+        {
+            "number": 1,
+            "part": 1,
+            "songId": "my-hero"
+        },
+        {
+            "number": 2,
+            "part": 1,
+            "songId": "teenage-kicks"
+        },
+        {
+            "number": 3,
+            "part": 1,
+            "songId": "seven-nation-army"
+        },
+        {
+            "number": 4,
+            "part": 1,
+            "songId": "sit-down"
+        },
+        {
+            "number": 5,
+            "part": 1,
+            "songId": "death-by-rock-and-roll"
+        },
+        {
+            "number": 6,
+            "part": 1,
+            "songId": "are-you-gonna-go-my-way"
+        },
+        {
+            "number": 7,
+            "part": 1,
+            "songId": "oh-my-god"
+        },
+        {
+            "number": 8,
+            "part": 1,
+            "songId": "message-in-a-bottle"
+        },
+        {
+            "number": 9,
+            "part": 1,
+            "songId": "sex-on-fire"
+        },
+        {
+            "number": 10,
+            "part": 1,
+            "songId": "hysteria"
+        },
+        {
+            "number": 1,
+            "part": 2,
+            "songId": "champions"
+        },
+        {
+            "number": 2,
+            "part": 2,
+            "songId": "rockin-all-over-the-world"
+        },
+        {
+            "number": 3,
+            "part": 2,
+            "songId": "town-called-malice"
+        },
+        {
+            "number": 4,
+            "part": 2,
+            "songId": "mr-brightside"
+        },
+        {
+            "number": 5,
+            "part": 2,
+            "songId": "vertigo"
+        },
+        {
+            "number": 6,
+            "part": 2,
+            "songId": "rock-n-roll-star"
+        },
+        {
+            "number": 7,
+            "part": 2,
+            "songId": "dakota"
+        },
+        {
+            "number": 8,
+            "part": 2,
+            "songId": "london-calling"
+        },
+        {
+            "number": 9,
+            "part": 2,
+            "songId": "danger-zone"
+        },
+        {
+            "number": 10,
+            "part": 2,
+            "songId": "i-believe-in-a-thing-called-love"
+        }
+    ]
+}

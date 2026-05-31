@@ -1,0 +1,115 @@
+{
+    "name": "Random Two Halves",
+    "parts": [
+        {
+            "part": 1,
+            "name": "First half"
+        },
+        {
+            "part": 2,
+            "name": "Second half"
+        }
+    ],
+    "songs": [
+        {
+            "number": 1,
+            "part": 1,
+            "songId": "disco-2000"
+        },
+        {
+            "number": 2,
+            "part": 1,
+            "songId": "go-your-own-way"
+        },
+        {
+            "number": 3,
+            "part": 1,
+            "songId": "run-to-you"
+        },
+        {
+            "number": 4,
+            "part": 1,
+            "songId": "basket-case"
+        },
+        {
+            "number": 5,
+            "part": 1,
+            "songId": "boulevard"
+        },
+        {
+            "number": 6,
+            "part": 1,
+            "songId": "hammer-to-fall"
+        },
+        {
+            "number": 7,
+            "part": 1,
+            "songId": "rocks"
+        },
+        {
+            "number": 8,
+            "part": 1,
+            "songId": "sultans-of-swing"
+        },
+        {
+            "number": 9,
+            "part": 1,
+            "songId": "chasing-cars"
+        },
+        {
+            "number": 10,
+            "part": 1,
+            "songId": "shes-electric"
+        },
+        {
+            "number": 1,
+            "part": 2,
+            "songId": "just-tonight"
+        },
+        {
+            "number": 2,
+            "part": 2,
+            "songId": "umbrella"
+        },
+        {
+            "number": 3,
+            "part": 2,
+            "songId": "black-magic-woman"
+        },
+        {
+            "number": 4,
+            "part": 2,
+            "songId": "supermassive-black-hole"
+        },
+        {
+            "number": 5,
+            "part": 2,
+            "songId": "all-the-small-things"
+        },
+        {
+            "number": 6,
+            "part": 2,
+            "songId": "everlong"
+        },
+        {
+            "number": 7,
+            "part": 2,
+            "songId": "come-together"
+        },
+        {
+            "number": 8,
+            "part": 2,
+            "songId": "crush-crush-crush"
+        },
+        {
+            "number": 9,
+            "part": 2,
+            "songId": "place-your-hands"
+        },
+        {
+            "number": 10,
+            "part": 2,
+            "songId": "teenage-dirtbag"
+        }
+    ]
+}

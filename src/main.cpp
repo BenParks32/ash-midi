@@ -2,6 +2,7 @@
 #include <Arduino.h>
 #include <SD.h>
 #include <TFT_eSPI.h>
+#include <cstdio>
 
 #include "ButtonHandler.h"
 #include "ButtonOverrideStore.h"
@@ -18,7 +19,9 @@
 #include "Modes/PatchMode.h"
 #include "Modes/PatchesMode.h"
 #include "Modes/PlayMode.h"
+#include "Modes/SetSelectionMode.h"
 #include "Modes/SongsMode.h"
+#include "SetListStore.h"
 #include "Resources.h"
 #include "RingManager.h"
 #include "ScreenUi.h"
@@ -40,6 +43,32 @@ const Size screenSize = {480, 320};
 
 namespace
 {
+class ButtonOverrideSetListSongResolver final : public ISetListSongResolver
+{
+  public:
+    explicit ButtonOverrideSetListSongResolver(IButtonOverrideStore& buttonOverrideStore)
+        : _buttonOverrideStore(buttonOverrideStore)
+    {
+    }
+
+    bool resolveSong(byte playlistIndex, const char* songId, byte& songIndex, SetListResolvedSong& song) const override
+    {
+        SongConfig resolvedSong = {};
+        if (!_buttonOverrideStore.songForId(playlistIndex, songId, songIndex, resolvedSong))
+        {
+            return false;
+        }
+
+        std::snprintf(song.name, sizeof(song.name), "%s", resolvedSong.name);
+        std::snprintf(song.displayName, sizeof(song.displayName), "%s", resolvedSong.displayName);
+        song.hasDisplayName = resolvedSong.displayName[0] != '\0';
+        song.patch = resolvedSong.patchNumber;
+        return true;
+    }
+
+  private:
+    IButtonOverrideStore& _buttonOverrideStore;
+};
 } // namespace
 
 void HandleTouch();
@@ -58,6 +87,8 @@ const uint8_t DefaultUiScale = 1;
 
 Resources resources(SD_CS);
 ButtonOverrideStore buttonOverrideStore(&resources);
+ButtonOverrideSetListSongResolver setListSongResolver(buttonOverrideStore);
+SetListStore setListStore(resources, resources, setListSongResolver);
 IMode* activeMode = nullptr;
 
 ButtonHandler buttonHandler(activeMode, ringManager);
@@ -68,12 +99,13 @@ SettingsStore settingsStore(&resources);
 AppSettings appSettings = SettingsStore::defaults();
 IMode* modeRegistry[ModeCount] = {nullptr};
 ModeManager modeManager(activeMode, modeRegistry);
-PlayMode playMode(touchButtonManager, ringManager, screenUi, midiManager, midiProvider, buttonOverrideStore, modeManager);
+PlayMode playMode(touchButtonManager, ringManager, screenUi, midiManager, midiProvider, buttonOverrideStore, setListStore,
+                  modeManager);
 PatchMode patchMode(touchButtonManager, ringManager, screenUi, midiManager, midiProvider, modeManager);
 PatchesMode patchesMode(touchButtonManager, ringManager, screenUi, midiManager, midiProvider, buttonOverrideStore,
                         modeManager);
-SongsMode songsMode(touchButtonManager, ringManager, screenUi, midiManager, midiProvider, buttonOverrideStore,
-                    modeManager);
+SetSelectionMode setSelectionMode(touchButtonManager, ringManager, screenUi, midiManager, midiProvider, setListStore,
+                                  modeManager);
 HomeMode homeMode(touchButtonManager, ringManager, screenUi, midiManager, modeManager);
 MenuMode menuMode(touchButtonManager, ringManager, screenUi, midiManager, modeManager, settingsStore, resources,
                   touchCalibrator, appSettings);
@@ -135,7 +167,8 @@ void setup()
     modeRegistry[static_cast<uint8_t>(Modes::Menu)] = &menuMode;
     modeRegistry[static_cast<uint8_t>(Modes::ButtonDiagnostic)] = &buttonDiagnosticMode;
     modeRegistry[static_cast<uint8_t>(Modes::Patches)] = &patchesMode;
-    modeRegistry[static_cast<uint8_t>(Modes::Songs)] = &songsMode;
+    modeRegistry[static_cast<uint8_t>(Modes::Songs)] = &setSelectionMode;
+    modeRegistry[static_cast<uint8_t>(Modes::SetSelection)] = &setSelectionMode;
 
     activeMode = &homeMode;
     activeMode->activate();

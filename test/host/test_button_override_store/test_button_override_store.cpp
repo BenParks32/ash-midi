@@ -214,6 +214,30 @@ void test_song_for_index_falls_back_to_short_name_when_long_name_is_empty()
     TEST_ASSERT_EQUAL_STRING("Big Sky", song.displayName);
 }
 
+void test_song_id_is_exposed_for_listing_and_lookup()
+{
+    MockTextFileStore fileStore;
+    std::strcpy(fileStore.contents,
+                "{\"playModes\":{\"Project7\":{\"songs\":[{\"id\":\"big-sky\",\"name\":\"Big Sky\","
+                "\"longName\":\"Big Sky Intro\",\"patch\":5}]}}}");
+    fileStore.hasContents = true;
+
+    ButtonOverrideStore store(&fileStore);
+    TEST_ASSERT_TRUE(store.refresh());
+
+    SongListEntry entries[2] = {};
+    TEST_ASSERT_EQUAL_UINT32(1, store.listSongs(2, entries, 2));
+    TEST_ASSERT_EQUAL_STRING("big-sky", entries[0].id);
+
+    SongConfig song = {};
+    byte songIndex = 99;
+    TEST_ASSERT_TRUE(store.songForId(2, "big-sky", songIndex, song));
+    TEST_ASSERT_EQUAL_UINT8(0, songIndex);
+    TEST_ASSERT_EQUAL_UINT8(5, song.patchNumber);
+    TEST_ASSERT_EQUAL_STRING("big-sky", song.id);
+    TEST_ASSERT_EQUAL_STRING("Big Sky Intro", song.displayName);
+}
+
 void test_list_songs_reads_project7_external_song_file_when_present()
 {
     MockTextFileStore fileStore;
@@ -254,6 +278,29 @@ void test_song_for_index_reads_project7_external_song_file_when_present()
     SongConfig song = {};
     TEST_ASSERT_TRUE(store.songForIndex(2, 1, &song));
     TEST_ASSERT_EQUAL_UINT8(2, song.patchNumber);
+    TEST_ASSERT_EQUAL_STRING("Boulevard", song.name);
+    TEST_ASSERT_EQUAL_STRING("Boulevard of Broken Dreams", song.displayName);
+}
+
+void test_song_for_id_reads_project7_external_song_file_when_present()
+{
+    MockTextFileStore fileStore;
+    std::strcpy(fileStore.contents, "{\"playModes\":{\"Project7\":{}}}");
+    std::strcpy(fileStore.project7SongsContents,
+                "[{\"id\":\"zombie\",\"name\":\"Zombie\",\"patch\":1},{\"id\":\"boulevard\",\"name\":\"Boulevard\","
+                "\"longName\":\"Boulevard of Broken Dreams\",\"patch\":2}]");
+    fileStore.hasContents = true;
+    fileStore.hasProject7SongsContents = true;
+
+    ButtonOverrideStore store(&fileStore);
+    TEST_ASSERT_TRUE(store.refresh());
+
+    SongConfig song = {};
+    byte songIndex = 99;
+    TEST_ASSERT_TRUE(store.songForId(2, "boulevard", songIndex, song));
+    TEST_ASSERT_EQUAL_UINT8(1, songIndex);
+    TEST_ASSERT_EQUAL_UINT8(2, song.patchNumber);
+    TEST_ASSERT_EQUAL_STRING("boulevard", song.id);
     TEST_ASSERT_EQUAL_STRING("Boulevard", song.name);
     TEST_ASSERT_EQUAL_STRING("Boulevard of Broken Dreams", song.displayName);
 }
@@ -440,8 +487,10 @@ int main(int argc, char** argv)
     RUN_TEST(test_list_songs_preserves_declared_order_and_song_indices);
     RUN_TEST(test_song_for_index_reads_patch_and_prefers_long_name_for_display);
     RUN_TEST(test_song_for_index_falls_back_to_short_name_when_long_name_is_empty);
+    RUN_TEST(test_song_id_is_exposed_for_listing_and_lookup);
     RUN_TEST(test_list_songs_reads_project7_external_song_file_when_present);
     RUN_TEST(test_song_for_index_reads_project7_external_song_file_when_present);
+    RUN_TEST(test_song_for_id_reads_project7_external_song_file_when_present);
     RUN_TEST(test_list_songs_skips_entries_without_a_valid_patch);
     RUN_TEST(test_apply_overrides_sets_toggle_flag_when_configured);
     RUN_TEST(test_apply_overrides_matches_playlist_and_patch);

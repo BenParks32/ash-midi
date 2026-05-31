@@ -10,6 +10,7 @@ enum class Modes : uint8_t
     ButtonDiagnostic = 4,
     Patches = 5,
     Songs = 6,
+    SetSelection = 7,
     Count,
 };
 
@@ -22,6 +23,7 @@ static constexpr ModeTransitionValue ModeTransitionPatchValueMask = 0x00FF;
 static constexpr ModeTransitionValue ModeTransitionHomePlaylistValueMask = 0x00FF;
 static constexpr ModeTransitionValue ModeTransitionPlayContextFlag = 0x8000;
 static constexpr ModeTransitionValue ModeTransitionPlayReturnFlag = 0x4000;
+static constexpr ModeTransitionValue ModeTransitionPlaySetSongFlag = 0x2000;
 static constexpr ModeTransitionValue ModeTransitionPlaySongFlag = 0x1000;
 static constexpr ModeTransitionValue ModeTransitionPlayPlaylistMask = 0x0F00;
 static constexpr uint8_t ModeTransitionPlayPlaylistShift = 8;
@@ -48,6 +50,17 @@ inline ModeTransitionValue makePlayModeSongTransition(byte playlistIndex, byte s
         (static_cast<ModeTransitionValue>(songIndex) & ModeTransitionPlayPatchValueMask));
 }
 
+inline ModeTransitionValue makePlayModeSetSongTransition(byte playlistIndex, byte patchNumber, bool shouldRecall)
+{
+    return static_cast<ModeTransitionValue>(
+        ModeTransitionPlayContextFlag |
+        ModeTransitionPlaySetSongFlag |
+        (shouldRecall ? 0 : ModeTransitionPlayReturnFlag) |
+        ((static_cast<ModeTransitionValue>(playlistIndex) << ModeTransitionPlayPlaylistShift) &
+        ModeTransitionPlayPlaylistMask) |
+        (static_cast<ModeTransitionValue>(patchNumber) & ModeTransitionPlayPatchValueMask));
+}
+
 inline bool isPlayModeTransition(ModeTransitionValue transitionValue)
 {
     return (transitionValue & ModeTransitionPlayContextFlag) != 0;
@@ -57,6 +70,12 @@ inline bool isPlayModeSongTransition(ModeTransitionValue transitionValue)
 {
     return (transitionValue & (ModeTransitionPlayContextFlag | ModeTransitionPlaySongFlag)) ==
            (ModeTransitionPlayContextFlag | ModeTransitionPlaySongFlag);
+}
+
+inline bool isPlayModeSetSongTransition(ModeTransitionValue transitionValue)
+{
+    return (transitionValue & (ModeTransitionPlayContextFlag | ModeTransitionPlaySetSongFlag)) ==
+           (ModeTransitionPlayContextFlag | ModeTransitionPlaySetSongFlag);
 }
 
 inline bool playModeTransitionShouldRecall(ModeTransitionValue transitionValue)

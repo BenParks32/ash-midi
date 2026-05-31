@@ -3,6 +3,7 @@
 #include "Modes/FunctionModeBase.h"
 #include "ButtonOverrideStore.h"
 #include "MidiProvider.h"
+#include "SetListStore.h"
 #include "TapTempoEngine.h"
 
 class PlayMode : public FunctionModeBase
@@ -10,7 +11,7 @@ class PlayMode : public FunctionModeBase
   public:
     PlayMode(TouchButtonManager& touchButtonManager, RingManager& ringManager, IScreenUi& screenUi,
              IMidiManager& midiManager, IMidiProvider& midiProvider, IButtonOverrideStore& buttonOverrideStore,
-             IModeTransistionDelegate& transitionDelegate);
+             ISetListStore& setListStore, IModeTransistionDelegate& transitionDelegate);
 
     void setSelectedPreset(byte selectedPreset);
 
@@ -80,7 +81,8 @@ class PlayMode : public FunctionModeBase
     bool hasSongDisplayName() const;
     bool hasPatchDisplayName() const;
     void configurePatchButton();
-    void configureSongsButton();
+    void configureSetButton();
+    bool resolveSelectedSetSong();
     bool resolveSelectedSong();
     ModeTransitionValue currentPlayTransitionValue(bool shouldRecall) const;
     bool usesSelectionBorder(byte number) const override;
@@ -90,11 +92,14 @@ class PlayMode : public FunctionModeBase
   private:
     IMidiProvider& _midiProvider;
     IButtonOverrideStore& _buttonOverrideStore;
+    ISetListStore& _setListStore;
     byte _selectedPreset;
     byte _selectedPlaylist;
     byte _selectedSongIndex;
     bool _hasSelectedPreset;
     bool _hasSelectedSong;
+    bool _hasSelectedSetSong;
+    bool _selectedSetSongUnavailable;
     byte _selectedButton;
     TapTempoEngine _tapTempoEngine;
     uint32_t _nextTapTempoFlashToggleMs;

@@ -1,0 +1,115 @@
+{
+    "name": "Crown Inn",
+    "parts": [
+        {
+            "part": 1,
+            "name": "First half"
+        },
+        {
+            "part": 2,
+            "name": "Second half"
+        }
+    ],
+    "songs": [
+        {
+            "number": 1,
+            "part": 1,
+            "songId": "everlong"
+        },
+        {
+            "number": 2,
+            "part": 1,
+            "songId": "all-the-small-things"
+        },
+        {
+            "number": 3,
+            "part": 1,
+            "songId": "just-tonight"
+        },
+        {
+            "number": 4,
+            "part": 1,
+            "songId": "sit-down"
+        },
+        {
+            "number": 5,
+            "part": 1,
+            "songId": "mr-brightside"
+        },
+        {
+            "number": 6,
+            "part": 1,
+            "songId": "run-to-you"
+        },
+        {
+            "number": 7,
+            "part": 1,
+            "songId": "crush-crush-crush"
+        },
+        {
+            "number": 8,
+            "part": 1,
+            "songId": "london-calling"
+        },
+        {
+            "number": 9,
+            "part": 1,
+            "songId": "superstition"
+        },
+        {
+            "number": 10,
+            "part": 1,
+            "songId": "danger-zone"
+        },
+        {
+            "number": 1,
+            "part": 2,
+            "songId": "black-magic-woman"
+        },
+        {
+            "number": 2,
+            "part": 2,
+            "songId": "parklife"
+        },
+        {
+            "number": 3,
+            "part": 2,
+            "songId": "town-called-malice"
+        },
+        {
+            "number": 4,
+            "part": 2,
+            "songId": "rock-n-roll-star"
+        },
+        {
+            "number": 5,
+            "part": 2,
+            "songId": "my-hero"
+        },
+        {
+            "number": 6,
+            "part": 2,
+            "songId": "yellow"
+        },
+        {
+            "number": 7,
+            "part": 2,
+            "songId": "come-together"
+        },
+        {
+            "number": 8,
+            "part": 2,
+            "songId": "hammer-to-fall"
+        },
+        {
+            "number": 9,
+            "part": 2,
+            "songId": "i-believe-in-a-thing-called-love"
+        },
+        {
+            "number": 10,
+            "part": 2,
+            "songId": "umbrella"
+        }
+    ]
+}

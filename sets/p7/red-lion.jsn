@@ -1,0 +1,115 @@
+{
+    "name": "Red Lion",
+    "parts": [
+        {
+            "part": 1,
+            "name": "First half"
+        },
+        {
+            "part": 2,
+            "name": "Second half"
+        }
+    ],
+    "songs": [
+        {
+            "number": 1,
+            "part": 1,
+            "songId": "seven-nation-army"
+        },
+        {
+            "number": 2,
+            "part": 1,
+            "songId": "boulevard"
+        },
+        {
+            "number": 3,
+            "part": 1,
+            "songId": "teenage-dirtbag"
+        },
+        {
+            "number": 4,
+            "part": 1,
+            "songId": "my-hero"
+        },
+        {
+            "number": 5,
+            "part": 1,
+            "songId": "parklife"
+        },
+        {
+            "number": 6,
+            "part": 1,
+            "songId": "superstition"
+        },
+        {
+            "number": 7,
+            "part": 1,
+            "songId": "white-wedding"
+        },
+        {
+            "number": 8,
+            "part": 1,
+            "songId": "hysteria"
+        },
+        {
+            "number": 9,
+            "part": 1,
+            "songId": "message-in-a-bottle"
+        },
+        {
+            "number": 10,
+            "part": 1,
+            "songId": "zombie"
+        },
+        {
+            "number": 1,
+            "part": 2,
+            "songId": "mr-brightside"
+        },
+        {
+            "number": 2,
+            "part": 2,
+            "songId": "london-calling"
+        },
+        {
+            "number": 3,
+            "part": 2,
+            "songId": "sweet-child"
+        },
+        {
+            "number": 4,
+            "part": 2,
+            "songId": "yellow"
+        },
+        {
+            "number": 5,
+            "part": 2,
+            "songId": "dakota"
+        },
+        {
+            "number": 6,
+            "part": 2,
+            "songId": "sit-down"
+        },
+        {
+            "number": 7,
+            "part": 2,
+            "songId": "basket-case"
+        },
+        {
+            "number": 8,
+            "part": 2,
+            "songId": "take-it-easy"
+        },
+        {
+            "number": 9,
+            "part": 2,
+            "songId": "everlong"
+        },
+        {
+            "number": 10,
+            "part": 2,
+            "songId": "vertigo"
+        }
+    ]
+}

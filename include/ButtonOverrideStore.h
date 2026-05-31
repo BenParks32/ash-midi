@@ -7,6 +7,12 @@
 #include <Arduino.h>
 #include <stddef.h>
 
+constexpr byte Project7PlaylistIndex = 2;
+constexpr byte OprPlaylistIndex = 3;
+constexpr byte CodeRedPlaylistIndex = 4;
+constexpr size_t PlaylistIndexCapacity = static_cast<size_t>(CodeRedPlaylistIndex) + 1U;
+constexpr size_t SongIdCapacity = 40;
+
 struct PatchDisplayConfig
 {
     static constexpr size_t NameCapacity = 48;
@@ -29,8 +35,9 @@ struct SongListEntry
     byte songIndex;
     byte patchNumber;
     char name[PatchDisplayConfig::NameCapacity];
+    char id[SongIdCapacity + 1];
 
-    SongListEntry() : songIndex(0), patchNumber(0), name{0} {}
+    SongListEntry() : songIndex(0), patchNumber(0), name{0}, id{0} {}
 };
 
 struct SongConfig
@@ -38,8 +45,9 @@ struct SongConfig
     byte patchNumber;
     char name[PatchDisplayConfig::NameCapacity];
     char displayName[PatchDisplayConfig::NameCapacity];
+    char id[SongIdCapacity + 1];
 
-    SongConfig() : patchNumber(0), name{0}, displayName{0} {}
+    SongConfig() : patchNumber(0), name{0}, displayName{0}, id{0} {}
 };
 
 class IButtonOverrideStore
@@ -71,6 +79,14 @@ class IButtonOverrideStore
         (void)outSong;
         return false;
     }
+    virtual bool songForId(byte playlistIndex, const char* songId, byte& songIndex, SongConfig& outSong) const
+    {
+        (void)playlistIndex;
+        (void)songId;
+        (void)songIndex;
+        (void)outSong;
+        return false;
+    }
 };
 
 class ButtonOverrideStore : public IButtonOverrideStore
@@ -85,12 +101,18 @@ class ButtonOverrideStore : public IButtonOverrideStore
     size_t listPatches(byte playlistIndex, PatchListEntry* entries, size_t capacity) const override;
     size_t listSongs(byte playlistIndex, SongListEntry* entries, size_t capacity) const override;
     bool songForIndex(byte playlistIndex, byte songIndex, SongConfig* outSong) const override;
+    bool songForId(byte playlistIndex, const char* songId, byte& songIndex, SongConfig& outSong) const override;
 
   private:
     static constexpr const char* kPrimaryConfigPath = "/BUTTONS.JSN";
     static constexpr const char* kLegacyConfigPath = "/buttons.json";
     static constexpr size_t kMaxConfigBytes = 4096;
     static constexpr size_t kMaxSongsConfigBytes = 8192;
+    static constexpr size_t kMaxSongsPerPlaylist = 64;
+    static constexpr size_t kExternalSongsJsonCapacity =
+        JSON_OBJECT_SIZE(1) +
+        JSON_ARRAY_SIZE(kMaxSongsPerPlaylist) +
+        (kMaxSongsPerPlaylist * JSON_OBJECT_SIZE(4));
 
     struct ParsedActionOverride
     {
@@ -130,7 +152,9 @@ class ButtonOverrideStore : public IButtonOverrideStore
     static void clearButtonOverride(ParsedButtonOverride& buttonOverride);
     static void applyButtonOverride(const ParsedButtonOverride& buttonOverride, Function& target);
     static bool parseButtonOverrideObject(const JsonObjectConst& buttonObject, ParsedButtonOverride& outButtonOverride);
-    bool loadSongsArray(byte playlistIndex, DynamicJsonDocument& document, JsonArrayConst& outSongs) const;
+    bool loadExternalSongsArray(byte playlistIndex, char*& songsBuffer, DynamicJsonDocument& document,
+                                JsonArrayConst& outSongs) const;
+    bool loadEmbeddedSongsArray(byte playlistIndex, DynamicJsonDocument& document, JsonArrayConst& outSongs) const;
 
     void clearOverrides();
 

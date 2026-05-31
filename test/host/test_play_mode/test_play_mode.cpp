@@ -289,6 +289,42 @@ class MockButtonOverrideStore : public IButtonOverrideStore
     byte tapButtonIndex = 3;
 };
 
+class MockSetListStore : public ISetListStore
+{
+  public:
+    size_t listSetLists(byte, SetListSummary*, size_t) const override { return 0; }
+    bool activateSetList(byte, const char*) override { return false; }
+    bool clearActiveSetList(byte) override { return true; }
+    bool activeSetList(byte, ActiveSetList&) const override { return false; }
+    bool activeSetSummary(byte, SetListSummary&) const override { return false; }
+    bool selectSong(byte playlistIndex, size_t setSongIndex) override
+    {
+        lastPlaylistIndex = playlistIndex;
+        lastSetSongIndex = static_cast<byte>(setSongIndex);
+        hasSelectedSong = true;
+        selectedSongIndex = static_cast<byte>(setSongIndex);
+        return true;
+    }
+    bool selectedSong(byte playlistIndex, SetListSongEntry& song) const override
+    {
+        lastPlaylistIndex = playlistIndex;
+        if (!hasSelectedSong || !hasActiveSong)
+        {
+            return false;
+        }
+
+        song = activeSong;
+        return true;
+    }
+
+    mutable byte lastPlaylistIndex = 0;
+    mutable byte lastSetSongIndex = 0;
+    bool hasSelectedSong = false;
+    byte selectedSongIndex = 0;
+    bool hasActiveSong = false;
+    SetListSongEntry activeSong = {};
+};
+
 class MockMidiProvider : public IMidiProvider
 {
   public:
@@ -358,8 +394,9 @@ class PlayModeFixture
   public:
     PlayModeFixture()
         : ui(), strip(RingManager::LedCount, 0, NEO_GRB + NEO_KHZ800), ringManager(strip), touchButtonManager(ui),
-          midiManager(), midiProvider(), transitionDelegate(), overrideStore(),
-          mode(touchButtonManager, ringManager, ui, midiManager, midiProvider, overrideStore, transitionDelegate)
+          midiManager(), midiProvider(), transitionDelegate(), overrideStore(), setListStore(),
+          mode(touchButtonManager, ringManager, ui, midiManager, midiProvider, overrideStore, setListStore,
+               transitionDelegate)
     {
     }
 
@@ -371,6 +408,7 @@ class PlayModeFixture
     MockMidiProvider midiProvider;
     MockTransitionDelegate transitionDelegate;
     MockButtonOverrideStore overrideStore;
+    MockSetListStore setListStore;
     PlayMode mode;
 };
 
@@ -418,7 +456,7 @@ void test_activate_sets_play_labels()
     TEST_ASSERT_EQUAL_STRING("Lead", fixture.touchButtonManager.getButton(2)->label());
     TEST_ASSERT_EQUAL_STRING(" ", fixture.touchButtonManager.getButton(3)->label());
     TEST_ASSERT_EQUAL_STRING("Patch", fixture.touchButtonManager.getButton(4)->label());
-    TEST_ASSERT_EQUAL_STRING("Songs", fixture.touchButtonManager.getButton(5)->label());
+    TEST_ASSERT_EQUAL_STRING("Set", fixture.touchButtonManager.getButton(5)->label());
     TEST_ASSERT_EQUAL_STRING(" ", fixture.touchButtonManager.getButton(6)->label());
     TEST_ASSERT_EQUAL_STRING("Tuner", fixture.touchButtonManager.getButton(7)->label());
 }
@@ -627,6 +665,45 @@ void test_songs_button_preserves_song_context_when_entering_song_mode()
     TEST_ASSERT_EQUAL_UINT16(
         makePlayModeSongTransition(DefaultPlaylistIndex, fixture.overrideStore.configuredSongIndex, false),
         fixture.transitionDelegate.lastTransitionValue);
+}
+
+void test_set_button_preserves_selected_set_song_context()
+{
+    PlayModeFixture fixture;
+    fixture.setListStore.hasSelectedSong = true;
+    fixture.setListStore.selectedSongIndex = 3;
+    fixture.setListStore.hasActiveSong = true;
+    fixture.setListStore.activeSong.available = true;
+    fixture.setListStore.activeSong.patch = 12;
+    std::snprintf(fixture.setListStore.activeSong.name, sizeof(fixture.setListStore.activeSong.name), "%s", "Set Song");
+
+    fixture.mode.setTransitionValue(makePlayModeSetSongTransition(DefaultPlaylistIndex, 12, true));
+    fixture.mode.activate();
+    fixture.mode.buttonPressed(5);
+
+    TEST_ASSERT_EQUAL_INT(1, fixture.transitionDelegate.calls);
+    TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(Modes::Songs), static_cast<uint8_t>(fixture.transitionDelegate.lastMode));
+    TEST_ASSERT_EQUAL_UINT16(makePlayModeSetSongTransition(DefaultPlaylistIndex, 12, false),
+                             fixture.transitionDelegate.lastTransitionValue);
+}
+
+void test_activate_with_unresolved_set_song_keeps_patch_and_renders_unavailable_in_red()
+{
+    PlayModeFixture fixture;
+    fixture.overrideStore.enablePatchName = true;
+    fixture.setListStore.hasSelectedSong = true;
+    fixture.setListStore.selectedSongIndex = 4;
+    fixture.setListStore.hasActiveSong = true;
+    fixture.setListStore.activeSong.available = false;
+    std::snprintf(fixture.setListStore.activeSong.name, sizeof(fixture.setListStore.activeSong.name), "%s",
+                  "Missing Song");
+
+    fixture.mode.setTransitionValue(makePlayModeSetSongTransition(DefaultPlaylistIndex, 6, false));
+    fixture.mode.activate();
+
+    TEST_ASSERT_EQUAL_INT(0, fixture.midiProvider.recallPresetCalls);
+    TEST_ASSERT_EQUAL_UINT8(6, fixture.overrideStore.lastPatchNumber);
+    TEST_ASSERT_TRUE(findDrawTextCallIndex(fixture.ui, "Song: Missing Song", TFT_RED) >= 0);
 }
 
 void test_activate_recalls_selected_preset_before_scene_select()
@@ -1444,6 +1521,8 @@ int main(int argc, char** argv)
     RUN_TEST(test_activate_selects_single_button_and_dims_others);
     RUN_TEST(test_songs_button_enters_song_mode_from_patch_context);
     RUN_TEST(test_songs_button_preserves_song_context_when_entering_song_mode);
+    RUN_TEST(test_set_button_preserves_selected_set_song_context);
+    RUN_TEST(test_activate_with_unresolved_set_song_keeps_patch_and_renders_unavailable_in_red);
     RUN_TEST(test_activate_recalls_selected_preset_before_scene_select);
     RUN_TEST(test_momentary_override_uses_button_down_and_release_and_suppresses_short_and_long_press);
     RUN_TEST(test_activate_recalls_selected_preset_zero);

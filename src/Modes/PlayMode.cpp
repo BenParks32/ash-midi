@@ -34,8 +34,8 @@ const int32_t PlaySnapshotLabelLeftX = 40;
 const byte FirstSnapshotButtonIndex = 0;
 const byte LastSnapshotButtonIndex = 2;
 const byte PatchButtonIndex = 4;
-const byte SongsButtonIndex = 5;
-const uint16_t SongsButtonColour = 0x07FF;
+const byte SetButtonIndex = 5;
+const uint16_t SetButtonColour = 0x07FF;
 const byte GigViewButtonIndex = 6;
 const byte TapTempoCc = 44;
 const byte TapTempoValue = 100;
@@ -52,11 +52,12 @@ bool isHomePlaylistTransition(ModeTransitionValue transitionValue)
 
 PlayMode::PlayMode(TouchButtonManager& touchButtonManager, RingManager& ringManager, IScreenUi& screenUi,
                    IMidiManager& midiManager, IMidiProvider& midiProvider, IButtonOverrideStore& buttonOverrideStore,
-                   IModeTransistionDelegate& transitionDelegate)
+                   ISetListStore& setListStore, IModeTransistionDelegate& transitionDelegate)
     : FunctionModeBase(touchButtonManager, ringManager, screenUi, midiManager, transitionDelegate),
-      _midiProvider(midiProvider), _buttonOverrideStore(buttonOverrideStore), _selectedPreset(0),
+      _midiProvider(midiProvider), _buttonOverrideStore(buttonOverrideStore), _setListStore(setListStore),
+      _selectedPreset(0),
       _selectedPlaylist(midiProvider.defaultPlaylistIndex()), _selectedSongIndex(0), _hasSelectedPreset(false),
-      _hasSelectedSong(false), _selectedButton(0),
+      _hasSelectedSong(false), _hasSelectedSetSong(false), _selectedSetSongUnavailable(false), _selectedButton(0),
       _tapTempoEngine(), _nextTapTempoFlashToggleMs(0), _tapTempoFlashUntilMs(0), _isTapTempoLit(true),
       _nextTunerFlashToggleMs(0), _isTunerEnabled(false), _isGigViewEnabled(false), _isTunerFlashLit(true),
       _toggleStates{false, false, false, false, false, false, false, false},
@@ -72,6 +73,8 @@ void PlayMode::setSelectedPreset(byte selectedPreset)
     _hasSelectedPreset = true;
     _selectedSongIndex = 0;
     _hasSelectedSong = false;
+    _hasSelectedSetSong = false;
+    _selectedSetSongUnavailable = false;
     _selectedSongDisplayName[0] = '\0';
 }
 
@@ -83,6 +86,8 @@ void PlayMode::setTransitionValue(ModeTransitionValue transitionValue)
         _hasSelectedPreset = false;
         _selectedSongIndex = 0;
         _hasSelectedSong = false;
+        _hasSelectedSetSong = false;
+        _selectedSetSongUnavailable = false;
         _selectedSongDisplayName[0] = '\0';
         return;
     }
@@ -90,8 +95,17 @@ void PlayMode::setTransitionValue(ModeTransitionValue transitionValue)
     if (isPlayModeTransition(transitionValue))
     {
         _selectedPlaylist = playModeTransitionPlaylist(transitionValue);
+        _selectedPreset = playModeTransitionPatch(transitionValue);
         _hasSelectedPreset = playModeTransitionShouldRecall(transitionValue);
         _selectedSongDisplayName[0] = '\0';
+        _selectedSetSongUnavailable = false;
+        _hasSelectedSetSong = isPlayModeSetSongTransition(transitionValue);
+        if (_hasSelectedSetSong)
+        {
+            _selectedSongIndex = 0;
+            _hasSelectedSong = false;
+            return;
+        }
         if (isPlayModeSongTransition(transitionValue))
         {
             _selectedSongIndex = playModeTransitionSongIndex(transitionValue);
@@ -99,7 +113,6 @@ void PlayMode::setTransitionValue(ModeTransitionValue transitionValue)
             return;
         }
 
-        _selectedPreset = playModeTransitionPatch(transitionValue);
         _selectedSongIndex = 0;
         _hasSelectedSong = false;
         return;
@@ -111,6 +124,8 @@ void PlayMode::setTransitionValue(ModeTransitionValue transitionValue)
         _hasSelectedPreset = false;
         _selectedSongIndex = 0;
         _hasSelectedSong = false;
+        _hasSelectedSetSong = false;
+        _selectedSetSongUnavailable = false;
         _selectedSongDisplayName[0] = '\0';
         return;
     }
@@ -134,7 +149,7 @@ void PlayMode::setupFunctions()
 
     _functions[3] = Function();
     configurePatchButton();
-    configureSongsButton();
+    configureSetButton();
     _functions[GigViewButtonIndex] = Function();
     _functions[TunerButtonIndex] =
         Function("Tuner", TunerButtonColour, ActionType::SetTuner, 1, ActionType::SetGigView, 1);
@@ -147,10 +162,36 @@ void PlayMode::configurePatchButton()
                              ActionType::ChangeMode, static_cast<byte>(Modes::Patch));
 }
 
-void PlayMode::configureSongsButton()
+void PlayMode::configureSetButton()
 {
-    _functions[SongsButtonIndex] =
-        Function("Songs", SongsButtonColour, ActionType::ChangeMode, static_cast<byte>(Modes::Songs), ActionType::None, 0);
+    _functions[SetButtonIndex] =
+        Function("Set", SetButtonColour, ActionType::ChangeMode, static_cast<byte>(Modes::Songs), ActionType::None, 0);
+}
+
+bool PlayMode::resolveSelectedSetSong()
+{
+    _selectedSongDisplayName[0] = '\0';
+    _selectedSetSongUnavailable = false;
+    if (!_hasSelectedSetSong)
+    {
+        return false;
+    }
+
+    SetListSongEntry setSong = {};
+    if (!_setListStore.selectedSong(_selectedPlaylist, setSong))
+    {
+        _hasSelectedSetSong = false;
+        return false;
+    }
+
+    std::snprintf(_selectedSongDisplayName, sizeof(_selectedSongDisplayName), "%s", setSong.name);
+    _selectedSetSongUnavailable = !setSong.available;
+    if (setSong.available)
+    {
+        _selectedPreset = setSong.patch;
+        _hasSelectedPreset = true;
+    }
+    return true;
 }
 
 bool PlayMode::resolveSelectedSong()
@@ -178,6 +219,11 @@ bool PlayMode::resolveSelectedSong()
 
 ModeTransitionValue PlayMode::currentPlayTransitionValue(bool shouldRecall) const
 {
+    if (_hasSelectedSetSong)
+    {
+        return makePlayModeSetSongTransition(_selectedPlaylist, _selectedPreset, shouldRecall);
+    }
+
     return _hasSelectedSong ? makePlayModeSongTransition(_selectedPlaylist, _selectedSongIndex, shouldRecall)
                             : makePlayModeTransition(_selectedPlaylist, _selectedPreset, shouldRecall);
 }
@@ -188,12 +234,16 @@ void PlayMode::activate()
     setupFunctions();
     _patchDisplayConfig.name[0] = '\0';
     _selectedSongDisplayName[0] = '\0';
+    _selectedSetSongUnavailable = false;
     _buttonOverrideStore.refresh();
-    resolveSelectedSong();
+    if (!resolveSelectedSetSong())
+    {
+        resolveSelectedSong();
+    }
     _buttonOverrideStore.applyOverrides(_selectedPlaylist, _selectedPreset, _functions, TouchButtonManager::BUTTON_COUNT,
                                         &_patchDisplayConfig);
     configurePatchButton();
-    configureSongsButton();
+    configureSetButton();
     _isTapTempoLit = true;
     const uint32_t now = millis();
     if (_tapTempoEngine.hasFlashInterval() && _tapTempoFlashUntilMs != 0 &&
@@ -246,7 +296,7 @@ void PlayMode::deactivate()
 void PlayMode::renderPlayCenterUi()
 {
     renderPatchBadge();
-    renderSongNameLabel(TFT_WHITE);
+    renderSongNameLabel(_selectedSetSongUnavailable ? TFT_RED : TFT_WHITE);
     renderPatchNameLabel(TFT_WHITE);
     renderSnapshotLabel(_selectedButton, TFT_WHITE);
 }

@@ -1,0 +1,115 @@
+{
+    "name": "Fox & Hounds",
+    "parts": [
+        {
+            "part": 1,
+            "name": "First half"
+        },
+        {
+            "part": 2,
+            "name": "Second half"
+        }
+    ],
+    "songs": [
+        {
+            "number": 1,
+            "part": 1,
+            "songId": "sex-on-fire"
+        },
+        {
+            "number": 2,
+            "part": 1,
+            "songId": "champions"
+        },
+        {
+            "number": 3,
+            "part": 1,
+            "songId": "seven-nation-army"
+        },
+        {
+            "number": 4,
+            "part": 1,
+            "songId": "take-it-easy"
+        },
+        {
+            "number": 5,
+            "part": 1,
+            "songId": "vertigo"
+        },
+        {
+            "number": 6,
+            "part": 1,
+            "songId": "shes-electric"
+        },
+        {
+            "number": 7,
+            "part": 1,
+            "songId": "i-predict-a-riot"
+        },
+        {
+            "number": 8,
+            "part": 1,
+            "songId": "zombie"
+        },
+        {
+            "number": 9,
+            "part": 1,
+            "songId": "white-wedding"
+        },
+        {
+            "number": 10,
+            "part": 1,
+            "songId": "sweet-child"
+        },
+        {
+            "number": 1,
+            "part": 2,
+            "songId": "boulevard"
+        },
+        {
+            "number": 2,
+            "part": 2,
+            "songId": "message-in-a-bottle"
+        },
+        {
+            "number": 3,
+            "part": 2,
+            "songId": "dakota"
+        },
+        {
+            "number": 4,
+            "part": 2,
+            "songId": "times-like-these"
+        },
+        {
+            "number": 5,
+            "part": 2,
+            "songId": "supermassive-black-hole"
+        },
+        {
+            "number": 6,
+            "part": 2,
+            "songId": "go-your-own-way"
+        },
+        {
+            "number": 7,
+            "part": 2,
+            "songId": "hysteria"
+        },
+        {
+            "number": 8,
+            "part": 2,
+            "songId": "basket-case"
+        },
+        {
+            "number": 9,
+            "part": 2,
+            "songId": "rocks"
+        },
+        {
+            "number": 10,
+            "part": 2,
+            "songId": "oh-my-god"
+        }
+    ]
+}

@@ -87,6 +87,7 @@
         },
         "1": {
           "name": "With",
+          "longName": "With or without you",
           "buttons": {
             "3": {
               "label": "Freeze",

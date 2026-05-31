@@ -10,6 +10,21 @@ The firmware is structured to keep hardware-specific code separate from business
 
 The target device being controlled by the device is a Quad Cortex Mini guitar processor, but the firmware is designed to be adaptable to other MIDI-capable devices with similar control requirements. The main focus of the firmware is to provide a responsive and customizable user interface for controlling MIDI parameters in real-time during musical performances.
 
+## Project goals
+
+- Provide a responsive and intuitive MIDI controller interface for live performance first, with full band rehearsal and home practice supported as secondary scenarios.
+- Prioritize changes that reduce on-stage friction, improve reliability, and keep interaction fast and easy to understand during performance.
+- Allow users to customize button mappings, LED patterns, and display content through an SD card without needing to modify the firmware.
+- Maintain a clean separation between hardware-specific code and business logic to facilitate testing and future adaptability to other hardware platforms or MIDI devices.
+
+## Core features
+
+- 8x8 grid of buttons with RGB LED rings for visual feedback.
+- TFT touch display for mode navigation, patch browsing, and settings adjustment.
+- SD card support for loading custom patches and songs.
+- Rotary encoder for navigating menus and adjusting parameters.
+- Multiple modes (Home, Play, Patches, Patch, Songs, Menu) to provide different functionalities and configurations for the MIDI controller.
+
 ## Notional concepts
 
 - Patch: A collection of settings that define the behavior of the MIDI controller, including button mappings, LED patterns, and display content. Patches can be switched in real-time to change the controller's behavior.
