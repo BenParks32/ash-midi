@@ -1,17 +1,18 @@
 #include "ButtonOverrideStore.h"
 
-#include <ArduinoJson.h>
 #include <cstdlib>
 #include <cstring>
 
 namespace
 {
-constexpr uint8_t MaxButtonIndex = 7;
-constexpr uint8_t MaxPatchIndex = 127;
-constexpr size_t JsonCapacityMultiplier = 2;
-constexpr size_t JsonCapacityPadding = 512;
-constexpr size_t ButtonOverrideFilterCapacity = 1024;
-constexpr size_t ButtonOverridePatchJsonCapacity = 3072;
+const char* binaryConfigPathCandidates[] = {"/buttons.mcfg", "buttons.mcfg", "/BUTTONS.MCFG", "BUTTONS.MCFG",
+                                            "/BUTTONS~1.MCF", "BUTTONS~1.MCF", "/BUTTONS.MCF", "BUTTONS.MCF"};
+const char* project7SongPathCandidates[] = {"/p7songs.msg", "p7songs.msg", "/P7SONGS.MSG", "P7SONGS.MSG",
+                                             "/P7SONGS~1.MSG", "P7SONGS~1.MSG"};
+const char* oprSongPathCandidates[] = {"/oprsongs.msg", "oprsongs.msg", "/OPRSONGS.MSG", "OPRSONGS.MSG",
+                                       "/OPRSON~1.MSG", "OPRSON~1.MSG"};
+const char* codeRedSongPathCandidates[] = {"/crsongs.msg", "crsongs.msg", "/CRSONGS.MSG", "CRSONGS.MSG",
+                                           "/CRSONGS~1.MSG", "CRSONGS~1.MSG"};
 
 const char* playlistName(byte playlistIndex)
 {
@@ -28,7 +29,66 @@ const char* playlistName(byte playlistIndex)
     }
 }
 
-const char* configPathCandidates[] = {"/BUTTONS.JSN", "BUTTONS.JSN", "/buttons.json", "buttons.json"};
+const MCFG_PlayMode* findPlayModeByName(const MidiConfigRuntime& config, const char* modeKey)
+{
+    if (modeKey == nullptr)
+    {
+        return nullptr;
+    }
+
+    for (uint16_t playModeIndex = 0; playModeIndex < config.header->playModeCount; ++playModeIndex)
+    {
+        const MCFG_PlayMode* playMode = mcfg_get_play_mode(config, playModeIndex);
+        if (playMode == nullptr)
+        {
+            continue;
+        }
+
+        if (std::strcmp(mcfg_get_string(config, playMode->nameIndex), modeKey) == 0)
+        {
+            return playMode;
+        }
+    }
+
+    return nullptr;
+}
+
+const MCFG_Patch* findPatchByNumber(const MidiConfigRuntime& config, const MCFG_PlayMode* playMode, byte patchNumber)
+{
+    if (playMode == nullptr)
+    {
+        return nullptr;
+    }
+
+    for (uint16_t patchIndex = 0; patchIndex < playMode->patchCount; ++patchIndex)
+    {
+        const MCFG_Patch* patch = mcfg_get_patch(config, playMode, patchIndex);
+        if (patch != nullptr && patch->patchNumber == patchNumber)
+        {
+            return patch;
+        }
+    }
+
+    return nullptr;
+}
+
+bool behaviourForMcfgEventType(uint8_t eventType, FunctionBehaviour& behaviour)
+{
+    switch (eventType)
+    {
+    case 0:
+        behaviour = FunctionBehaviour::ShortPress;
+        return true;
+    case 1:
+        behaviour = FunctionBehaviour::ButtonDown;
+        return true;
+    case 2:
+        behaviour = FunctionBehaviour::ButtonRelease;
+        return true;
+    default:
+        return false;
+    }
+}
 
 void copyConfigString(const char* source, char* destination, size_t destinationCapacity)
 {
@@ -47,48 +107,28 @@ void copyConfigString(const char* source, char* destination, size_t destinationC
     destination[destinationCapacity - 1U] = '\0';
 }
 
-JsonArrayConst songsArrayFromDocument(const DynamicJsonDocument& document)
+const char* const* songPathCandidatesForPlaylist(byte playlistIndex, size_t& candidateCount)
 {
-    JsonArrayConst songs = document.as<JsonArrayConst>();
-    if (!songs.isNull())
+    switch (playlistIndex)
     {
-        return songs;
-    }
-
-    return document["songs"].as<JsonArrayConst>();
-}
-
-void populateSongConfig(const JsonObjectConst& songObject, SongConfig& outSong)
-{
-    outSong.patchNumber = songObject["patch"].as<byte>();
-    copyConfigString(songObject["name"].as<const char*>(), outSong.name, sizeof(outSong.name));
-    copyConfigString(songObject["id"].as<const char*>(), outSong.id, sizeof(outSong.id));
-
-    const char* longName = songObject["longName"].as<const char*>();
-    const char* displayName = (longName != nullptr && longName[0] != '\0') ? longName : outSong.name;
-    copyConfigString(displayName, outSong.displayName, sizeof(outSong.displayName));
-}
-
-void buildPatchOverrideFilter(JsonDocument& filter, const char* modeKey, const char* patchKey)
-{
-    JsonObject playModesFilter = filter.createNestedObject("playModes");
-    JsonObject modeFilter = playModesFilter.createNestedObject(modeKey);
-    JsonObject patchesFilter = modeFilter.createNestedObject("patches");
-    JsonObject patchFilter = patchesFilter.createNestedObject(patchKey);
-    patchFilter["name"] = true;
-    patchFilter["longName"] = true;
-
-    JsonObject buttonsFilter = patchFilter.createNestedObject("buttons");
-    for (uint8_t buttonIndex = 0; buttonIndex <= MaxButtonIndex; ++buttonIndex)
-    {
-        char buttonKey[2] = {static_cast<char>('0' + buttonIndex), '\0'};
-        buttonsFilter[buttonKey] = true;
+    case Project7PlaylistIndex:
+        candidateCount = sizeof(project7SongPathCandidates) / sizeof(project7SongPathCandidates[0]);
+        return project7SongPathCandidates;
+    case OprPlaylistIndex:
+        candidateCount = sizeof(oprSongPathCandidates) / sizeof(oprSongPathCandidates[0]);
+        return oprSongPathCandidates;
+    case CodeRedPlaylistIndex:
+        candidateCount = sizeof(codeRedSongPathCandidates) / sizeof(codeRedSongPathCandidates[0]);
+        return codeRedSongPathCandidates;
+    default:
+        candidateCount = 0U;
+        return nullptr;
     }
 }
 }
 
 ButtonOverrideStore::ButtonOverrideStore(ITextFileStore* fileStore)
-    : _fileStore(fileStore), _configBuffer(nullptr)
+    : _fileStore(fileStore)
 {
 }
 
@@ -98,42 +138,29 @@ bool ButtonOverrideStore::refresh()
 {
     clearOverrides();
 
-    if (_fileStore == nullptr)
+    for (size_t pathIndex = 0; pathIndex < (sizeof(binaryConfigPathCandidates) / sizeof(binaryConfigPathCandidates[0]));
+         ++pathIndex)
     {
-        Serial.println("Button overrides: no file store configured.");
-        return false;
-    }
-
-    char* buffer = new char[kMaxConfigBytes];
-    if (buffer == nullptr)
-    {
-        Serial.println("Button overrides: failed to allocate config buffer.");
-        return false;
-    }
-
-    const char* loadedPath = nullptr;
-    bool didReadConfig = false;
-    for (size_t pathIndex = 0; pathIndex < (sizeof(configPathCandidates) / sizeof(configPathCandidates[0])); ++pathIndex)
-    {
-        if (_fileStore->readTextFile(configPathCandidates[pathIndex], buffer, kMaxConfigBytes))
+        File configFile = SD.open(binaryConfigPathCandidates[pathIndex], FILE_READ);
+        if (!configFile)
         {
-            loadedPath = configPathCandidates[pathIndex];
-            didReadConfig = true;
-            break;
+            continue;
         }
+
+        MidiConfigRuntime loadedConfig = {};
+        if (mcfg_load(configFile, loadedConfig))
+        {
+            _binaryConfig = loadedConfig;
+            _hasBinaryConfig = true;
+            configFile.close();
+            Serial.printf("Button overrides: loaded config from '%s'.\n", binaryConfigPathCandidates[pathIndex]);
+            return true;
+        }
+        configFile.close();
+        mcfg_free(loadedConfig);
     }
 
-    if (!didReadConfig)
-    {
-        delete[] buffer;
-        Serial.printf("Button overrides: config file unavailable. Tried '%s', '%s', '%s', '%s'.\n",
-                      configPathCandidates[0], configPathCandidates[1], configPathCandidates[2],
-                      configPathCandidates[3]);
-        return false;
-    }
-
-    _configBuffer = buffer;
-    Serial.printf("Button overrides: loaded config from '%s'.\n", loadedPath);
+    Serial.println("Button overrides: binary config unavailable.");
     return true;
 }
 
@@ -145,123 +172,14 @@ void ButtonOverrideStore::applyOverrides(byte playlistIndex, byte patchNumber, F
         patchDisplay->name[0] = '\0';
     }
 
-    if (_configBuffer == nullptr)
+    if (!_hasBinaryConfig)
     {
         Serial.printf("Button overrides: no override matched for %s patch %u.\n", playlistName(playlistIndex),
                       static_cast<unsigned int>(patchNumber));
         return;
     }
 
-    const char* modeKey = modeKeyForPlaylistIndex(playlistIndex);
-    if (modeKey == nullptr)
-    {
-        Serial.printf("Button overrides: no mode key for playlist %u.\n", static_cast<unsigned int>(playlistIndex));
-        return;
-    }
-
-    char patchKey[4] = {'\0'};
-    std::snprintf(patchKey, sizeof(patchKey), "%u", static_cast<unsigned int>(patchNumber));
-
-    DynamicJsonDocument document(ButtonOverridePatchJsonCapacity);
-    if (document.capacity() == 0U)
-    {
-        Serial.println("Button overrides: failed to allocate override patch JSON document.");
-        return;
-    }
-
-    StaticJsonDocument<ButtonOverrideFilterCapacity> filter;
-    buildPatchOverrideFilter(filter, modeKey, patchKey);
-
-    const char* jsonText = _configBuffer;
-    const DeserializationError error =
-        deserializeJson(document, jsonText, DeserializationOption::Filter(filter));
-    if (error)
-    {
-        Serial.printf("Button overrides: JSON reparse failed: %s\n", error.c_str());
-        return;
-    }
-
-    const JsonObjectConst playModes = document["playModes"].as<JsonObjectConst>();
-    const JsonObjectConst modeObject = playModes[modeKey].as<JsonObjectConst>();
-    const JsonObjectConst patches = modeObject["patches"].as<JsonObjectConst>();
-    const JsonObjectConst patchObject = patches[patchKey].as<JsonObjectConst>();
-    const JsonObjectConst buttons = patchObject["buttons"].as<JsonObjectConst>();
-    if (playModes.isNull() || modeObject.isNull() || patches.isNull() || patchObject.isNull())
-    {
-        Serial.printf("Button overrides: no override matched for %s patch %u.\n", playlistName(playlistIndex),
-                      static_cast<unsigned int>(patchNumber));
-        return;
-    }
-
-    if (patchDisplay != nullptr)
-    {
-        const char* patchName = patchObject["name"].as<const char*>();
-        const char* patchLongName = patchObject["longName"].as<const char*>();
-        const char* patchDisplayName =
-            (patchLongName != nullptr && patchLongName[0] != '\0') ? patchLongName : patchName;
-        if (patchDisplayName != nullptr)
-        {
-            std::strncpy(patchDisplay->name, patchDisplayName, PatchDisplayConfig::NameCapacity - 1U);
-            patchDisplay->name[PatchDisplayConfig::NameCapacity - 1U] = '\0';
-        }
-    }
-
-    const bool hasPatchDisplayName = (patchDisplay != nullptr && patchDisplay->name[0] != '\0');
-    if (functions == nullptr || functionCount == 0 || buttons.isNull())
-    {
-        if (!hasPatchDisplayName)
-        {
-            Serial.printf("Button overrides: no override matched for %s patch %u.\n", playlistName(playlistIndex),
-                          static_cast<unsigned int>(patchNumber));
-        }
-        return;
-    }
-
-    uint8_t appliedCount = 0;
-    for (JsonPairConst buttonPair : buttons)
-    {
-        byte buttonIndex = 0;
-        if (!parseButtonIndex(buttonPair.key().c_str(), buttonIndex))
-        {
-            Serial.printf("Button overrides: invalid button index '%s'.\n", buttonPair.key().c_str());
-            continue;
-        }
-
-        if (buttonIndex >= functionCount)
-        {
-            continue;
-        }
-
-        ParsedButtonOverride parsedButton = {};
-        clearButtonOverride(parsedButton);
-        const JsonObjectConst buttonObject = buttonPair.value().as<JsonObjectConst>();
-        if (buttonObject.isNull())
-        {
-            Serial.printf("Button overrides: button %u override is not an object.\n",
-                          static_cast<unsigned int>(buttonIndex + 1U));
-            continue;
-        }
-
-        if (!parseButtonOverrideObject(buttonObject, parsedButton))
-        {
-            Serial.printf("Button overrides: invalid button override for %s patch %u button %u.\n",
-                          playlistName(playlistIndex), static_cast<unsigned int>(patchNumber),
-                          static_cast<unsigned int>(buttonIndex + 1U));
-            continue;
-        }
-
-        applyButtonOverride(parsedButton, functions[buttonIndex]);
-        ++appliedCount;
-        Serial.printf("Button overrides: applied override for %s patch %u button %u.\n",
-                      playlistName(playlistIndex), static_cast<unsigned int>(patchNumber),
-                      static_cast<unsigned int>(buttonIndex + 1U));
-    }
-
-    if (appliedCount == 0 && !hasPatchDisplayName)
-    {
-        Serial.printf("Button overrides: no override matched for %s patch %u.\n", playlistName(playlistIndex),
-                      static_cast<unsigned int>(patchNumber));
-    }
+    applyBinaryOverrides(playlistIndex, patchNumber, functions, functionCount, patchDisplay);
 }
 
 bool ButtonOverrideStore::playlistIndexForModeKey(const char* key, byte& outPlaylistIndex)
@@ -312,138 +230,44 @@ const char* ButtonOverrideStore::songsConfigPathForPlaylist(byte playlistIndex)
     switch (playlistIndex)
     {
     case Project7PlaylistIndex:
-        return "/p7songs.jsn";
+        return "/p7songs.msg";
     case OprPlaylistIndex:
-        return "/oprsongs.jsn";
+        return "/oprsongs.msg";
     case CodeRedPlaylistIndex:
-        return "/crsongs.jsn";
+        return "/crsongs.msg";
     default:
         return nullptr;
     }
 }
 
-bool ButtonOverrideStore::loadExternalSongsArray(byte playlistIndex, char*& songsBuffer, DynamicJsonDocument& document,
-                                                 JsonArrayConst& outSongs) const
+bool ButtonOverrideStore::loadSongCatalogueForPlaylist(byte playlistIndex, SongCatalogue& outCatalogue,
+                                                       const char*& loadedPath) const
 {
-    songsBuffer = nullptr;
-    outSongs = JsonArrayConst();
+    outCatalogue = {};
+    loadedPath = nullptr;
 
-    const char* songsPath = songsConfigPathForPlaylist(playlistIndex);
-    if (_fileStore == nullptr || songsPath == nullptr)
+    size_t candidateCount = 0U;
+    const char* const* pathCandidates = songPathCandidatesForPlaylist(playlistIndex, candidateCount);
+    for (size_t pathIndex = 0; pathIndex < candidateCount; ++pathIndex)
     {
-        return false;
+        File songsFile = SD.open(pathCandidates[pathIndex], FILE_READ);
+        if (!songsFile)
+        {
+            continue;
+        }
+
+        if (loadSongCatalogue(songsFile, outCatalogue))
+        {
+            loadedPath = pathCandidates[pathIndex];
+            songsFile.close();
+            return true;
+        }
+
+        songsFile.close();
+        freeSongCatalogue(outCatalogue);
     }
 
-    songsBuffer = new char[kMaxSongsConfigBytes];
-    if (songsBuffer == nullptr)
-    {
-        Serial.printf("Button overrides: failed to allocate songs buffer for %s.\n", playlistName(playlistIndex));
-        return false;
-    }
-
-    if (!_fileStore->readTextFile(songsPath, songsBuffer, kMaxSongsConfigBytes))
-    {
-        delete[] songsBuffer;
-        songsBuffer = nullptr;
-        return false;
-    }
-
-    if (document.capacity() == 0U)
-    {
-        delete[] songsBuffer;
-        songsBuffer = nullptr;
-        Serial.printf("Button overrides: failed to allocate songs JSON document for '%s'.\n", songsPath);
-        return false;
-    }
-
-    const DeserializationError error = deserializeJson(document, songsBuffer);
-    if (error)
-    {
-        delete[] songsBuffer;
-        songsBuffer = nullptr;
-        Serial.printf("Button overrides: songs JSON parse failed for '%s': %s\n", songsPath, error.c_str());
-        return false;
-    }
-
-    outSongs = songsArrayFromDocument(document);
-    if (outSongs.isNull())
-    {
-        delete[] songsBuffer;
-        songsBuffer = nullptr;
-        Serial.printf("Button overrides: songs file '%s' does not contain a songs array.\n", songsPath);
-        return false;
-    }
-
-    return true;
-}
-
-bool ButtonOverrideStore::loadEmbeddedSongsArray(byte playlistIndex, DynamicJsonDocument& document, JsonArrayConst& outSongs) const
-{
-    outSongs = JsonArrayConst();
-
-    if (_configBuffer == nullptr)
-    {
-        return false;
-    }
-
-    const char* jsonText = _configBuffer;
-    const DeserializationError error = deserializeJson(document, jsonText);
-    if (error)
-    {
-        Serial.printf("Button overrides: JSON reparse failed while loading songs: %s\n", error.c_str());
-        return false;
-    }
-
-    const char* modeKey = modeKeyForPlaylistIndex(playlistIndex);
-    if (modeKey == nullptr)
-    {
-        return false;
-    }
-
-    outSongs = document["playModes"][modeKey]["songs"].as<JsonArrayConst>();
-    if (outSongs.isNull())
-    {
-        Serial.printf("Button overrides: no songs array for playlist %u.\n", static_cast<unsigned int>(playlistIndex));
-        return false;
-    }
-
-    return true;
-}
-
-bool ButtonOverrideStore::parsePatchNumber(const char* key, byte& outPatchNumber)
-{
-    if (key == nullptr || *key == '\0')
-    {
-        return false;
-    }
-
-    char* end = nullptr;
-    const unsigned long value = std::strtoul(key, &end, 10);
-    if (end == nullptr || *end != '\0' || value > MaxPatchIndex)
-    {
-        return false;
-    }
-
-    outPatchNumber = static_cast<byte>(value);
-    return true;
-}
-
-bool ButtonOverrideStore::parseButtonIndex(const char* key, byte& outButtonIndex)
-{
-    if (key == nullptr || *key == '\0')
-    {
-        return false;
-    }
-
-    char* end = nullptr;
-    const unsigned long value = std::strtoul(key, &end, 10);
-    if (end == nullptr || *end != '\0' || value > MaxButtonIndex)
-    {
-        return false;
-    }
-
-    outButtonIndex = static_cast<byte>(value);
-    return true;
+    return false;
 }
 
 bool ButtonOverrideStore::parseColourValue(const char* rawValue, uint16_t& outColour)
@@ -526,201 +350,156 @@ bool ButtonOverrideStore::parseActionName(const char* name, ActionType& outActio
     return false;
 }
 
-bool ButtonOverrideStore::parseModeValue(const char* name, byte& outModeValue)
+size_t ButtonOverrideStore::listPatches(byte playlistIndex, PatchListEntry* entries, size_t capacity) const
 {
-    if (name == nullptr)
+    if (!_hasBinaryConfig)
     {
-        return false;
+        return 0;
     }
-
-    if (std::strcmp(name, "Home") == 0)
-    {
-        outModeValue = 0;
-        return true;
-    }
-    if (std::strcmp(name, "Play") == 0)
-    {
-        outModeValue = 1;
-        return true;
-    }
-    if (std::strcmp(name, "Patch") == 0)
-    {
-        outModeValue = 2;
-        return true;
-    }
-    if (std::strcmp(name, "Menu") == 0)
-    {
-        outModeValue = 3;
-        return true;
-    }
-    if (std::strcmp(name, "ButtonDiagnostic") == 0)
-    {
-        outModeValue = 4;
-        return true;
-    }
-    if (std::strcmp(name, "Patches") == 0)
-    {
-        outModeValue = 5;
-        return true;
-    }
-    if (std::strcmp(name, "Songs") == 0 || std::strcmp(name, "Sets") == 0)
-    {
-        outModeValue = 6;
-        return true;
-    }
-    if (std::strcmp(name, "SetSelection") == 0)
-    {
-        outModeValue = 7;
-        return true;
-    }
-
-    return false;
+    return listBinaryPatches(playlistIndex, entries, capacity);
 }
 
-bool ButtonOverrideStore::parseActionObject(const JsonVariantConst& actionValue, FunctionAction& outAction)
+bool ButtonOverrideStore::applyBinaryOverrides(byte playlistIndex, byte patchNumber, Function* functions, size_t functionCount,
+                                               PatchDisplayConfig* patchDisplay) const
 {
-    if (actionValue.isNull())
+    if (patchDisplay != nullptr)
     {
-        return false;
+        patchDisplay->name[0] = '\0';
     }
 
-    ActionType actionType = ActionType::None;
-    byte value = 0;
-    uint8_t secondaryValue = 0;
-
-    if (actionValue.is<const char*>())
+    const char* modeKey = modeKeyForPlaylistIndex(playlistIndex);
+    const MCFG_PlayMode* playMode = findPlayModeByName(_binaryConfig, modeKey);
+    const MCFG_Patch* patch = findPatchByNumber(_binaryConfig, playMode, patchNumber);
+    if (playMode == nullptr || patch == nullptr)
     {
-        const char* actionName = actionValue.as<const char*>();
-        if (!parseActionName(actionName, actionType))
-        {
-            return false;
-        }
-    }
-    else
-    {
-        const JsonObjectConst actionObject = actionValue.as<JsonObjectConst>();
-        if (actionObject.isNull())
-        {
-            return false;
-        }
-
-        const char* actionName = actionObject["action"].as<const char*>();
-        if (!parseActionName(actionName, actionType))
-        {
-            return false;
-        }
-
-        if (actionType == ActionType::ChangeMode && actionObject["value"].is<const char*>())
-        {
-            if (!parseModeValue(actionObject["value"].as<const char*>(), value))
-            {
-                return false;
-            }
-        }
-        else if (actionType == ActionType::SelectHomePlaylist && actionObject["value"].is<const char*>())
-        {
-            if (!playlistIndexForModeKey(actionObject["value"].as<const char*>(), value))
-            {
-                return false;
-            }
-        }
-        else if (!actionObject["value"].isNull())
-        {
-            const unsigned int parsedValue = actionObject["value"].as<unsigned int>();
-            if (parsedValue > 0xFFU)
-            {
-                return false;
-            }
-            value = static_cast<byte>(parsedValue);
-        }
-
-        if (!actionObject["secondaryValue"].isNull())
-        {
-            const unsigned int parsedSecondaryValue = actionObject["secondaryValue"].as<unsigned int>();
-            if (parsedSecondaryValue > 0xFFU)
-            {
-                return false;
-            }
-            secondaryValue = static_cast<uint8_t>(parsedSecondaryValue);
-        }
-        else if (actionType == ActionType::SendMidiControlChange)
-        {
-            secondaryValue = 127;
-        }
+        Serial.printf("Button overrides: no override matched for %s patch %u.\n", playlistName(playlistIndex),
+                      static_cast<unsigned int>(patchNumber));
+        return true;
     }
 
-    outAction = FunctionAction(actionType, value, secondaryValue);
+    if (patchDisplay != nullptr)
+    {
+        const char* patchName = mcfg_get_string(_binaryConfig, patch->nameIndex);
+        const char* patchLongName = mcfg_get_string(_binaryConfig, patch->longNameIndex);
+        const char* patchDisplayName = (patchLongName != nullptr && patchLongName[0] != '\0') ? patchLongName : patchName;
+        copyConfigString(patchDisplayName, patchDisplay->name, sizeof(patchDisplay->name));
+    }
+
+    const bool hasPatchDisplayName = (patchDisplay != nullptr && patchDisplay->name[0] != '\0');
+    if (functions == nullptr || functionCount == 0)
+    {
+        if (!hasPatchDisplayName)
+        {
+            Serial.printf("Button overrides: no override matched for %s patch %u.\n", playlistName(playlistIndex),
+                          static_cast<unsigned int>(patchNumber));
+        }
+        return true;
+    }
+
+    uint8_t appliedCount = 0;
+    for (uint16_t buttonOffset = 0; buttonOffset < patch->buttonCount; ++buttonOffset)
+    {
+        const MCFG_Button* button = mcfg_get_button(_binaryConfig, patch, buttonOffset);
+        if (button == nullptr || button->buttonId >= functionCount)
+        {
+            continue;
+        }
+
+        ParsedButtonOverride parsedButton = {};
+        clearButtonOverride(parsedButton);
+
+        const char* label = mcfg_get_string(_binaryConfig, button->labelIndex);
+        if (label != nullptr && label[0] != '\0')
+        {
+            parsedButton.hasLabel = true;
+            copyConfigString(label, parsedButton.label, sizeof(parsedButton.label));
+        }
+
+        const char* colour = mcfg_get_string(_binaryConfig, button->colourIndex);
+        if (colour != nullptr && colour[0] != '\0')
+        {
+            uint16_t parsedColour = 0;
+            if (parseColourValue(colour, parsedColour))
+            {
+                parsedButton.hasColour = true;
+                parsedButton.colour = parsedColour;
+            }
+        }
+
+        parsedButton.hasToggle = true;
+        parsedButton.toggle = (button->toggle != 0);
+
+        for (uint16_t functionOffset = 0; functionOffset < button->functionCount; ++functionOffset)
+        {
+            const MCFG_Function* function = mcfg_get_function(_binaryConfig, button, functionOffset);
+            if (function == nullptr)
+            {
+                continue;
+            }
+
+            FunctionBehaviour behaviour = FunctionBehaviour::ShortPress;
+            if (!behaviourForMcfgEventType(function->eventType, behaviour))
+            {
+                continue;
+            }
+
+            ActionType actionType = ActionType::None;
+            const char* actionName = mcfg_get_string(_binaryConfig, function->actionNameIndex);
+            if (!parseActionName(actionName, actionType))
+            {
+                continue;
+            }
+
+            const uint8_t behaviourIndex = static_cast<uint8_t>(behaviour);
+            parsedButton.actions[behaviourIndex].isDefined = true;
+            parsedButton.actions[behaviourIndex].action =
+                FunctionAction(actionType, static_cast<byte>(function->value), static_cast<uint8_t>(function->secondaryValue));
+        }
+
+        applyButtonOverride(parsedButton, functions[button->buttonId]);
+        ++appliedCount;
+        Serial.printf("Button overrides: applied override for %s patch %u button %u.\n",
+                      playlistName(playlistIndex), static_cast<unsigned int>(patchNumber),
+                      static_cast<unsigned int>(button->buttonId + 1U));
+    }
+
+    if (appliedCount == 0 && !hasPatchDisplayName)
+    {
+        Serial.printf("Button overrides: no override matched for %s patch %u.\n", playlistName(playlistIndex),
+                      static_cast<unsigned int>(patchNumber));
+    }
+
     return true;
 }
 
-size_t ButtonOverrideStore::listPatches(byte playlistIndex, PatchListEntry* entries, size_t capacity) const
+size_t ButtonOverrideStore::listBinaryPatches(byte playlistIndex, PatchListEntry* entries, size_t capacity) const
 {
     if (entries == nullptr || capacity == 0)
     {
         return 0;
     }
 
-    if (_configBuffer == nullptr)
-    {
-        return 0;
-    }
-
-    DynamicJsonDocument document((kMaxConfigBytes * JsonCapacityMultiplier) + JsonCapacityPadding);
-    const char* jsonText = _configBuffer;
-    const DeserializationError error = deserializeJson(document, jsonText);
-    if (error)
-    {
-        Serial.printf("Button overrides: JSON reparse failed while listing patches: %s\n", error.c_str());
-        return 0;
-    }
-
     const char* modeKey = modeKeyForPlaylistIndex(playlistIndex);
-    if (modeKey == nullptr)
+    const MCFG_PlayMode* playMode = findPlayModeByName(_binaryConfig, modeKey);
+    if (playMode == nullptr)
     {
-        return 0;
-    }
-
-    const JsonObjectConst patches = document["playModes"][modeKey]["patches"].as<JsonObjectConst>();
-    if (patches.isNull())
-    {
-        Serial.printf("Button overrides: no patches object for playlist %u.\n", static_cast<unsigned int>(playlistIndex));
         return 0;
     }
 
     size_t parsedCount = 0;
-    for (JsonPairConst patchPair : patches)
+    for (uint16_t patchIndex = 0; patchIndex < playMode->patchCount && parsedCount < capacity; ++patchIndex)
     {
-        if (parsedCount >= capacity)
+        const MCFG_Patch* patch = mcfg_get_patch(_binaryConfig, playMode, patchIndex);
+        if (patch == nullptr)
         {
-            break;
-        }
-
-        byte patchNumber = 0;
-        if (!parsePatchNumber(patchPair.key().c_str(), patchNumber))
-        {
-            Serial.printf("Button overrides: skipping patch key '%s' because it is invalid.\n", patchPair.key().c_str());
-            continue;
-        }
-
-        const JsonObjectConst patchObject = patchPair.value().as<JsonObjectConst>();
-        if (patchObject.isNull())
-        {
-            Serial.printf("Button overrides: skipping patch %u because entry is not an object.\n",
-                          static_cast<unsigned int>(patchNumber));
             continue;
         }
 
         PatchListEntry& entry = entries[parsedCount++];
-        entry.patchNumber = patchNumber;
-        entry.name[0] = '\0';
-
-        const char* patchName = patchObject["name"].as<const char*>();
-        if (patchName != nullptr)
-        {
-            std::strncpy(entry.name, patchName, PatchDisplayConfig::NameCapacity - 1U);
-            entry.name[PatchDisplayConfig::NameCapacity - 1U] = '\0';
-        }
+        entry.patchNumber = patch->patchNumber;
+        copyConfigString(mcfg_get_string(_binaryConfig, patch->nameIndex), entry.name, sizeof(entry.name));
     }
+
     return parsedCount;
 }
 
@@ -731,58 +510,37 @@ size_t ButtonOverrideStore::listSongs(byte playlistIndex, SongListEntry* entries
         return 0;
     }
 
-    DynamicJsonDocument externalDocument(kExternalSongsJsonCapacity);
-    JsonArrayConst songs;
-    char* songsBuffer = nullptr;
-    const bool hasExternalSongs = loadExternalSongsArray(playlistIndex, songsBuffer, externalDocument, songs);
-    const size_t embeddedSongsCapacity = hasExternalSongs ? 0U : ((kMaxSongsConfigBytes * JsonCapacityMultiplier) + JsonCapacityPadding);
-    DynamicJsonDocument embeddedDocument(embeddedSongsCapacity);
-    if (!hasExternalSongs)
+    SongCatalogue songsCatalogue;
+    const char* loadedPath = nullptr;
+    if (!loadSongCatalogueForPlaylist(playlistIndex, songsCatalogue, loadedPath))
     {
-        if (!loadEmbeddedSongsArray(playlistIndex, embeddedDocument, songs))
-        {
-            return 0;
-        }
+        const char* expectedPath = songsConfigPathForPlaylist(playlistIndex);
+        Serial.printf("Button overrides: songs catalogue unavailable for %s (expected '%s').\n", playlistName(playlistIndex),
+                      expectedPath != nullptr ? expectedPath : "<none>");
+        return 0;
     }
 
     size_t parsedCount = 0;
-    size_t songIndex = 0;
-    for (JsonVariantConst songValue : songs)
+    for (size_t songIndex = 0; songIndex < songsCatalogue.header->songCount && parsedCount < capacity; ++songIndex)
     {
-        if (parsedCount >= capacity)
+        if (songIndex > 0xFFU)
         {
             break;
         }
 
-        const JsonObjectConst songObject = songValue.as<JsonObjectConst>();
-        if (songObject.isNull())
-        {
-            Serial.printf("Button overrides: skipping song %u because entry is not an object.\n",
-                          static_cast<unsigned int>(songIndex));
-            ++songIndex;
-            continue;
-        }
-
-        if (!songObject["patch"].is<uint8_t>())
-        {
-            Serial.printf("Button overrides: skipping song %u because patch is missing or invalid.\n",
-                          static_cast<unsigned int>(songIndex));
-            ++songIndex;
-            continue;
-        }
-
         SongListEntry& entry = entries[parsedCount++];
         entry.songIndex = static_cast<byte>(songIndex);
-        entry.patchNumber = songObject["patch"].as<byte>();
+        entry.patchNumber = songsCatalogue.songs[songIndex].patch;
         entry.name[0] = '\0';
         entry.id[0] = '\0';
-        copyConfigString(songObject["name"].as<const char*>(), entry.name, sizeof(entry.name));
-        copyConfigString(songObject["id"].as<const char*>(), entry.id, sizeof(entry.id));
-        ++songIndex;
+        copyConfigString(songString(songsCatalogue, songsCatalogue.songs[songIndex].nameIndex), entry.name, sizeof(entry.name));
+        copyConfigString(songString(songsCatalogue, songsCatalogue.songs[songIndex].idIndex), entry.id, sizeof(entry.id));
     }
 
-    delete[] songsBuffer;
+    freeSongCatalogue(songsCatalogue);
 
+    Serial.printf("Button overrides: loaded %u songs for %s from '%s'.\n", static_cast<unsigned int>(parsedCount),
+                  playlistName(playlistIndex), loadedPath != nullptr ? loadedPath : "<unknown>");
     return parsedCount;
 }
 
@@ -798,34 +556,30 @@ bool ButtonOverrideStore::songForIndex(byte playlistIndex, byte songIndex, SongC
     outSong->displayName[0] = '\0';
     outSong->id[0] = '\0';
 
-    DynamicJsonDocument externalDocument(kExternalSongsJsonCapacity);
-    JsonArrayConst songs;
-    char* songsBuffer = nullptr;
-    const bool hasExternalSongs = loadExternalSongsArray(playlistIndex, songsBuffer, externalDocument, songs);
-    const size_t embeddedSongsCapacity = hasExternalSongs ? 0U : ((kMaxSongsConfigBytes * JsonCapacityMultiplier) + JsonCapacityPadding);
-    DynamicJsonDocument embeddedDocument(embeddedSongsCapacity);
-    if (!hasExternalSongs)
+    SongCatalogue songsCatalogue;
+    const char* loadedPath = nullptr;
+    if (!loadSongCatalogueForPlaylist(playlistIndex, songsCatalogue, loadedPath))
     {
-        if (!loadEmbeddedSongsArray(playlistIndex, embeddedDocument, songs))
-        {
-            Serial.printf("Button overrides: no song matched for %s song %u.\n", playlistName(playlistIndex),
-                          static_cast<unsigned int>(songIndex));
-            return false;
-        }
+        Serial.printf("Button overrides: no song matched for %s song %u.\n", playlistName(playlistIndex),
+                      static_cast<unsigned int>(songIndex));
+        return false;
     }
+    (void)loadedPath;
 
     bool foundSong = false;
-    if (songIndex < songs.size())
+    if (songIndex < songsCatalogue.header->songCount)
     {
-        const JsonObjectConst songObject = songs[songIndex].as<JsonObjectConst>();
-        if (!songObject.isNull() && songObject["patch"].is<uint8_t>())
-        {
-            populateSongConfig(songObject, *outSong);
-            foundSong = true;
-        }
+        const MCFG_Song& song = songsCatalogue.songs[songIndex];
+        outSong->patchNumber = song.patch;
+        copyConfigString(songString(songsCatalogue, song.nameIndex), outSong->name, sizeof(outSong->name));
+        copyConfigString(songString(songsCatalogue, song.idIndex), outSong->id, sizeof(outSong->id));
+        const char* longName = songString(songsCatalogue, song.longNameIndex);
+        const char* displayName = (longName != nullptr && longName[0] != '\0') ? longName : outSong->name;
+        copyConfigString(displayName, outSong->displayName, sizeof(outSong->displayName));
+        foundSong = true;
     }
 
-    delete[] songsBuffer;
+    freeSongCatalogue(songsCatalogue);
 
     if (!foundSong)
     {
@@ -847,49 +601,41 @@ bool ButtonOverrideStore::songForId(byte playlistIndex, const char* songId, byte
         return false;
     }
 
-    DynamicJsonDocument externalDocument(kExternalSongsJsonCapacity);
-    JsonArrayConst songs;
-    char* songsBuffer = nullptr;
-    const bool hasExternalSongs = loadExternalSongsArray(playlistIndex, songsBuffer, externalDocument, songs);
-    const size_t embeddedSongsCapacity = hasExternalSongs ? 0U : ((kMaxSongsConfigBytes * JsonCapacityMultiplier) + JsonCapacityPadding);
-    DynamicJsonDocument embeddedDocument(embeddedSongsCapacity);
-    if (!hasExternalSongs)
+    SongCatalogue songsCatalogue;
+    const char* loadedPath = nullptr;
+    if (!loadSongCatalogueForPlaylist(playlistIndex, songsCatalogue, loadedPath))
     {
-        if (!loadEmbeddedSongsArray(playlistIndex, embeddedDocument, songs))
-        {
-            return false;
-        }
+        return false;
     }
+    (void)loadedPath;
 
     bool foundSong = false;
-    size_t candidateIndex = 0;
-    for (JsonVariantConst songValue : songs)
+    for (size_t candidateIndex = 0; candidateIndex < songsCatalogue.header->songCount; ++candidateIndex)
     {
-        const JsonObjectConst songObject = songValue.as<JsonObjectConst>();
-        if (songObject.isNull() || !songObject["patch"].is<uint8_t>())
-        {
-            ++candidateIndex;
-            continue;
-        }
+        const MCFG_Song& song = songsCatalogue.songs[candidateIndex];
+        const char* configuredSongId = songString(songsCatalogue, song.idIndex);
 
-        const char* configuredSongId = songObject["id"].as<const char*>();
         if (configuredSongId == nullptr || std::strcmp(configuredSongId, songId) != 0)
         {
-            ++candidateIndex;
             continue;
         }
 
         if (candidateIndex <= 0xFFU)
         {
             songIndex = static_cast<byte>(candidateIndex);
-            populateSongConfig(songObject, outSong);
+            outSong.patchNumber = song.patch;
+            copyConfigString(songString(songsCatalogue, song.nameIndex), outSong.name, sizeof(outSong.name));
+            copyConfigString(configuredSongId, outSong.id, sizeof(outSong.id));
+            const char* longName = songString(songsCatalogue, song.longNameIndex);
+            const char* displayName = (longName != nullptr && longName[0] != '\0') ? longName : outSong.name;
+            copyConfigString(displayName, outSong.displayName, sizeof(outSong.displayName));
             foundSong = true;
         }
 
         break;
     }
 
-    delete[] songsBuffer;
+    freeSongCatalogue(songsCatalogue);
     return foundSong;
 }
 
@@ -937,104 +683,8 @@ void ButtonOverrideStore::applyButtonOverride(const ParsedButtonOverride& button
     }
 }
 
-bool ButtonOverrideStore::parseButtonOverrideObject(const JsonObjectConst& buttonObject,
-                                                    ParsedButtonOverride& outButtonOverride)
-{
-    if (!buttonObject["label"].isNull())
-    {
-        const char* label = buttonObject["label"].as<const char*>();
-        if (label == nullptr)
-        {
-            return false;
-        }
-
-        outButtonOverride.hasLabel = true;
-        std::strncpy(outButtonOverride.label, label, Function::LabelCapacity - 1U);
-        outButtonOverride.label[Function::LabelCapacity - 1U] = '\0';
-    }
-
-    if (!buttonObject["colour"].isNull())
-    {
-        uint16_t colour = 0;
-        if (buttonObject["colour"].is<unsigned int>())
-        {
-            const unsigned int numericColour = buttonObject["colour"].as<unsigned int>();
-            if (numericColour > 0xFFFFU)
-            {
-                return false;
-            }
-
-            colour = static_cast<uint16_t>(numericColour);
-        }
-        else if (buttonObject["colour"].is<const char*>())
-        {
-            if (!parseColourValue(buttonObject["colour"].as<const char*>(), colour))
-            {
-                return false;
-            }
-        }
-        else
-        {
-            return false;
-        }
-
-        outButtonOverride.hasColour = true;
-        outButtonOverride.colour = colour;
-    }
-
-    if (!buttonObject["toggle"].isNull())
-    {
-        if (!buttonObject["toggle"].is<bool>())
-        {
-            return false;
-        }
-
-        outButtonOverride.hasToggle = true;
-        outButtonOverride.toggle = buttonObject["toggle"].as<bool>();
-    }
-
-    const JsonObjectConst functionObject = buttonObject["function"].as<JsonObjectConst>();
-    if (!functionObject.isNull())
-    {
-        const char* keys[] = {"press", "release", "shortPress", "longPress"};
-        const FunctionBehaviour behaviours[] = {FunctionBehaviour::ButtonDown, FunctionBehaviour::ButtonRelease,
-                                                FunctionBehaviour::ShortPress, FunctionBehaviour::LongPress};
-        uint8_t parsedActionCount = 0;
-        uint8_t configuredActionCount = 0;
-
-        for (uint8_t keyIndex = 0; keyIndex < 4; ++keyIndex)
-        {
-            const JsonVariantConst actionValue = functionObject[keys[keyIndex]];
-            if (actionValue.isNull())
-            {
-                continue;
-            }
-
-            ++configuredActionCount;
-            FunctionAction parsedAction = {};
-            if (!parseActionObject(actionValue, parsedAction))
-            {
-                Serial.printf("Button overrides: invalid '%s' action in button function override.\n", keys[keyIndex]);
-                continue;
-            }
-
-            const uint8_t behaviourIndex = static_cast<uint8_t>(behaviours[keyIndex]);
-            outButtonOverride.actions[behaviourIndex].isDefined = true;
-            outButtonOverride.actions[behaviourIndex].action = parsedAction;
-            ++parsedActionCount;
-        }
-
-        if (configuredActionCount > 0 && parsedActionCount == 0)
-        {
-            Serial.println("Button overrides: function override contained no valid actions.");
-        }
-    }
-
-    return true;
-}
-
 void ButtonOverrideStore::clearOverrides()
 {
-    delete[] _configBuffer;
-    _configBuffer = nullptr;
+    mcfg_free(_binaryConfig);
+    _hasBinaryConfig = false;
 }

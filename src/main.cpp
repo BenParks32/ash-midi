@@ -86,7 +86,7 @@ const GFXfont* DefaultUiFont = FF22;
 const uint8_t DefaultUiScale = 1;
 
 Resources resources(SD_CS);
-ButtonOverrideStore buttonOverrideStore(&resources);
+ButtonOverrideStore buttonOverrideStore;
 ButtonOverrideSetListSongResolver setListSongResolver(buttonOverrideStore);
 SetListStore setListStore(resources, resources, setListSongResolver);
 IMode* activeMode = nullptr;

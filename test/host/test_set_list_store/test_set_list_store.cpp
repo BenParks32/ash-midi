@@ -1,6 +1,10 @@
 #include <unity.h>
 
+#include <cstdlib>
+#include <map>
+#include <string>
 #include <string.h>
+#include <vector>
 
 #include "ButtonOverrideStore.h"
 #include "Modes/Mode.h"
@@ -14,40 +18,35 @@ namespace
 {
 constexpr byte TestPlaylistIndex = Project7PlaylistIndex;
 
-struct FileFixture
-{
-    const char *path;
-    const char *content;
-};
-
-class FakeTextFileStore final : public ITextFileStore
+class FakeBinaryFileStore final : public IBinaryFileStore
 {
 public:
-    explicit FakeTextFileStore(const FileFixture *files, size_t fileCount)
-        : _files(files), _fileCount(fileCount)
+    bool readBinaryFile(const char* path, uint8_t*& buffer, size_t& size) const override
     {
-    }
-
-    bool readTextFile(const char *path, char *buffer, size_t bufferSize) const override
-    {
-        for (size_t i = 0; i < _fileCount; ++i)
+        const auto it = _files.find(path != nullptr ? path : "");
+        if (it == _files.end())
         {
-            if (strcmp(_files[i].path, path) != 0)
-            {
-                continue;
-            }
-
-            strncpy(buffer, _files[i].content, bufferSize - 1);
-            buffer[bufferSize - 1] = '\0';
-            return true;
+            return false;
         }
 
-        return false;
+        size = it->second.size();
+        buffer = static_cast<uint8_t*>(malloc(size));
+        if (buffer == nullptr)
+        {
+            size = 0U;
+            return false;
+        }
+
+        memcpy(buffer, it->second.data(), size);
+        return true;
     }
 
+    void setFileContents(const char* path, const std::vector<uint8_t>& data) { _files[path != nullptr ? path : ""] = data; }
+
+    void clear() { _files.clear(); }
+
 private:
-    const FileFixture *_files;
-    size_t _fileCount;
+    std::map<std::string, std::vector<uint8_t>> _files;
 };
 
 class FakeDirectoryStore final : public ITextDirectoryStore
@@ -196,17 +195,183 @@ const char* integratedSetListJson =
     "]"
     "}";
 
+void appendU16(std::vector<uint8_t>& out, uint16_t value)
+{
+    out.push_back(static_cast<uint8_t>(value & 0xFFU));
+    out.push_back(static_cast<uint8_t>((value >> 8) & 0xFFU));
+}
+
+void appendU32(std::vector<uint8_t>& out, uint32_t value)
+{
+    out.push_back(static_cast<uint8_t>(value & 0xFFU));
+    out.push_back(static_cast<uint8_t>((value >> 8) & 0xFFU));
+    out.push_back(static_cast<uint8_t>((value >> 16) & 0xFFU));
+    out.push_back(static_cast<uint8_t>((value >> 24) & 0xFFU));
+}
+
+std::vector<uint8_t> buildProject7SongsCatalogue()
+{
+    const std::vector<std::string> strings = {
+        "GoYrWay",
+        "Go Your Own Way",
+        "go-your-own-way",
+        "Champs",
+        "Champions",
+        "champions",
+    };
+
+    std::vector<uint8_t> stringBlob;
+    std::vector<uint32_t> stringOffsets;
+    stringOffsets.reserve(strings.size());
+    for (const std::string& entry : strings)
+    {
+        stringOffsets.push_back(static_cast<uint32_t>(stringBlob.size()));
+        stringBlob.insert(stringBlob.end(), entry.begin(), entry.end());
+        stringBlob.push_back('\0');
+    }
+
+    std::vector<uint8_t> stringTable;
+    appendU16(stringTable, static_cast<uint16_t>(strings.size()));
+    for (uint32_t offset : stringOffsets)
+    {
+        appendU32(stringTable, offset);
+    }
+    stringTable.insert(stringTable.end(), stringBlob.begin(), stringBlob.end());
+
+    std::vector<uint8_t> songTable;
+    appendU16(songTable, 0);
+    appendU16(songTable, 1);
+    appendU16(songTable, 2);
+    songTable.push_back(11);
+    appendU16(songTable, 3);
+    appendU16(songTable, 4);
+    appendU16(songTable, 5);
+    songTable.push_back(22);
+
+    std::vector<uint8_t> output;
+    const uint32_t stringTableOffset = 16U;
+    const uint32_t songTableOffset = stringTableOffset + static_cast<uint32_t>(stringTable.size());
+
+    appendU32(output, 0x4D534E47U);
+    appendU16(output, 1);
+    appendU16(output, 2);
+    appendU32(output, stringTableOffset);
+    appendU32(output, songTableOffset);
+    output.insert(output.end(), stringTable.begin(), stringTable.end());
+    output.insert(output.end(), songTable.begin(), songTable.end());
+
+    return output;
+}
+
+struct SetListPartFixture
+{
+    uint16_t part;
+    const char* name;
+};
+
+struct SetListSongFixture
+{
+    uint16_t number;
+    uint16_t part;
+    const char* songId;
+};
+
+std::vector<uint8_t> buildSetListCatalogue(const char* name,
+                                          const SetListPartFixture* parts,
+                                          size_t partCount,
+                                          const SetListSongFixture* songs,
+                                          size_t songCount)
+{
+    std::vector<std::string> strings;
+    auto addString = [&strings](const char* value) -> uint16_t {
+        if (value == nullptr)
+        {
+            return 0xFFFFU;
+        }
+
+        const std::string entry(value);
+        for (size_t i = 0; i < strings.size(); ++i)
+        {
+            if (strings[i] == entry)
+            {
+                return static_cast<uint16_t>(i);
+            }
+        }
+
+        strings.push_back(entry);
+        return static_cast<uint16_t>(strings.size() - 1U);
+    };
+
+    const uint16_t nameIndex = addString(name);
+    std::vector<uint8_t> partTable;
+    std::vector<uint8_t> songTable;
+    for (size_t i = 0; i < partCount; ++i)
+    {
+        appendU16(partTable, parts[i].part);
+        appendU16(partTable, addString(parts[i].name));
+    }
+
+    for (size_t i = 0; i < songCount; ++i)
+    {
+        appendU16(songTable, songs[i].number);
+        appendU16(songTable, songs[i].part);
+        appendU16(songTable, addString(songs[i].songId));
+    }
+
+    std::vector<uint8_t> stringBlob;
+    std::vector<uint32_t> stringOffsets;
+    stringOffsets.reserve(strings.size());
+    for (const std::string& entry : strings)
+    {
+        stringOffsets.push_back(static_cast<uint32_t>(stringBlob.size()));
+        stringBlob.insert(stringBlob.end(), entry.begin(), entry.end());
+        stringBlob.push_back('\0');
+    }
+
+    std::vector<uint8_t> stringTable;
+    appendU16(stringTable, static_cast<uint16_t>(strings.size()));
+    for (uint32_t offset : stringOffsets)
+    {
+        appendU32(stringTable, offset);
+    }
+    stringTable.insert(stringTable.end(), stringBlob.begin(), stringBlob.end());
+
+    std::vector<uint8_t> output;
+    const uint32_t headerSize = static_cast<uint32_t>(sizeof(MSLT_FileHeader));
+    const uint32_t stringTableOffset = headerSize;
+    const uint32_t partTableOffset = stringTableOffset + static_cast<uint32_t>(stringTable.size());
+    const uint32_t songTableOffset = partTableOffset + static_cast<uint32_t>(partTable.size());
+
+    appendU32(output, MSLT_MAGIC);
+    appendU16(output, MSLT_VERSION);
+    appendU16(output, static_cast<uint16_t>(partCount));
+    appendU16(output, static_cast<uint16_t>(songCount));
+    appendU16(output, nameIndex);
+    appendU32(output, stringTableOffset);
+    appendU32(output, partTableOffset);
+    appendU32(output, songTableOffset);
+    output.insert(output.end(), stringTable.begin(), stringTable.end());
+    output.insert(output.end(), partTable.begin(), partTable.end());
+    output.insert(output.end(), songTable.begin(), songTable.end());
+
+    return output;
+}
+
 void test_activate_set_list_sorts_parts_and_songs_and_marks_missing_songs()
 {
-    const FileFixture files[] = {
-        {"/sets/p7/friday.jsn", setListJson},
+    const SetListPartFixture parts[] = {{2, "Second half"}, {1, "First half"}};
+    const SetListSongFixture songs[] = {
+        {4, 2, "song-b"},
+        {2, 1, "song-a"},
+        {3, 2, "song-missing"},
     };
-    FakeTextFileStore textFileStore(files, 1);
-    FakeDirectoryStore directoryStore("/sets/p7", "/sets/p7/friday.jsn");
+    FakeBinaryFileStore binaryFileStore;
+    binaryFileStore.setFileContents("/sets/p7/friday.msl", buildSetListCatalogue("Friday Night", parts, 2, songs, 3));
+    FakeDirectoryStore directoryStore("/sets/p7", "/sets/p7/friday.msl");
     FakeSongResolver songResolver;
-    SetListStore store(textFileStore, directoryStore, songResolver);
+    SetListStore store(binaryFileStore, directoryStore, songResolver);
 
-    TEST_ASSERT_TRUE(store.activateSetList(TestPlaylistIndex, "friday.jsn"));
+    TEST_ASSERT_TRUE(store.activateSetList(TestPlaylistIndex, "friday.msl"));
 
     ActiveSetList setList = {};
     TEST_ASSERT_TRUE(store.activeSetList(TestPlaylistIndex, setList));
@@ -239,21 +404,27 @@ void test_activate_set_list_sorts_parts_and_songs_and_marks_missing_songs()
 
 void test_list_set_lists_reads_summaries_from_directory_entries()
 {
-    const FileFixture files[] = {
-        {"/sets/p7/friday.jsn", setListJson},
-        {"/sets/p7/saturday.jsn", otherSetListJson},
+    const SetListPartFixture fridayParts[] = {{2, "Second half"}, {1, "First half"}};
+    const SetListSongFixture fridaySongs[] = {
+        {4, 2, "song-b"},
+        {2, 1, "song-a"},
+        {3, 2, "song-missing"},
     };
-    FakeTextFileStore textFileStore(files, 2);
-    FakeDirectoryStore directoryStore("/sets/p7", "/sets/p7/friday.jsn", "/sets/p7/saturday.jsn");
+    const SetListPartFixture saturdayParts[] = {{1, "Full set"}};
+    const SetListSongFixture saturdaySongs[] = {{1, 1, "song-a"}};
+    FakeBinaryFileStore binaryFileStore;
+    binaryFileStore.setFileContents("/sets/p7/friday.msl", buildSetListCatalogue("Friday Night", fridayParts, 2, fridaySongs, 3));
+    binaryFileStore.setFileContents("/sets/p7/saturday.msl", buildSetListCatalogue("Saturday Night", saturdayParts, 1, saturdaySongs, 1));
+    FakeDirectoryStore directoryStore("/sets/p7", "/sets/p7/friday.msl", "/sets/p7/saturday.msl");
     FakeSongResolver songResolver;
-    SetListStore store(textFileStore, directoryStore, songResolver);
+    SetListStore store(binaryFileStore, directoryStore, songResolver);
 
     SetListSummary summaries[4] = {};
     const size_t count = store.listSetLists(TestPlaylistIndex, summaries, 4);
 
     TEST_ASSERT_EQUAL(2, count);
     TEST_ASSERT_EQUAL_STRING("Friday Night", summaries[0].name);
-    TEST_ASSERT_EQUAL_STRING("friday.jsn", summaries[0].fileName);
+    TEST_ASSERT_EQUAL_STRING("friday.msl", summaries[0].fileName);
     TEST_ASSERT_EQUAL(2, summaries[0].partCount);
     TEST_ASSERT_EQUAL(3, summaries[0].songCount);
     TEST_ASSERT_EQUAL_STRING("Saturday Night", summaries[1].name);
@@ -261,15 +432,19 @@ void test_list_set_lists_reads_summaries_from_directory_entries()
 
 void test_select_song_tracks_current_selection()
 {
-    const FileFixture files[] = {
-        {"/sets/p7/friday.jsn", setListJson},
+    const SetListPartFixture parts[] = {{2, "Second half"}, {1, "First half"}};
+    const SetListSongFixture songs[] = {
+        {4, 2, "song-b"},
+        {2, 1, "song-a"},
+        {3, 2, "song-missing"},
     };
-    FakeTextFileStore textFileStore(files, 1);
-    FakeDirectoryStore directoryStore("/sets/p7", "/sets/p7/friday.jsn");
+    FakeBinaryFileStore binaryFileStore;
+    binaryFileStore.setFileContents("/sets/p7/friday.msl", buildSetListCatalogue("Friday Night", parts, 2, songs, 3));
+    FakeDirectoryStore directoryStore("/sets/p7", "/sets/p7/friday.msl");
     FakeSongResolver songResolver;
-    SetListStore store(textFileStore, directoryStore, songResolver);
+    SetListStore store(binaryFileStore, directoryStore, songResolver);
 
-    TEST_ASSERT_TRUE(store.activateSetList(TestPlaylistIndex, "friday.jsn"));
+    TEST_ASSERT_TRUE(store.activateSetList(TestPlaylistIndex, "friday.msl"));
     TEST_ASSERT_TRUE(store.selectSong(TestPlaylistIndex, 2));
 
     SetListSongEntry song = {};
@@ -280,20 +455,21 @@ void test_select_song_tracks_current_selection()
 
 void test_activate_set_list_resolves_songs_from_button_override_catalog()
 {
-    const FileFixture files[] = {
-        {"/BUTTONS.JSN", buttonsConfigJson},
-        {"/p7songs.jsn", externalSongsConfigJson},
-        {"/sets/p7/kings-head.jsn", integratedSetListJson},
+    const SetListPartFixture parts[] = {{1, "First half"}};
+    const SetListSongFixture songs[] = {
+        {1, 1, "go-your-own-way"},
+        {2, 1, "champions"},
     };
-    FakeTextFileStore textFileStore(files, 3);
-    FakeDirectoryStore directoryStore("/sets/p7", "/sets/p7/kings-head.jsn");
-    ButtonOverrideStore buttonOverrideStore(&textFileStore);
-    TEST_ASSERT_TRUE(buttonOverrideStore.refresh());
+    FakeBinaryFileStore binaryFileStore;
+    binaryFileStore.setFileContents("/sets/p7/kings-head.msl", buildSetListCatalogue("King's Head", parts, 1, songs, 2));
+    FakeDirectoryStore directoryStore("/sets/p7", "/sets/p7/kings-head.msl");
+    ButtonOverrideStore buttonOverrideStore(nullptr);
+    SD.setFileContents("/p7songs.msg", buildProject7SongsCatalogue());
 
     ButtonOverrideSongResolver songResolver(buttonOverrideStore);
-    SetListStore store(textFileStore, directoryStore, songResolver);
+    SetListStore store(binaryFileStore, directoryStore, songResolver);
 
-    TEST_ASSERT_TRUE(store.activateSetList(TestPlaylistIndex, "kings-head.jsn"));
+    TEST_ASSERT_TRUE(store.activateSetList(TestPlaylistIndex, "kings-head.msl"));
 
     ActiveSetList setList = {};
     TEST_ASSERT_TRUE(store.activeSetList(TestPlaylistIndex, setList));
@@ -319,5 +495,5 @@ int main(int, char **)
     return UNITY_END();
 }
 
-void setUp() {}
-void tearDown() {}
+void setUp() { SD.clear(); }
+void tearDown() { SD.clear(); }

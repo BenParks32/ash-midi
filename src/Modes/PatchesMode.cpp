@@ -45,6 +45,9 @@ PatchesMode::PatchesMode(TouchButtonManager& touchButtonManager, RingManager& ri
 
 void PatchesMode::activate()
 {
+    Serial.printf("Patches mode: loading patches for %s (playlist %u), current patch %u.\n",
+                  patchesDisplayTitle(_selectedPlaylist), static_cast<unsigned int>(_selectedPlaylist),
+                  static_cast<unsigned int>(_currentPatch));
     populateButtons();
     renderAllButtons();
     renderCenterTitle(TFT_WHITE);
@@ -129,11 +132,22 @@ void PatchesMode::populateButtons()
 
     PatchListEntry entries[TouchButtonManager::BUTTON_COUNT] = {};
     const size_t entryCount = _buttonOverrideStore.listPatches(_selectedPlaylist, entries, TouchButtonManager::BUTTON_COUNT);
+    Serial.printf("Patches mode: listPatches returned %u entries for playlist %u.\n",
+                  static_cast<unsigned int>(entryCount), static_cast<unsigned int>(_selectedPlaylist));
+
+    for (size_t entryIndex = 0; entryIndex < entryCount; ++entryIndex)
+    {
+        Serial.printf("Patches mode: source entry %u patch %u name '%s'.\n", static_cast<unsigned int>(entryIndex),
+                      static_cast<unsigned int>(entries[entryIndex].patchNumber),
+                      entries[entryIndex].name[0] != '\0' ? entries[entryIndex].name : "<empty>");
+    }
+
     byte nextButtonIndex = 1;
     for (size_t entryIndex = 0; entryIndex < entryCount && nextButtonIndex < TouchButtonManager::BUTTON_COUNT; ++entryIndex)
     {
         if (entries[entryIndex].patchNumber == 0)
         {
+            Serial.printf("Patches mode: skipping patch 0 entry %u.\n", static_cast<unsigned int>(entryIndex));
             continue;
         }
 
@@ -150,6 +164,9 @@ void PatchesMode::populateButtons()
         char label[Function::LabelCapacity] = {'\0'};
         formatPatchLabel(entries[entryIndex].patchNumber, entries[entryIndex].name, label, sizeof(label));
         configureButton(nextButtonIndex, entries[entryIndex].patchNumber, label);
+        Serial.printf("Patches mode: mapped entry %u patch %u to button %u label '%s'.\n",
+                      static_cast<unsigned int>(entryIndex), static_cast<unsigned int>(entries[entryIndex].patchNumber),
+                      static_cast<unsigned int>(nextButtonIndex), label);
         ++nextButtonIndex;
     }
 }

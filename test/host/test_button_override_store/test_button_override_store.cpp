@@ -1,5 +1,8 @@
-#include <cstdio>
+#include <cstdlib>
 #include <cstring>
+#include <string>
+#include <vector>
+
 #include <unity.h>
 
 #include "ButtonOverrideStore.h"
@@ -10,90 +13,330 @@
 
 namespace
 {
-constexpr size_t MockConfigCapacity = 12288;
-
-class MockTextFileStore : public ITextFileStore
+struct SongFixture
 {
-  public:
-    bool readTextFile(const char* path, char* buffer, size_t bufferSize) const override
-    {
-        ++readCalls;
-        lastPath = path;
-
-        const char* source = contentsForPath(path);
-        if (source == nullptr)
-        {
-            return false;
-        }
-
-        const size_t length = std::strlen(source);
-        if ((length + 1U) > bufferSize)
-        {
-            return false;
-        }
-
-        std::memcpy(buffer, source, length + 1U);
-        return true;
-    }
-
-    const char* contentsForPath(const char* path) const
-    {
-        if (path == nullptr)
-        {
-            return nullptr;
-        }
-
-        if ((std::strcmp(path, "/p7songs.jsn") == 0 || std::strcmp(path, "p7songs.jsn") == 0) && hasProject7SongsContents)
-        {
-            return project7SongsContents;
-        }
-
-        if ((std::strcmp(path, "/oprsongs.jsn") == 0 || std::strcmp(path, "oprsongs.jsn") == 0) && hasOprSongsContents)
-        {
-            return oprSongsContents;
-        }
-
-        if ((std::strcmp(path, "/crsongs.jsn") == 0 || std::strcmp(path, "crsongs.jsn") == 0) && hasCodeRedSongsContents)
-        {
-            return codeRedSongsContents;
-        }
-
-        if ((std::strcmp(path, "/BUTTONS.JSN") == 0 || std::strcmp(path, "BUTTONS.JSN") == 0 ||
-             std::strcmp(path, "/buttons.json") == 0 || std::strcmp(path, "buttons.json") == 0) &&
-            hasContents)
-        {
-            return contents;
-        }
-
-        return nullptr;
-    }
-
-    mutable int readCalls = 0;
-    mutable const char* lastPath = nullptr;
-    bool hasContents = false;
-    bool hasProject7SongsContents = false;
-    bool hasOprSongsContents = false;
-    bool hasCodeRedSongsContents = false;
-    char contents[MockConfigCapacity] = {0};
-    char project7SongsContents[MockConfigCapacity] = {0};
-    char oprSongsContents[MockConfigCapacity] = {0};
-    char codeRedSongsContents[MockConfigCapacity] = {0};
+    const char* id;
+    const char* name;
+    const char* longName;
+    uint8_t patch;
 };
 
-void test_refresh_parses_tap_alias_for_blank_default_button()
+struct ButtonActionFixture
 {
-    MockTextFileStore fileStore;
-    std::strcpy(fileStore.contents,
-                "{\"playModes\":{\"Project7\":{\"patches\":{\"5\":{\"buttons\":{\"3\":{\"label\":\"Tap\","
-                "\"colour\":\"001F\",\"function\":{\"shortPress\":\"Tap\"}}}}}}}}");
-    fileStore.hasContents = true;
+    uint8_t eventType;
+    const char* actionName;
+    uint16_t value;
+    uint16_t secondaryValue;
+};
 
-    ButtonOverrideStore store(&fileStore);
+struct ButtonFixture
+{
+    uint8_t buttonId;
+    const char* label;
+    const char* colour;
+    bool toggle;
+    std::vector<ButtonActionFixture> actions;
+};
+
+struct PatchFixture
+{
+    uint8_t patchNumber;
+    const char* name;
+    const char* longName;
+    std::vector<ButtonFixture> buttons;
+};
+
+struct PlayModeFixture
+{
+    const char* name;
+    std::vector<PatchFixture> patches;
+};
+
+ButtonActionFixture makeAction(uint8_t eventType, const char* actionName, uint16_t value, uint16_t secondaryValue)
+{
+    return ButtonActionFixture{eventType, actionName, value, secondaryValue};
+}
+
+ButtonFixture makeButton(uint8_t buttonId, const char* label, const char* colour, bool toggle,
+                         std::vector<ButtonActionFixture> actions)
+{
+    return ButtonFixture{buttonId, label, colour, toggle, std::move(actions)};
+}
+
+PatchFixture makePatch(uint8_t patchNumber, const char* name, const char* longName, std::vector<ButtonFixture> buttons)
+{
+    return PatchFixture{patchNumber, name, longName, std::move(buttons)};
+}
+
+PlayModeFixture makePlayMode(const char* name, std::vector<PatchFixture> patches)
+{
+    return PlayModeFixture{name, std::move(patches)};
+}
+
+SongFixture makeSong(const char* id, const char* name, const char* longName, uint8_t patch)
+{
+    return SongFixture{id, name, longName, patch};
+}
+
+void appendU16(std::vector<uint8_t>& out, uint16_t value)
+{
+    out.push_back(static_cast<uint8_t>(value & 0xFFU));
+    out.push_back(static_cast<uint8_t>((value >> 8) & 0xFFU));
+}
+
+void appendU32(std::vector<uint8_t>& out, uint32_t value)
+{
+    out.push_back(static_cast<uint8_t>(value & 0xFFU));
+    out.push_back(static_cast<uint8_t>((value >> 8) & 0xFFU));
+    out.push_back(static_cast<uint8_t>((value >> 16) & 0xFFU));
+    out.push_back(static_cast<uint8_t>((value >> 24) & 0xFFU));
+}
+
+uint16_t addString(std::vector<std::string>& strings, const char* value)
+{
+    if (value == nullptr)
+    {
+        return MCFG_STRING_INDEX_NONE;
+    }
+
+    const std::string candidate(value);
+    for (size_t index = 0; index < strings.size(); ++index)
+    {
+        if (strings[index] == candidate)
+        {
+            return static_cast<uint16_t>(index);
+        }
+    }
+
+    strings.push_back(candidate);
+    return static_cast<uint16_t>(strings.size() - 1U);
+}
+
+std::vector<uint8_t> buildSongCatalogue(const std::vector<SongFixture>& songs)
+{
+    std::vector<std::string> strings;
+    for (const SongFixture& song : songs)
+    {
+        addString(strings, song.id);
+        addString(strings, song.name);
+        addString(strings, song.longName);
+    }
+
+    std::vector<uint8_t> stringBlob;
+    std::vector<uint32_t> stringOffsets;
+    for (const std::string& entry : strings)
+    {
+        stringOffsets.push_back(static_cast<uint32_t>(stringBlob.size()));
+        stringBlob.insert(stringBlob.end(), entry.begin(), entry.end());
+        stringBlob.push_back('\0');
+    }
+
+    std::vector<uint8_t> stringTable;
+    appendU16(stringTable, static_cast<uint16_t>(strings.size()));
+    for (uint32_t offset : stringOffsets)
+    {
+        appendU32(stringTable, offset);
+    }
+    stringTable.insert(stringTable.end(), stringBlob.begin(), stringBlob.end());
+
+    std::vector<uint8_t> songTable;
+    for (const SongFixture& song : songs)
+    {
+        appendU16(songTable, addString(strings, song.name));
+        appendU16(songTable, addString(strings, song.longName));
+        appendU16(songTable, addString(strings, song.id));
+        songTable.push_back(song.patch);
+    }
+
+    std::vector<uint8_t> output;
+    const uint32_t stringTableOffset = static_cast<uint32_t>(sizeof(MCFG_SongFileHeader));
+    const uint32_t songTableOffset = stringTableOffset + static_cast<uint32_t>(stringTable.size());
+
+    appendU32(output, MSNG_MAGIC);
+    appendU16(output, MSNG_VERSION);
+    appendU16(output, static_cast<uint16_t>(songs.size()));
+    appendU32(output, stringTableOffset);
+    appendU32(output, songTableOffset);
+    output.insert(output.end(), stringTable.begin(), stringTable.end());
+    output.insert(output.end(), songTable.begin(), songTable.end());
+    return output;
+}
+
+std::vector<uint8_t> buildButtonCatalogue(const std::vector<PlayModeFixture>& playModes)
+{
+    std::vector<std::string> strings;
+    for (const PlayModeFixture& playMode : playModes)
+    {
+        addString(strings, playMode.name);
+        for (const PatchFixture& patch : playMode.patches)
+        {
+            addString(strings, patch.name);
+            addString(strings, patch.longName);
+            for (const ButtonFixture& button : patch.buttons)
+            {
+                addString(strings, button.label);
+                addString(strings, button.colour);
+                for (const ButtonActionFixture& action : button.actions)
+                {
+                    addString(strings, action.actionName);
+                }
+            }
+        }
+    }
+
+    std::vector<uint8_t> stringBlob;
+    std::vector<uint32_t> stringOffsets;
+    for (const std::string& entry : strings)
+    {
+        stringOffsets.push_back(static_cast<uint32_t>(stringBlob.size()));
+        stringBlob.insert(stringBlob.end(), entry.begin(), entry.end());
+        stringBlob.push_back('\0');
+    }
+
+    std::vector<MCFG_PlayMode> playModeRecords;
+    std::vector<MCFG_Patch> patchRecords;
+    std::vector<MCFG_Button> buttonRecords;
+    std::vector<MCFG_Function> functionRecords;
+
+    size_t totalPatchCount = 0;
+    size_t totalButtonCount = 0;
+    size_t totalFunctionCount = 0;
+    for (const PlayModeFixture& playMode : playModes)
+    {
+        totalPatchCount += playMode.patches.size();
+        for (const PatchFixture& patch : playMode.patches)
+        {
+            totalButtonCount += patch.buttons.size();
+            for (const ButtonFixture& button : patch.buttons)
+            {
+                totalFunctionCount += button.actions.size();
+            }
+        }
+    }
+
+    const uint32_t headerSize = static_cast<uint32_t>(sizeof(MCFG_FileHeader));
+    const uint32_t stringTableSize = 2U + static_cast<uint32_t>(strings.size()) * 4U + static_cast<uint32_t>(stringBlob.size());
+    const uint32_t playModeOffset = headerSize + stringTableSize;
+    const uint32_t patchBase = playModeOffset + static_cast<uint32_t>(playModes.size()) * sizeof(MCFG_PlayMode);
+    const uint32_t buttonBase = patchBase + static_cast<uint32_t>(totalPatchCount) * sizeof(MCFG_Patch);
+    const uint32_t functionBase = buttonBase + static_cast<uint32_t>(totalButtonCount) * sizeof(MCFG_Button);
+
+    uint32_t patchOffsetCursor = patchBase;
+    uint32_t buttonOffsetCursor = buttonBase;
+    uint32_t functionOffsetCursor = functionBase;
+    for (const PlayModeFixture& playMode : playModes)
+    {
+        MCFG_PlayMode mode = {};
+        mode.nameIndex = addString(strings, playMode.name);
+        mode.patchCount = static_cast<uint16_t>(playMode.patches.size());
+        mode.patchOffset = patchOffsetCursor;
+        playModeRecords.push_back(mode);
+        patchOffsetCursor += static_cast<uint32_t>(playMode.patches.size()) * sizeof(MCFG_Patch);
+
+        for (const PatchFixture& patch : playMode.patches)
+        {
+            MCFG_Patch patchRecord = {};
+            patchRecord.nameIndex = addString(strings, patch.name);
+            patchRecord.longNameIndex = addString(strings, patch.longName);
+            patchRecord.patchNumber = patch.patchNumber;
+            patchRecord.buttonCount = static_cast<uint8_t>(patch.buttons.size());
+            patchRecord.buttonOffset = buttonOffsetCursor;
+            patchRecords.push_back(patchRecord);
+            buttonOffsetCursor += static_cast<uint32_t>(patch.buttons.size()) * sizeof(MCFG_Button);
+
+            for (const ButtonFixture& button : patch.buttons)
+            {
+                MCFG_Button buttonRecord = {};
+                buttonRecord.buttonId = button.buttonId;
+                buttonRecord.labelIndex = addString(strings, button.label);
+                buttonRecord.colourIndex = addString(strings, button.colour);
+                buttonRecord.toggle = button.toggle ? 1U : 0U;
+                buttonRecord.functionCount = static_cast<uint8_t>(button.actions.size());
+                buttonRecord.functionOffset = functionOffsetCursor;
+                buttonRecords.push_back(buttonRecord);
+                functionOffsetCursor += static_cast<uint32_t>(button.actions.size()) * sizeof(MCFG_Function);
+
+                for (const ButtonActionFixture& action : button.actions)
+                {
+                    MCFG_Function functionRecord = {};
+                    functionRecord.eventType = action.eventType;
+                    functionRecord.actionType = 0;
+                    functionRecord.actionNameIndex = addString(strings, action.actionName);
+                    functionRecord.value = action.value;
+                    functionRecord.secondaryValue = action.secondaryValue;
+                    functionRecords.push_back(functionRecord);
+                }
+            }
+        }
+    }
+
+    std::vector<uint8_t> stringTable;
+    appendU16(stringTable, static_cast<uint16_t>(strings.size()));
+    for (uint32_t offset : stringOffsets)
+    {
+        appendU32(stringTable, offset);
+    }
+    stringTable.insert(stringTable.end(), stringBlob.begin(), stringBlob.end());
+
+    std::vector<uint8_t> output;
+    const uint32_t stringTableOffset = headerSize;
+    const uint32_t playModeTableOffset = stringTableOffset + static_cast<uint32_t>(stringTable.size());
+
+    appendU32(output, MCFG_MAGIC);
+    appendU16(output, 1);
+    appendU16(output, static_cast<uint16_t>(playModes.size()));
+    appendU32(output, stringTableOffset);
+    appendU32(output, playModeTableOffset);
+
+    output.insert(output.end(), stringTable.begin(), stringTable.end());
+    for (const auto& mode : playModeRecords)
+    {
+        const uint8_t* bytes = reinterpret_cast<const uint8_t*>(&mode);
+        output.insert(output.end(), bytes, bytes + sizeof(mode));
+    }
+    for (const auto& patch : patchRecords)
+    {
+        const uint8_t* bytes = reinterpret_cast<const uint8_t*>(&patch);
+        output.insert(output.end(), bytes, bytes + sizeof(patch));
+    }
+    for (const auto& button : buttonRecords)
+    {
+        const uint8_t* bytes = reinterpret_cast<const uint8_t*>(&button);
+        output.insert(output.end(), bytes, bytes + sizeof(button));
+    }
+    for (const auto& function : functionRecords)
+    {
+        const uint8_t* bytes = reinterpret_cast<const uint8_t*>(&function);
+        output.insert(output.end(), bytes, bytes + sizeof(function));
+    }
+
+    return output;
+}
+
+void loadButtonConfig(const std::vector<PlayModeFixture>& playModes)
+{
+    SD.setFileContents("/buttons.mcfg", buildButtonCatalogue(playModes));
+}
+
+void loadProject7Songs(const std::vector<SongFixture>& songs)
+{
+    SD.setFileContents("/p7songs.msg", buildSongCatalogue(songs));
+}
+
+void test_refresh_applies_tap_alias_and_button_override()
+{
+    const std::vector<PlayModeFixture> config = {
+        makePlayMode("Project7",
+                     {makePatch(5, "Big Sky Intro", nullptr,
+                                {makeButton(3, "Tap", "001F", false, {makeAction(0, "Tap", 0, 0)})})})};
+    loadButtonConfig(config);
+
+    ButtonOverrideStore store;
     TEST_ASSERT_TRUE(store.refresh());
 
     Function functions[8] = {};
     functions[3] = Function();
-    store.applyOverrides(2, 5, functions, 8);
+    store.applyOverrides(Project7PlaylistIndex, 5, functions, 8);
 
     TEST_ASSERT_EQUAL_STRING("Tap", functions[3].label());
     TEST_ASSERT_EQUAL_HEX16(0x001F, functions[3].colour());
@@ -102,310 +345,80 @@ void test_refresh_parses_tap_alias_for_blank_default_button()
                             static_cast<uint8_t>(functions[3].action(FunctionBehaviour::ShortPress).type));
 }
 
-void test_apply_overrides_reads_patch_name_without_button_overrides()
+void test_apply_overrides_uses_patch_display_name()
 {
-    MockTextFileStore fileStore;
-    std::strcpy(fileStore.contents, "{\"playModes\":{\"Project7\":{\"patches\":{\"5\":{\"name\":\"Big Sky Intro\"}}}}}");
-    fileStore.hasContents = true;
+    const std::vector<PlayModeFixture> config = {makePlayMode("Project7", {makePatch(5, "Big Sky", "Big Sky Intro", {})})};
+    loadButtonConfig(config);
 
-    ButtonOverrideStore store(&fileStore);
+    ButtonOverrideStore store;
     TEST_ASSERT_TRUE(store.refresh());
 
     Function functions[8] = {};
     PatchDisplayConfig patchDisplay;
-    store.applyOverrides(2, 5, functions, 8, &patchDisplay);
-
-    TEST_ASSERT_EQUAL_STRING("Big Sky Intro", patchDisplay.name);
-    TEST_ASSERT_EQUAL_STRING(" ", functions[0].label());
-}
-
-void test_apply_overrides_prefers_patch_long_name_for_play_mode_display()
-{
-    MockTextFileStore fileStore;
-    std::strcpy(fileStore.contents,
-                "{\"playModes\":{\"Project7\":{\"patches\":{\"5\":{\"name\":\"Big Sky\",\"longName\":\"Big Sky Intro\"}}}}}");
-    fileStore.hasContents = true;
-
-    ButtonOverrideStore store(&fileStore);
-    TEST_ASSERT_TRUE(store.refresh());
-
-    Function functions[8] = {};
-    PatchDisplayConfig patchDisplay;
-    store.applyOverrides(2, 5, functions, 8, &patchDisplay);
-
-    TEST_ASSERT_EQUAL_STRING("Big Sky Intro", patchDisplay.name);
-    TEST_ASSERT_EQUAL_STRING(" ", functions[0].label());
-}
-
-void test_apply_overrides_falls_back_to_patch_name_when_long_name_is_empty()
-{
-    MockTextFileStore fileStore;
-    std::strcpy(fileStore.contents,
-                "{\"playModes\":{\"Project7\":{\"patches\":{\"5\":{\"name\":\"Big Sky Intro\",\"longName\":\"\"}}}}}");
-    fileStore.hasContents = true;
-
-    ButtonOverrideStore store(&fileStore);
-    TEST_ASSERT_TRUE(store.refresh());
-
-    Function functions[8] = {};
-    PatchDisplayConfig patchDisplay;
-    store.applyOverrides(2, 5, functions, 8, &patchDisplay);
+    store.applyOverrides(Project7PlaylistIndex, 5, functions, 8, &patchDisplay);
 
     TEST_ASSERT_EQUAL_STRING("Big Sky Intro", patchDisplay.name);
 }
 
-void test_list_songs_preserves_declared_order_and_song_indices()
+void test_list_patches_preserves_config_order()
 {
-    MockTextFileStore fileStore;
-    std::strcpy(fileStore.contents,
-                "{\"playModes\":{\"Project7\":{\"songs\":[{\"name\":\"Outro\",\"patch\":7},{\"name\":\"Main\","
-                "\"patch\":0},{\"name\":\"Verse\",\"patch\":3}]}}}");
-    fileStore.hasContents = true;
+    const std::vector<PlayModeFixture> config = {
+        makePlayMode("Project7", {makePatch(7, "Outro", nullptr, {}), makePatch(0, "Main", nullptr, {}),
+                                  makePatch(3, "Verse", nullptr, {})})};
+    loadButtonConfig(config);
 
-    ButtonOverrideStore store(&fileStore);
+    ButtonOverrideStore store;
     TEST_ASSERT_TRUE(store.refresh());
 
-    SongListEntry entries[4] = {};
-    const size_t count = store.listSongs(2, entries, 4);
+    PatchListEntry entries[4] = {};
+    const size_t count = store.listPatches(Project7PlaylistIndex, entries, 4);
 
     TEST_ASSERT_EQUAL_UINT32(3, count);
-    TEST_ASSERT_EQUAL_UINT8(0, entries[0].songIndex);
     TEST_ASSERT_EQUAL_UINT8(7, entries[0].patchNumber);
     TEST_ASSERT_EQUAL_STRING("Outro", entries[0].name);
-    TEST_ASSERT_EQUAL_UINT8(1, entries[1].songIndex);
     TEST_ASSERT_EQUAL_UINT8(0, entries[1].patchNumber);
     TEST_ASSERT_EQUAL_STRING("Main", entries[1].name);
-    TEST_ASSERT_EQUAL_UINT8(2, entries[2].songIndex);
     TEST_ASSERT_EQUAL_UINT8(3, entries[2].patchNumber);
     TEST_ASSERT_EQUAL_STRING("Verse", entries[2].name);
 }
 
-void test_song_for_index_reads_patch_and_prefers_long_name_for_display()
+void test_song_catalogue_round_trips_ids_and_display_names()
 {
-    MockTextFileStore fileStore;
-    std::strcpy(fileStore.contents,
-                "{\"playModes\":{\"Project7\":{\"songs\":[{\"name\":\"Big Sky\",\"longName\":\"Big Sky Intro\","
-                "\"patch\":5}]}}}");
-    fileStore.hasContents = true;
+    const std::vector<PlayModeFixture> config = {makePlayMode("Project7", {})};
+    loadButtonConfig(config);
+    const std::vector<SongFixture> songs = {makeSong("zombie", "Zombie", nullptr, 1),
+                                            makeSong("boulevard", "Boulevard", "Boulevard of Broken Dreams", 2)};
+    loadProject7Songs(songs);
 
-    ButtonOverrideStore store(&fileStore);
-    TEST_ASSERT_TRUE(store.refresh());
-
-    SongConfig song = {};
-    TEST_ASSERT_TRUE(store.songForIndex(2, 0, &song));
-    TEST_ASSERT_EQUAL_UINT8(5, song.patchNumber);
-    TEST_ASSERT_EQUAL_STRING("Big Sky", song.name);
-    TEST_ASSERT_EQUAL_STRING("Big Sky Intro", song.displayName);
-}
-
-void test_song_for_index_falls_back_to_short_name_when_long_name_is_empty()
-{
-    MockTextFileStore fileStore;
-    std::strcpy(fileStore.contents,
-                "{\"playModes\":{\"Project7\":{\"songs\":[{\"name\":\"Big Sky\",\"longName\":\"\",\"patch\":5}]}}}");
-    fileStore.hasContents = true;
-
-    ButtonOverrideStore store(&fileStore);
-    TEST_ASSERT_TRUE(store.refresh());
-
-    SongConfig song = {};
-    TEST_ASSERT_TRUE(store.songForIndex(2, 0, &song));
-    TEST_ASSERT_EQUAL_STRING("Big Sky", song.name);
-    TEST_ASSERT_EQUAL_STRING("Big Sky", song.displayName);
-}
-
-void test_song_id_is_exposed_for_listing_and_lookup()
-{
-    MockTextFileStore fileStore;
-    std::strcpy(fileStore.contents,
-                "{\"playModes\":{\"Project7\":{\"songs\":[{\"id\":\"big-sky\",\"name\":\"Big Sky\","
-                "\"longName\":\"Big Sky Intro\",\"patch\":5}]}}}");
-    fileStore.hasContents = true;
-
-    ButtonOverrideStore store(&fileStore);
-    TEST_ASSERT_TRUE(store.refresh());
-
-    SongListEntry entries[2] = {};
-    TEST_ASSERT_EQUAL_UINT32(1, store.listSongs(2, entries, 2));
-    TEST_ASSERT_EQUAL_STRING("big-sky", entries[0].id);
-
-    SongConfig song = {};
-    byte songIndex = 99;
-    TEST_ASSERT_TRUE(store.songForId(2, "big-sky", songIndex, song));
-    TEST_ASSERT_EQUAL_UINT8(0, songIndex);
-    TEST_ASSERT_EQUAL_UINT8(5, song.patchNumber);
-    TEST_ASSERT_EQUAL_STRING("big-sky", song.id);
-    TEST_ASSERT_EQUAL_STRING("Big Sky Intro", song.displayName);
-}
-
-void test_list_songs_reads_project7_external_song_file_when_present()
-{
-    MockTextFileStore fileStore;
-    std::strcpy(fileStore.contents, "{\"playModes\":{\"Project7\":{}}}");
-    std::strcpy(fileStore.project7SongsContents,
-                "[{\"name\":\"Zombie\",\"patch\":1},{\"name\":\"Boulevard\",\"patch\":2}]");
-    fileStore.hasContents = true;
-    fileStore.hasProject7SongsContents = true;
-
-    ButtonOverrideStore store(&fileStore);
+    ButtonOverrideStore store;
     TEST_ASSERT_TRUE(store.refresh());
 
     SongListEntry entries[4] = {};
-    const size_t count = store.listSongs(2, entries, 4);
-
-    TEST_ASSERT_EQUAL_UINT32(2, count);
-    TEST_ASSERT_EQUAL_UINT8(0, entries[0].songIndex);
-    TEST_ASSERT_EQUAL_UINT8(1, entries[0].patchNumber);
+    TEST_ASSERT_EQUAL_UINT32(2, store.listSongs(Project7PlaylistIndex, entries, 4));
+    TEST_ASSERT_EQUAL_STRING("zombie", entries[0].id);
     TEST_ASSERT_EQUAL_STRING("Zombie", entries[0].name);
-    TEST_ASSERT_EQUAL_UINT8(1, entries[1].songIndex);
-    TEST_ASSERT_EQUAL_UINT8(2, entries[1].patchNumber);
-    TEST_ASSERT_EQUAL_STRING("Boulevard", entries[1].name);
-}
-
-void test_song_for_index_reads_project7_external_song_file_when_present()
-{
-    MockTextFileStore fileStore;
-    std::strcpy(fileStore.contents, "{\"playModes\":{\"Project7\":{}}}");
-    std::strcpy(fileStore.project7SongsContents,
-                "[{\"name\":\"Zombie\",\"patch\":1},{\"name\":\"Boulevard\",\"longName\":\"Boulevard of Broken "
-                "Dreams\",\"patch\":2}]");
-    fileStore.hasContents = true;
-    fileStore.hasProject7SongsContents = true;
-
-    ButtonOverrideStore store(&fileStore);
-    TEST_ASSERT_TRUE(store.refresh());
 
     SongConfig song = {};
-    TEST_ASSERT_TRUE(store.songForIndex(2, 1, &song));
-    TEST_ASSERT_EQUAL_UINT8(2, song.patchNumber);
+    TEST_ASSERT_TRUE(store.songForIndex(Project7PlaylistIndex, 1, &song));
     TEST_ASSERT_EQUAL_STRING("Boulevard", song.name);
     TEST_ASSERT_EQUAL_STRING("Boulevard of Broken Dreams", song.displayName);
-}
 
-void test_song_for_id_reads_project7_external_song_file_when_present()
-{
-    MockTextFileStore fileStore;
-    std::strcpy(fileStore.contents, "{\"playModes\":{\"Project7\":{}}}");
-    std::strcpy(fileStore.project7SongsContents,
-                "[{\"id\":\"zombie\",\"name\":\"Zombie\",\"patch\":1},{\"id\":\"boulevard\",\"name\":\"Boulevard\","
-                "\"longName\":\"Boulevard of Broken Dreams\",\"patch\":2}]");
-    fileStore.hasContents = true;
-    fileStore.hasProject7SongsContents = true;
-
-    ButtonOverrideStore store(&fileStore);
-    TEST_ASSERT_TRUE(store.refresh());
-
-    SongConfig song = {};
-    byte songIndex = 99;
-    TEST_ASSERT_TRUE(store.songForId(2, "boulevard", songIndex, song));
+    byte songIndex = 0;
+    TEST_ASSERT_TRUE(store.songForId(Project7PlaylistIndex, "boulevard", songIndex, song));
     TEST_ASSERT_EQUAL_UINT8(1, songIndex);
-    TEST_ASSERT_EQUAL_UINT8(2, song.patchNumber);
     TEST_ASSERT_EQUAL_STRING("boulevard", song.id);
-    TEST_ASSERT_EQUAL_STRING("Boulevard", song.name);
-    TEST_ASSERT_EQUAL_STRING("Boulevard of Broken Dreams", song.displayName);
 }
 
-void test_list_songs_skips_entries_without_a_valid_patch()
+void test_apply_overrides_sets_toggle_and_cc_action()
 {
-    MockTextFileStore fileStore;
-    std::strcpy(fileStore.contents,
-                "{\"playModes\":{\"Project7\":{\"songs\":[{\"name\":\"Bad\"},{\"name\":\"Good\",\"patch\":9}]}}}");
-    fileStore.hasContents = true;
+    const std::vector<PlayModeFixture> config = {
+        makePlayMode("CodeRed",
+                     {makePatch(0, "Code Red", nullptr,
+                                {makeButton(6, "E Flat", "FD20", true,
+                                            {makeAction(0, "SendMidiControlChange", 35, 100)})})})};
+    loadButtonConfig(config);
 
-    ButtonOverrideStore store(&fileStore);
-    TEST_ASSERT_TRUE(store.refresh());
-
-    SongListEntry entries[2] = {};
-    const size_t count = store.listSongs(2, entries, 2);
-
-    TEST_ASSERT_EQUAL_UINT32(1, count);
-    TEST_ASSERT_EQUAL_UINT8(1, entries[0].songIndex);
-    TEST_ASSERT_EQUAL_UINT8(9, entries[0].patchNumber);
-    TEST_ASSERT_EQUAL_STRING("Good", entries[0].name);
-}
-
-void test_apply_overrides_sets_toggle_flag_when_configured()
-{
-    MockTextFileStore fileStore;
-    std::strcpy(fileStore.contents,
-                "{\"playModes\":{\"Project7\":{\"patches\":{\"5\":{\"buttons\":{\"7\":{\"toggle\":true,"
-                "\"function\":{\"shortPress\":{\"action\":\"SetTuner\",\"value\":1},"
-                "\"longPress\":{\"action\":\"SetTuner\",\"value\":0}}}}}}}}}");
-    fileStore.hasContents = true;
-
-    ButtonOverrideStore store(&fileStore);
-    TEST_ASSERT_TRUE(store.refresh());
-
-    Function functions[8] = {};
-    functions[7] = Function("Tuner", 0x801F, ActionType::SetTuner, 1, ActionType::SetTuner, 0);
-    store.applyOverrides(2, 5, functions, 8);
-
-    TEST_ASSERT_TRUE(functions[7].isToggle());
-}
-
-void test_apply_overrides_matches_playlist_and_patch()
-{
-    MockTextFileStore fileStore;
-    std::strcpy(fileStore.contents,
-                "{\"playModes\":{\"Project7\":{\"patches\":{\"5\":{\"buttons\":{\"0\":{\"label\":\"Alt\"}}}}}}}");
-    fileStore.hasContents = true;
-
-    ButtonOverrideStore store(&fileStore);
-    TEST_ASSERT_TRUE(store.refresh());
-
-    Function functions[8] = {};
-    functions[0] = Function("Clean", 0x07E0, ActionType::SelectScene, 0, ActionType::None, 0);
-
-    store.applyOverrides(3, 5, functions, 8);
-    TEST_ASSERT_EQUAL_STRING("Clean", functions[0].label());
-
-    store.applyOverrides(2, 6, functions, 8);
-    TEST_ASSERT_EQUAL_STRING("Clean", functions[0].label());
-
-    store.applyOverrides(2, 5, functions, 8);
-    TEST_ASSERT_EQUAL_STRING("Alt", functions[0].label());
-}
-
-void test_apply_overrides_can_reparse_same_config_multiple_times()
-{
-    MockTextFileStore fileStore;
-    std::strcpy(fileStore.contents,
-                "{\"playModes\":{\"CodeRed\":{\"patches\":{\"0\":{\"buttons\":{\"3\":{\"label\":\"CC37\","
-                "\"colour\":\"07E0\",\"function\":{\"press\":{\"action\":\"SendMidiControlChange\",\"value\":37,"
-                "\"secondaryValue\":100},\"release\":{\"action\":\"SendMidiControlChange\",\"value\":37,"
-                "\"secondaryValue\":100}}}}},\"1\":{\"buttons\":{\"3\":{\"label\":\"CC37\"}}}}}}}");
-    fileStore.hasContents = true;
-
-    ButtonOverrideStore store(&fileStore);
-    TEST_ASSERT_TRUE(store.refresh());
-
-    Function patchZeroFunctions[8] = {};
-    Function patchOneFunctions[8] = {};
-
-    store.applyOverrides(4, 0, patchZeroFunctions, 8);
-    TEST_ASSERT_EQUAL_STRING("CC37", patchZeroFunctions[3].label());
-    TEST_ASSERT_EQUAL_HEX16(0x07E0, patchZeroFunctions[3].colour());
-    TEST_ASSERT_TRUE(patchZeroFunctions[3].hasMomentaryBehaviour());
-    TEST_ASSERT_EQUAL_UINT8(37, patchZeroFunctions[3].action(FunctionBehaviour::ButtonDown).value);
-    TEST_ASSERT_EQUAL_UINT8(100, patchZeroFunctions[3].action(FunctionBehaviour::ButtonDown).secondaryValue);
-    TEST_ASSERT_EQUAL_UINT8(37, patchZeroFunctions[3].action(FunctionBehaviour::ButtonRelease).value);
-    TEST_ASSERT_EQUAL_UINT8(100, patchZeroFunctions[3].action(FunctionBehaviour::ButtonRelease).secondaryValue);
-
-    store.applyOverrides(4, 1, patchOneFunctions, 8);
-    TEST_ASSERT_EQUAL_STRING("CC37", patchOneFunctions[3].label());
-}
-
-void test_apply_overrides_reads_code_red_e_flat_toggle_from_buttons_config()
-{
-    MockTextFileStore fileStore;
-    std::strcpy(fileStore.contents,
-                "{\"playModes\":{\"Project7\":{\"patches\":{\"1\":{\"name\":\"Zombie\"}}},\"CodeRed\":{\"patches\":{"
-                "\"0\":{\"buttons\":{\"6\":{\"label\":\"E Flat\",\"colour\":\"FD20\",\"toggle\":true,\"function\":{"
-                "\"shortPress\":{\"action\":\"SendMidiControlChange\",\"value\":35,\"secondaryValue\":100}}}}},"
-                "\"1\":{\"name\":\"With\"}}}}}");
-    fileStore.hasContents = true;
-
-    ButtonOverrideStore store(&fileStore);
+    ButtonOverrideStore store;
     TEST_ASSERT_TRUE(store.refresh());
 
     Function functions[8] = {};
@@ -414,116 +427,30 @@ void test_apply_overrides_reads_code_red_e_flat_toggle_from_buttons_config()
     TEST_ASSERT_EQUAL_STRING("E Flat", functions[6].label());
     TEST_ASSERT_EQUAL_HEX16(0xFD20, functions[6].colour());
     TEST_ASSERT_TRUE(functions[6].isToggle());
-    TEST_ASSERT_FALSE(functions[6].hasMomentaryBehaviour());
     TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(ActionType::SendMidiControlChange),
                             static_cast<uint8_t>(functions[6].action(FunctionBehaviour::ShortPress).type));
     TEST_ASSERT_EQUAL_UINT8(35, functions[6].action(FunctionBehaviour::ShortPress).value);
-    TEST_ASSERT_EQUAL_UINT8(100, functions[6].action(FunctionBehaviour::ShortPress).secondaryValue);
 }
 
-void test_list_patches_preserves_buttons_jsn_order()
-{
-    MockTextFileStore fileStore;
-    std::strcpy(fileStore.contents,
-                "{\"playModes\":{\"Project7\":{\"patches\":{\"7\":{\"name\":\"Outro\"},\"0\":{\"name\":\"Main\"},"
-                "\"abc\":{\"name\":\"Ignored\"},\"3\":{\"name\":\"Verse\"}}}}}");
-    fileStore.hasContents = true;
-
-    ButtonOverrideStore store(&fileStore);
-    TEST_ASSERT_TRUE(store.refresh());
-
-    PatchListEntry entries[4] = {};
-    const size_t count = store.listPatches(2, entries, 4);
-
-    TEST_ASSERT_EQUAL_UINT32(3, count);
-    TEST_ASSERT_EQUAL_UINT8(7, entries[0].patchNumber);
-    TEST_ASSERT_EQUAL_STRING("Outro", entries[0].name);
-    TEST_ASSERT_EQUAL_UINT8(0, entries[1].patchNumber);
-    TEST_ASSERT_EQUAL_STRING("Main", entries[1].name);
-    TEST_ASSERT_EQUAL_UINT8(3, entries[2].patchNumber);
-    TEST_ASSERT_EQUAL_STRING("Verse", entries[2].name);
-}
-
-void test_apply_overrides_parses_change_mode_patches_value()
-{
-    MockTextFileStore fileStore;
-    std::strcpy(fileStore.contents,
-                "{\"playModes\":{\"Project7\":{\"patches\":{\"5\":{\"buttons\":{\"4\":{\"function\":{\"shortPress\":"
-                "{\"action\":\"ChangeMode\",\"value\":\"Patches\"}}}}}}}}}");
-    fileStore.hasContents = true;
-
-    ButtonOverrideStore store(&fileStore);
-    TEST_ASSERT_TRUE(store.refresh());
-
-    Function functions[8] = {};
-    functions[4] = Function("Patch", 0xFFE0, ActionType::ChangeMode, static_cast<byte>(Modes::Patch), ActionType::None, 0);
-    store.applyOverrides(2, 5, functions, 8);
-
-    TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(ActionType::ChangeMode),
-                            static_cast<uint8_t>(functions[4].action(FunctionBehaviour::ShortPress).type));
-    TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(Modes::Patches),
-                            functions[4].action(FunctionBehaviour::ShortPress).value);
-}
-
-void test_refresh_accepts_split_song_config()
-{
-    MockTextFileStore fileStore;
-    std::strcpy(fileStore.contents, "{\"playModes\":{\"Project7\":{}}}");
-    std::strcpy(fileStore.project7SongsContents, "[");
-    for (int songIndex = 0; songIndex < 50; ++songIndex)
-    {
-        char songEntry[160] = {0};
-        std::snprintf(songEntry, sizeof(songEntry),
-                      "{\"name\":\"Song %02d Longish Name For External Songs\",\"longName\":\"Song %02d Long Display "
-                      "Name For External Songs File\",\"patch\":%d}%s",
-                      songIndex, songIndex, (songIndex % 10) + 1, (songIndex < 49) ? "," : "");
-        std::strcat(fileStore.project7SongsContents, songEntry);
-    }
-    std::strcat(fileStore.project7SongsContents, "]");
-    fileStore.hasContents = true;
-    fileStore.hasProject7SongsContents = true;
-
-    TEST_ASSERT_TRUE(std::strlen(fileStore.project7SongsContents) > 4096U);
-
-    ButtonOverrideStore store(&fileStore);
-    TEST_ASSERT_TRUE(store.refresh());
-
-    SongListEntry entries[64] = {};
-    const size_t count = store.listSongs(2, entries, 64);
-    TEST_ASSERT_EQUAL_UINT32(50, count);
-    TEST_ASSERT_EQUAL_STRING("Song 00 Longish Name For External Songs", entries[0].name);
-    TEST_ASSERT_EQUAL_STRING("Song 49 Longish Name For External Songs", entries[49].name);
-}
 } // namespace
 
-void setUp() {}
-
-void tearDown() {}
-
-int main(int argc, char** argv)
+void setUp()
 {
-    (void)argc;
-    (void)argv;
+    SD.clear();
+}
 
+void tearDown()
+{
+    SD.clear();
+}
+
+int main(int, char**)
+{
     UNITY_BEGIN();
-    RUN_TEST(test_refresh_parses_tap_alias_for_blank_default_button);
-    RUN_TEST(test_apply_overrides_reads_patch_name_without_button_overrides);
-    RUN_TEST(test_apply_overrides_prefers_patch_long_name_for_play_mode_display);
-    RUN_TEST(test_apply_overrides_falls_back_to_patch_name_when_long_name_is_empty);
-    RUN_TEST(test_list_songs_preserves_declared_order_and_song_indices);
-    RUN_TEST(test_song_for_index_reads_patch_and_prefers_long_name_for_display);
-    RUN_TEST(test_song_for_index_falls_back_to_short_name_when_long_name_is_empty);
-    RUN_TEST(test_song_id_is_exposed_for_listing_and_lookup);
-    RUN_TEST(test_list_songs_reads_project7_external_song_file_when_present);
-    RUN_TEST(test_song_for_index_reads_project7_external_song_file_when_present);
-    RUN_TEST(test_song_for_id_reads_project7_external_song_file_when_present);
-    RUN_TEST(test_list_songs_skips_entries_without_a_valid_patch);
-    RUN_TEST(test_apply_overrides_sets_toggle_flag_when_configured);
-    RUN_TEST(test_apply_overrides_matches_playlist_and_patch);
-    RUN_TEST(test_apply_overrides_can_reparse_same_config_multiple_times);
-    RUN_TEST(test_apply_overrides_reads_code_red_e_flat_toggle_from_buttons_config);
-    RUN_TEST(test_list_patches_preserves_buttons_jsn_order);
-    RUN_TEST(test_apply_overrides_parses_change_mode_patches_value);
-    RUN_TEST(test_refresh_accepts_split_song_config);
+    RUN_TEST(test_refresh_applies_tap_alias_and_button_override);
+    RUN_TEST(test_apply_overrides_uses_patch_display_name);
+    RUN_TEST(test_list_patches_preserves_config_order);
+    RUN_TEST(test_song_catalogue_round_trips_ids_and_display_names);
+    RUN_TEST(test_apply_overrides_sets_toggle_and_cc_action);
     return UNITY_END();
 }

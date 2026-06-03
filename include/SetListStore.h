@@ -1,10 +1,10 @@
 #pragma once
 
 #include <Arduino.h>
-#include <ArduinoJson.h>
 
+#include "BinaryFileStore.h"
+#include "encoding/SetListLoader.h"
 #include "TextDirectoryStore.h"
-#include "TextFileStore.h"
 
 struct SetListResolvedSong
 {
@@ -96,10 +96,8 @@ class SetListStore final : public ISetListStore
 {
 public:
     static constexpr size_t MaxPlaylistCount = 8;
-    static constexpr size_t MaxJsonSize = 4096;
-    static constexpr size_t SummaryNameJsonCapacity = JSON_OBJECT_SIZE(1);
 
-    SetListStore(const ITextFileStore &textFileStore,
+    SetListStore(const IBinaryFileStore &binaryFileStore,
                  const ITextDirectoryStore &directoryStore,
                  const ISetListSongResolver &songResolver);
 
@@ -120,14 +118,14 @@ private:
         ActiveSetList setList;
     };
 
-    const ITextFileStore &_textFileStore;
+    const IBinaryFileStore &_binaryFileStore;
     const ITextDirectoryStore &_directoryStore;
     const ISetListSongResolver &_songResolver;
     PlaylistState _playlistStates[MaxPlaylistCount];
 
     bool loadSetList(byte playlistIndex, const char *path, ActiveSetList &setList) const;
     bool loadSetListSummary(const char *path, SetListSummary &summary) const;
-    static size_t fullSetListJsonCapacity(size_t partCount, size_t songCount);
+    static bool isSetListPath(const char* path);
     static bool directoryForPlaylist(byte playlistIndex, char *directoryPath, size_t directoryPathSize);
     static void sortParts(SetListPart *parts, size_t count);
     static void sortSongs(SetListSongEntry *songs, size_t count);

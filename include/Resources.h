@@ -1,5 +1,6 @@
 #pragma once
 #include "Gfx.h"
+#include "BinaryFileStore.h"
 #include "SmallFileStore.h"
 #include "TextDirectoryStore.h"
 #include "TextFileStore.h"
@@ -66,7 +67,11 @@ class Icon : public Resource
     const Size _iconSize;
 };
 
-class Resources : public ISdCardManager, public ISmallFileStore, public ITextFileStore, public ITextDirectoryStore
+class Resources : public ISdCardManager,
+                  public ISmallFileStore,
+                  public IBinaryFileStore,
+                  public ITextFileStore,
+                  public ITextDirectoryStore
 {
   public:
     Resources(const byte sdPin);
@@ -95,6 +100,7 @@ class Resources : public ISdCardManager, public ISmallFileStore, public ITextFil
     bool unmount() override;
     bool isMounted() const override { return _isMounted; }
     bool readSmallFile(const char* path, uint8_t* buffer, size_t expectedSize) const override;
+    bool readBinaryFile(const char* path, uint8_t*& buffer, size_t& size) const override;
     bool readTextFile(const char* path, char* buffer, size_t bufferSize) const override;
     size_t listTextFiles(const char* directoryPath, TextFilePathEntry* entries, size_t maxEntries) const override;
     bool writeSmallFile(const char* path, const uint8_t* data, size_t size) override;

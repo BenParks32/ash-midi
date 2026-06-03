@@ -66,3 +66,15 @@ The target device being controlled by the device is a Quad Cortex Mini guitar pr
 - Limit each change to the smallest set of functions and files necessary to satisfy the task. Do not refactor, rename, or restructure code that is not directly required by the task.
 - When touching firmware logic, check whether a host-testable path exists before changing hardware-specific code. If a host-testable path exists, implement the logic there and keep the hardware layer as a thin adapter. If no host-testable path exists, document why in a comment and proceed with the hardware-specific change.
 - Follow the existing structure and naming patterns in `src\`, especially under `Modes` and `Touch`.
+
+ ## Credit guardrails
+
+ - Prefer direct answers for conceptual questions; do not run tools unless the user explicitly asks for code changes or validation.
+ - For small tasks (<=2 files), do not use sub-agents.
+ - Limit investigation to at most 3 tool calls before proposing a plan or asking for clarification.
+ - Read only targeted file ranges; never read full large files unless required.
+ - Do not run full test/build suites by default; run only tests related to changed files unless user asks for full validation.
+ - Make one consolidated patch per file instead of many micro-edits.
+ - Avoid repeating failed commands more than once without changing approach.
+ - Keep responses concise (max ~8 lines) unless user asks for detail.
+ - Stop after delivering the requested result; do not add optional follow-up work unless asked.

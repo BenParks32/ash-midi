@@ -1,9 +1,10 @@
 #pragma once
 
 #include "Function.h"
+#include "encoding/MidiConfigLoader.h"
+#include "encoding/SongCatalogueLoader.h"
 #include "TextFileStore.h"
 
-#include <ArduinoJson.h>
 #include <Arduino.h>
 #include <stddef.h>
 
@@ -104,16 +105,6 @@ class ButtonOverrideStore : public IButtonOverrideStore
     bool songForId(byte playlistIndex, const char* songId, byte& songIndex, SongConfig& outSong) const override;
 
   private:
-    static constexpr const char* kPrimaryConfigPath = "/BUTTONS.JSN";
-    static constexpr const char* kLegacyConfigPath = "/buttons.json";
-    static constexpr size_t kMaxConfigBytes = 4096;
-    static constexpr size_t kMaxSongsConfigBytes = 8192;
-    static constexpr size_t kMaxSongsPerPlaylist = 64;
-    static constexpr size_t kExternalSongsJsonCapacity =
-        JSON_OBJECT_SIZE(1) +
-        JSON_ARRAY_SIZE(kMaxSongsPerPlaylist) +
-        (kMaxSongsPerPlaylist * JSON_OBJECT_SIZE(4));
-
     struct ParsedActionOverride
     {
         bool isDefined;
@@ -142,23 +133,20 @@ class ButtonOverrideStore : public IButtonOverrideStore
   private:
     static bool playlistIndexForModeKey(const char* key, byte& outPlaylistIndex);
     static const char* modeKeyForPlaylistIndex(byte playlistIndex);
-    static bool parsePatchNumber(const char* key, byte& outPatchNumber);
-    static bool parseButtonIndex(const char* key, byte& outButtonIndex);
     static bool parseColourValue(const char* rawValue, uint16_t& outColour);
     static bool parseActionName(const char* name, ActionType& outActionType);
-    static bool parseModeValue(const char* name, byte& outModeValue);
     static const char* songsConfigPathForPlaylist(byte playlistIndex);
-    static bool parseActionObject(const JsonVariantConst& actionValue, FunctionAction& outAction);
     static void clearButtonOverride(ParsedButtonOverride& buttonOverride);
     static void applyButtonOverride(const ParsedButtonOverride& buttonOverride, Function& target);
-    static bool parseButtonOverrideObject(const JsonObjectConst& buttonObject, ParsedButtonOverride& outButtonOverride);
-    bool loadExternalSongsArray(byte playlistIndex, char*& songsBuffer, DynamicJsonDocument& document,
-                                JsonArrayConst& outSongs) const;
-    bool loadEmbeddedSongsArray(byte playlistIndex, DynamicJsonDocument& document, JsonArrayConst& outSongs) const;
+    bool loadSongCatalogueForPlaylist(byte playlistIndex, SongCatalogue& outCatalogue, const char*& loadedPath) const;
 
     void clearOverrides();
+    bool applyBinaryOverrides(byte playlistIndex, byte patchNumber, Function* functions, size_t functionCount,
+                              PatchDisplayConfig* patchDisplay) const;
+    size_t listBinaryPatches(byte playlistIndex, PatchListEntry* entries, size_t capacity) const;
 
   private:
     ITextFileStore* _fileStore;
-    char* _configBuffer;
+    MidiConfigRuntime _binaryConfig = {};
+    bool _hasBinaryConfig = false;
 };

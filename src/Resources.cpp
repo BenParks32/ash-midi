@@ -2,6 +2,7 @@
 
 #include <SPI.h>
 #include <cstdio>
+#include <cstdlib>
 
 #include "TFT_Setup.h"
 
@@ -24,16 +25,28 @@ const char* alternateSdPath(const char* path)
     return path + 1;
 }
 
-bool resolveExistingSdPath(const char* requestedPath, const char*& resolvedPath)
+bool openExistingSdPath(const char* requestedPath, File& openedFile, const char*& resolvedPath)
 {
+    if (requestedPath == nullptr || requestedPath[0] == '\0')
+    {
+        return false;
+    }
+
     resolvedPath = requestedPath;
-    if (requestedPath != nullptr && SD.exists(requestedPath))
+    openedFile = SD.open(requestedPath, FILE_READ);
+    if (openedFile)
     {
         return true;
     }
 
     const char* alternatePath = alternateSdPath(requestedPath);
-    if (alternatePath != nullptr && SD.exists(alternatePath))
+    if (alternatePath == nullptr)
+    {
+        return false;
+    }
+
+    openedFile = SD.open(alternatePath, FILE_READ);
+    if (openedFile)
     {
         resolvedPath = alternatePath;
         return true;
@@ -128,23 +141,29 @@ bool Resources::mount()
 
 bool Resources::readSmallFile(const char* path, uint8_t* buffer, size_t expectedSize) const
 {
-    if (!_isMounted || path == nullptr || *path == '\0' || buffer == nullptr || expectedSize == 0)
+    if (path == nullptr || *path == '\0' || buffer == nullptr || expectedSize == 0)
     {
         return false;
     }
 
+    if (!_isMounted)
+    {
+        Serial.println("SD small-file read: card not mounted, attempting remount.");
+        if (!const_cast<Resources*>(this)->mount())
+        {
+            Serial.println("SD small-file read: remount failed.");
+            return false;
+        }
+    }
+
+    deselectSharedSpiDevices();
+
     const char* resolvedPath = nullptr;
-    if (!resolveExistingSdPath(path, resolvedPath))
+    File file;
+    if (!openExistingSdPath(path, file, resolvedPath))
     {
         Serial.printf("SD small-file read: '%s' not found (alternate '%s').\n", path,
                       alternateSdPath(path) != nullptr ? alternateSdPath(path) : "<none>");
-        return false;
-    }
-
-    File file = SD.open(resolvedPath, FILE_READ);
-    if (!file)
-    {
-        Serial.printf("SD small-file read: failed to open '%s'.\n", resolvedPath);
         return false;
     }
 
@@ -176,25 +195,105 @@ bool Resources::readSmallFile(const char* path, uint8_t* buffer, size_t expected
     return true;
 }
 
-bool Resources::readTextFile(const char* path, char* buffer, size_t bufferSize) const
+bool Resources::readBinaryFile(const char* path, uint8_t*& buffer, size_t& size) const
 {
-    if (!_isMounted || path == nullptr || *path == '\0' || buffer == nullptr || bufferSize < 2)
+    buffer = nullptr;
+    size = 0U;
+
+    if (path == nullptr || *path == '\0')
     {
         return false;
     }
 
-    const char* resolvedPath = nullptr;
-    if (!resolveExistingSdPath(path, resolvedPath))
+    if (!_isMounted)
     {
-        Serial.printf("SD text read: '%s' not found (alternate '%s').\n", path,
+        Serial.println("SD binary read: card not mounted, attempting remount.");
+        if (!const_cast<Resources*>(this)->mount())
+        {
+            Serial.println("SD binary read: remount failed.");
+            return false;
+        }
+    }
+
+    deselectSharedSpiDevices();
+
+    const char* resolvedPath = nullptr;
+    File file;
+    if (!openExistingSdPath(path, file, resolvedPath))
+    {
+        Serial.printf("SD binary read: '%s' not found (alternate '%s').\n", path,
                       alternateSdPath(path) != nullptr ? alternateSdPath(path) : "<none>");
         return false;
     }
 
-    File file = SD.open(resolvedPath, FILE_READ);
-    if (!file)
+    const size_t fileSize = static_cast<size_t>(file.size());
+    if (fileSize == 0U)
     {
-        Serial.printf("SD text read: failed to open '%s'.\n", resolvedPath);
+        file.close();
+        return false;
+    }
+
+    uint8_t* data = static_cast<uint8_t*>(malloc(fileSize));
+    if (data == nullptr)
+    {
+        Serial.printf("SD binary read: failed to allocate %u bytes for '%s'.\n", static_cast<unsigned int>(fileSize),
+                      resolvedPath);
+        file.close();
+        return false;
+    }
+
+    size_t bytesRead = 0U;
+    while (bytesRead < fileSize)
+    {
+        const size_t remaining = fileSize - bytesRead;
+        const size_t chunkSize = remaining > 64 ? 64 : remaining;
+        const int chunkRead = file.read(data + bytesRead, chunkSize);
+        if (chunkRead <= 0)
+        {
+            Serial.printf("SD binary read: failed while reading '%s' at offset %u.\n", resolvedPath,
+                          static_cast<unsigned int>(bytesRead));
+            free(data);
+            file.close();
+            return false;
+        }
+        bytesRead += static_cast<size_t>(chunkRead);
+    }
+
+    file.close();
+    buffer = data;
+    size = fileSize;
+    return true;
+}
+
+bool Resources::readTextFile(const char* path, char* buffer, size_t bufferSize) const
+{
+    if (path == nullptr || *path == '\0' || buffer == nullptr || bufferSize < 2)
+    {
+        Serial.println("SD text read: invalid parameters.");
+        Serial.printf("  path: '%s'\n", path != nullptr ? path : "<null>");
+        Serial.printf("  buffer: %s\n", buffer != nullptr ? "valid" : "<null>");
+        Serial.printf("  bufferSize: %u\n", static_cast<unsigned int>(bufferSize));
+        return false;
+    }
+
+    if (!_isMounted)
+    {
+        Serial.println("SD text read: card not mounted, attempting remount.");
+        if (!const_cast<Resources*>(this)->mount())
+        {
+            Serial.println("SD text read: remount failed.");
+            return false;
+        }
+    }
+
+    deselectSharedSpiDevices();
+
+    const char* resolvedPath = nullptr;
+    File file;
+    if (!openExistingSdPath(path, file, resolvedPath))
+    {
+        Serial.printf("SD text read: '%s' not found (alternate '%s').\n", path,
+                      alternateSdPath(path) != nullptr ? alternateSdPath(path) : "<none>");
         return false;
     }
 
@@ -230,21 +329,32 @@ bool Resources::readTextFile(const char* path, char* buffer, size_t bufferSize) 
 
 size_t Resources::listTextFiles(const char* directoryPath, TextFilePathEntry* entries, size_t maxEntries) const
 {
-    if (!_isMounted || directoryPath == nullptr || directoryPath[0] == '\0' || entries == nullptr || maxEntries == 0)
+    if (directoryPath == nullptr || directoryPath[0] == '\0' || entries == nullptr || maxEntries == 0)
     {
         return 0;
     }
 
+    if (!_isMounted)
+    {
+        Serial.println("SD directory list: card not mounted, attempting remount.");
+        if (!const_cast<Resources*>(this)->mount())
+        {
+            Serial.println("SD directory list: remount failed.");
+            return 0;
+        }
+    }
+
+    deselectSharedSpiDevices();
+
     const char* resolvedPath = nullptr;
-    if (!resolveExistingSdPath(directoryPath, resolvedPath))
+    File directory;
+    if (!openExistingSdPath(directoryPath, directory, resolvedPath))
     {
         Serial.printf("SD directory list: '%s' not found (alternate '%s').\n", directoryPath,
                       alternateSdPath(directoryPath) != nullptr ? alternateSdPath(directoryPath) : "<none>");
         return 0;
     }
-
-    File directory = SD.open(resolvedPath, FILE_READ);
-    if (!directory || !directory.isDirectory())
+    if (!directory.isDirectory())
     {
         Serial.printf("SD directory list: failed to open directory '%s' (resolved from '%s').\n", resolvedPath,
                       directoryPath);
@@ -294,6 +404,7 @@ bool Resources::writeSmallFile(const char* path, const uint8_t* data, size_t siz
     }
 
     const char* resolvedPath = preferredWritableSdPath(path);
+    deselectSharedSpiDevices();
 
     if (SD.exists(resolvedPath) && !SD.remove(resolvedPath))
     {
@@ -339,18 +450,14 @@ const uint16_t* Resources::readFile(const char* path, const size_t expectedSizeB
         return nullptr;
     }
 
+    deselectSharedSpiDevices();
+
     const char* resolvedPath = nullptr;
-    if (!resolveExistingSdPath(path, resolvedPath))
+    File file;
+    if (!openExistingSdPath(path, file, resolvedPath))
     {
         Serial.printf("File not found: %s (alternate '%s')\n", path,
                       alternateSdPath(path) != nullptr ? alternateSdPath(path) : "<none>");
-        return nullptr;
-    }
-
-    File file = SD.open(resolvedPath, FILE_READ);
-    if (!file)
-    {
-        Serial.printf("Failed to open file: %s\n", resolvedPath);
         return nullptr;
     }
 
