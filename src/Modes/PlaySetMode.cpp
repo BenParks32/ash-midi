@@ -51,11 +51,95 @@ const int32_t CenterSplitRightWidth = 150;
 const int32_t CenterLine1OffsetY = 46;
 const int32_t CenterLine2OffsetY = 98;
 const int32_t CenterSceneOffsetY = 128;
-const size_t MaxUpcomingRows = 4;
+const int32_t UpcomingRowSpacing = 24;
+const size_t MaxUpcomingRows = 5;
 
 bool isHomePlaylistTransition(ModeTransitionValue transitionValue)
 {
     return (transitionValue & ModeTransitionHomePlaylistFlag) != 0;
+}
+
+int32_t measureTextWidth(const GFXfont* font, uint8_t scale, const char* text)
+{
+    if (font == nullptr || text == nullptr || text[0] == '\0' || scale == 0U)
+    {
+        return 0;
+    }
+
+#ifdef GFXFONT_STUB
+    return static_cast<int32_t>(std::strlen(text)) * 8 * static_cast<int32_t>(scale);
+#else
+    int32_t cursorX = 0;
+    int32_t maxRight = 0;
+    for (const char* current = text; *current != '\0'; ++current)
+    {
+        const unsigned char character = static_cast<unsigned char>(*current);
+        if (character < font->first || character > font->last)
+        {
+            continue;
+        }
+
+        const GFXglyph* glyph = &font->glyph[character - font->first];
+        const int32_t glyphRight = cursorX + glyph->xOffset + glyph->width;
+        if (glyphRight > maxRight)
+        {
+            maxRight = glyphRight;
+        }
+        cursorX += glyph->xAdvance;
+    }
+
+    if (cursorX > maxRight)
+    {
+        maxRight = cursorX;
+    }
+
+    return maxRight * static_cast<int32_t>(scale);
+#endif
+}
+
+void formatUpcomingSongNameLabel(const GFXfont* font, uint8_t scale, const char* songName, int32_t maxWidthPx, char* buffer,
+                                 size_t bufferSize)
+{
+    if (buffer == nullptr || bufferSize == 0U)
+    {
+        return;
+    }
+
+    if (songName == nullptr || songName[0] == '\0')
+    {
+        buffer[0] = '\0';
+        return;
+    }
+
+    if (measureTextWidth(font, scale, songName) <= maxWidthPx)
+    {
+        std::snprintf(buffer, bufferSize, "%s", songName);
+        return;
+    }
+
+    static constexpr const char* Ellipsis = "...";
+    const int32_t ellipsisWidth = measureTextWidth(font, scale, Ellipsis);
+    if (ellipsisWidth >= maxWidthPx)
+    {
+        std::snprintf(buffer, bufferSize, "%s", Ellipsis);
+        return;
+    }
+
+    const size_t songNameLength = std::strlen(songName);
+    const size_t maxCopyLength = (bufferSize > 4U) ? (bufferSize - 4U) : 0U;
+    const size_t searchLength = (songNameLength < maxCopyLength) ? songNameLength : maxCopyLength;
+    char candidate[64] = {};
+    for (size_t copyLength = searchLength; copyLength > 0; --copyLength)
+    {
+        std::snprintf(candidate, sizeof(candidate), "%.*s...", static_cast<int>(copyLength), songName);
+        if (measureTextWidth(font, scale, candidate) <= maxWidthPx)
+        {
+            std::snprintf(buffer, bufferSize, "%s", candidate);
+            return;
+        }
+    }
+
+    std::snprintf(buffer, bufferSize, "%s", Ellipsis);
 }
 } // namespace
 
@@ -65,15 +149,14 @@ PlaySetMode::PlaySetMode(TouchButtonManager& touchButtonManager, RingManager& ri
                          IModeTransistionDelegate& transitionDelegate)
     : FunctionModeBase(touchButtonManager, ringManager, screenUi, midiManager, transitionDelegate),
       _midiProvider(midiProvider), _buttonOverrideStore(buttonOverrideStore), _setListStore(setListStore),
-      _selectedPreset(0),
-      _selectedPlaylist(midiProvider.defaultPlaylistIndex()), _selectedSongIndex(0), _hasSelectedPreset(false),
-      _hasSelectedSong(false), _hasSelectedSetSong(false), _selectedSetSongUnavailable(false),
-      _showEndOfSetPrompt(false), _isPlaySetMode(false),
-      _selectedButton(0), _lastSetAdvancePressedAtMs(0), _setWrapConfirmUntilMs(0),
-      _tapTempoEngine(), _nextTapTempoFlashToggleMs(0), _tapTempoFlashUntilMs(0), _isTapTempoLit(true),
-      _nextTunerFlashToggleMs(0), _isTunerEnabled(false), _isGigViewEnabled(false), _isTunerFlashLit(true),
-      _toggleStates{false, false, false, false, false, false, false, false},
-      _patchDisplayConfig(), _selectedSongDisplayName{0}, _songNameLabel{{0}}, _patchNameLabel{{0}}, _snapshotLabel{{0}},
+      _selectedPreset(0), _selectedPlaylist(midiProvider.defaultPlaylistIndex()), _selectedSongIndex(0),
+      _hasSelectedPreset(false), _hasSelectedSong(false), _hasSelectedSetSong(false),
+      _selectedSetSongUnavailable(false), _showEndOfSetPrompt(false), _isPlaySetMode(false), _selectedButton(0),
+      _lastSetAdvancePressedAtMs(0), _setWrapConfirmUntilMs(0), _tapTempoEngine(), _nextTapTempoFlashToggleMs(0),
+      _tapTempoFlashUntilMs(0), _isTapTempoLit(true), _nextTunerFlashToggleMs(0), _isTunerEnabled(false),
+      _isGigViewEnabled(false), _isTunerFlashLit(true),
+      _toggleStates{false, false, false, false, false, false, false, false}, _patchDisplayConfig(),
+      _selectedSongDisplayName{0}, _songNameLabel{{0}}, _patchNameLabel{{0}}, _snapshotLabel{{0}},
       _tapTempoDisplayLabel{0}
 {
     setupFunctions();
@@ -208,8 +291,8 @@ void PlaySetMode::refreshPlaySetState()
     size_t selectedSongIndex = 0;
     _isPlaySetMode = _setListStore.activeSetPosition(_selectedPlaylist, songCount, selectedSongIndex) && songCount > 0;
     Serial.printf("[PlaySetDiag] refresh playlist=%u active=%u songCount=%u selectedIndex=%u\n",
-                  static_cast<unsigned int>(_selectedPlaylist), _isPlaySetMode ? 1U : 0U, static_cast<unsigned int>(songCount),
-                  static_cast<unsigned int>(selectedSongIndex));
+                  static_cast<unsigned int>(_selectedPlaylist), _isPlaySetMode ? 1U : 0U,
+                  static_cast<unsigned int>(songCount), static_cast<unsigned int>(selectedSongIndex));
     if (!_isPlaySetMode)
     {
         return;
@@ -319,8 +402,8 @@ void PlaySetMode::activate()
     {
         resolveSelectedSong();
     }
-    _buttonOverrideStore.applyOverrides(_selectedPlaylist, _selectedPreset, _functions, TouchButtonManager::BUTTON_COUNT,
-                                        &_patchDisplayConfig);
+    _buttonOverrideStore.applyOverrides(_selectedPlaylist, _selectedPreset, _functions,
+                                        TouchButtonManager::BUTTON_COUNT, &_patchDisplayConfig);
     configurePatchButton();
     if (_isPlaySetMode)
     {
@@ -390,7 +473,6 @@ void PlaySetMode::renderPlayCenterUi()
     const int32_t rightX = splitX + CenterSectionPadding;
 
     _screenUi.fillRect(centerX, centerY, centerWidth, centerHeight, TFT_BLACK);
-    _screenUi.drawRect(centerX, centerY, centerWidth, centerHeight, TFT_DARKGREY);
     _screenUi.fillRect(splitX, centerY + 1, 1, centerHeight - 2, TFT_DARKGREY);
     _screenUi.fillRect(centerX, centerY + CenterLine1OffsetY, splitX - centerX, 1, TFT_DARKGREY);
     _screenUi.fillRect(centerX, centerY + CenterLine2OffsetY, splitX - centerX, 1, TFT_DARKGREY);
@@ -399,8 +481,8 @@ void PlaySetMode::renderPlayCenterUi()
     size_t songCount = 0;
     size_t selectedSongIndex = 0;
     const bool hasSetPosition = _setListStore.activeSetPosition(_selectedPlaylist, songCount, selectedSongIndex);
-    const bool hasCurrentSong =
-        hasSetPosition && selectedSongIndex < songCount && _setListStore.activeSetSongAt(_selectedPlaylist, selectedSongIndex, currentSong);
+    const bool hasCurrentSong = hasSetPosition && selectedSongIndex < songCount &&
+                                _setListStore.activeSetSongAt(_selectedPlaylist, selectedSongIndex, currentSong);
 
     uint16_t currentPart = hasCurrentSong ? currentSong.part : 0;
     size_t songInPart = 0;
@@ -426,14 +508,15 @@ void PlaySetMode::renderPlayCenterUi()
     char songLine[TrackedTextLabel::Capacity] = {};
     if (hasCurrentSong)
     {
-        std::snprintf(songLine, sizeof(songLine), "S: %s (%u/%u)", currentSong.name, static_cast<unsigned int>(songInPart),
-                      static_cast<unsigned int>(songsInPart));
+        std::snprintf(songLine, sizeof(songLine), "S: %s (%u/%u)", currentSong.name,
+                      static_cast<unsigned int>(songInPart), static_cast<unsigned int>(songsInPart));
     }
     else
     {
         std::snprintf(songLine, sizeof(songLine), "%s", "S: No active song");
     }
-    _screenUi.drawText(FF22, 1, songLine, leftX, centerY + 18, _selectedSetSongUnavailable ? TFT_RED : TFT_WHITE, TFT_BLACK);
+    _screenUi.drawText(FF22, 1, songLine, leftX, centerY + 5, _selectedSetSongUnavailable ? TFT_RED : TFT_WHITE,
+                       TFT_BLACK);
 
     char patchLine[TrackedTextLabel::Capacity] = {};
     if (_patchDisplayConfig.name[0] != '\0')
@@ -447,7 +530,8 @@ void PlaySetMode::renderPlayCenterUi()
     _screenUi.drawText(FF22, 1, patchLine, leftX, centerY + 36, TFT_WHITE, TFT_BLACK);
 
     const char* notesLabel = _selectedSetSongUnavailable ? "Notes: unresolved" : "Notes: -";
-    _screenUi.drawText(FF22, 1, notesLabel, leftX, centerY + 66, _selectedSetSongUnavailable ? TFT_RED : TFT_WHITE, TFT_BLACK);
+    _screenUi.drawText(FF22, 1, notesLabel, leftX, centerY + 66, _selectedSetSongUnavailable ? TFT_RED : TFT_WHITE,
+                       TFT_BLACK);
 
     char sceneLine[TrackedTextLabel::Capacity] = {};
     if (_showEndOfSetPrompt)
@@ -468,7 +552,7 @@ void PlaySetMode::renderPlayCenterUi()
     {
         std::snprintf(partName, sizeof(partName), "Part %u", static_cast<unsigned int>(currentPart));
     }
-    _screenUi.drawText(FF22, 1, partName, rightX, centerY + 18, TFT_WHITE, TFT_BLACK);
+    _screenUi.drawText(FF22, 1, partName, rightX, centerY + 5, TFT_WHITE, TFT_BLACK);
 
     size_t shownUpcoming = 0;
     if (hasCurrentSong)
@@ -483,15 +567,32 @@ void PlaySetMode::renderPlayCenterUi()
 
             if (upcomingSong.part != currentPart)
             {
-                _screenUi.fillRect(rightX, centerY + 34 + static_cast<int32_t>(shownUpcoming * 20), CenterSplitRightWidth - 16, 1,
-                                   TFT_DARKGREY);
+                _screenUi.fillRect(rightX, centerY + 34 + static_cast<int32_t>(shownUpcoming * UpcomingRowSpacing),
+                                   CenterSplitRightWidth - 16, 1, TFT_DARKGREY);
                 break;
             }
 
+            const char* upcomingName = upcomingSong.name;
+            SongConfig upcomingSongConfig = {};
+            if (upcomingSong.available &&
+                _buttonOverrideStore.songForIndex(_selectedPlaylist, upcomingSong.songIndex, &upcomingSongConfig) &&
+                upcomingSongConfig.name[0] != '\0')
+            {
+                upcomingName = upcomingSongConfig.name;
+            }
+
+            const int32_t upcomingTextMaxWidth = (CenterSplitRightWidth - CenterSectionPadding) - 2;
+            char upcomingPrefix[16] = {};
+            std::snprintf(upcomingPrefix, sizeof(upcomingPrefix), "%u ", static_cast<unsigned int>(upcomingSong.number));
+            const int32_t upcomingNameMaxWidth = upcomingTextMaxWidth - measureTextWidth(FF22, 1, upcomingPrefix);
+
             char upcomingLine[TrackedTextLabel::Capacity] = {};
-            std::snprintf(upcomingLine, sizeof(upcomingLine), "%u %s", static_cast<unsigned int>(upcomingSong.number),
-                          upcomingSong.name);
-            _screenUi.drawText(FF22, 1, upcomingLine, rightX, centerY + 34 + static_cast<int32_t>(shownUpcoming * 20), TFT_WHITE,
+            char truncatedUpcomingName[TrackedTextLabel::Capacity] = {};
+            formatUpcomingSongNameLabel(FF22, 1, upcomingName, upcomingNameMaxWidth, truncatedUpcomingName,
+                                        sizeof(truncatedUpcomingName));
+            std::snprintf(upcomingLine, sizeof(upcomingLine), "%s%s", upcomingPrefix, truncatedUpcomingName);
+            _screenUi.drawText(FF22, 1, upcomingLine, rightX,
+                               centerY + 34 + static_cast<int32_t>(shownUpcoming * UpcomingRowSpacing), TFT_WHITE,
                                TFT_BLACK);
             ++shownUpcoming;
         }
@@ -515,8 +616,7 @@ void PlaySetMode::renderPatchBadge()
     const PatchBadgeMetrics metrics = patchBadgeMetrics();
 
     _screenUi.drawCenteredFrame(metrics.frameCenterX, metrics.frameTopY, PlayPatchBadgeFrameWidth,
-                                PlayPatchBadgeFrameHeight,
-                                PlayPatchBadgeFrameRadius);
+                                PlayPatchBadgeFrameHeight, PlayPatchBadgeFrameRadius);
     _screenUi.drawCenteredText(FF22, PlayPatchBadgeTitleScale, PlayPatchBadgeTitle, metrics.frameCenterX,
                                metrics.titleY, TFT_WHITE, TFT_BLACK);
     renderPatchBadgeNumber(_selectedPreset, TFT_WHITE);
@@ -527,8 +627,7 @@ void PlaySetMode::clearPatchBadge()
     const PatchBadgeMetrics metrics = patchBadgeMetrics();
 
     _screenUi.drawCenteredFrame(metrics.frameCenterX, metrics.frameTopY, PlayPatchBadgeFrameWidth,
-                                PlayPatchBadgeFrameHeight,
-                                PlayPatchBadgeFrameRadius, TFT_BLACK, TFT_BLACK);
+                                PlayPatchBadgeFrameHeight, PlayPatchBadgeFrameRadius, TFT_BLACK, TFT_BLACK);
     _screenUi.drawCenteredText(FF22, PlayPatchBadgeTitleScale, PlayPatchBadgeTitle, metrics.frameCenterX,
                                metrics.titleY, TFT_BLACK, TFT_BLACK);
     renderPatchBadgeNumber(_selectedPreset, TFT_BLACK);
@@ -649,7 +748,7 @@ void PlaySetMode::formatSnapshotLabelUppercase(byte snapshotButton, char* buffer
 }
 
 void PlaySetMode::updateTrackedTextLabel(TrackedTextLabel& trackedLabel, const char* newText, const GFXfont* font,
-                                      uint8_t scale, int32_t x, int32_t y, uint16_t textColour)
+                                         uint8_t scale, int32_t x, int32_t y, uint16_t textColour)
 {
     if (trackedLabel.text[0] != '\0')
     {
@@ -667,7 +766,7 @@ void PlaySetMode::updateTrackedTextLabel(TrackedTextLabel& trackedLabel, const c
 }
 
 void PlaySetMode::clearTrackedTextLabel(TrackedTextLabel& trackedLabel, const GFXfont* font, uint8_t scale, int32_t x,
-                                     int32_t y)
+                                        int32_t y)
 {
     if (trackedLabel.text[0] == '\0')
     {
@@ -801,10 +900,7 @@ void PlaySetMode::updateSnapshotSelectionVisuals(byte previousSelected, byte cur
     renderSnapshotLabel(currentSelected, TFT_WHITE);
 }
 
-bool PlaySetMode::usesSelectionBorder(byte number) const
-{
-    return isSceneSelectionButton(number);
-}
+bool PlaySetMode::usesSelectionBorder(byte number) const { return isSceneSelectionButton(number); }
 
 int8_t PlaySetMode::firstSceneSelectionButton() const
 {
@@ -827,8 +923,7 @@ bool PlaySetMode::isSceneSelectionButton(byte number) const
     }
 
     const Function& func = getFunction(number);
-    return !func.hasMomentaryBehaviour() &&
-           func.action(FunctionBehaviour::ShortPress).type == ActionType::SelectScene;
+    return !func.hasMomentaryBehaviour() && func.action(FunctionBehaviour::ShortPress).type == ActionType::SelectScene;
 }
 
 bool PlaySetMode::isTapTempoButton(byte number) const
@@ -1197,9 +1292,10 @@ bool PlaySetMode::advanceSelectedSetSong(bool allowWrap)
     const bool hasActiveSet = _setListStore.activeSetPosition(_selectedPlaylist, songCount, selectedSongIndex);
     if (!hasActiveSet || songCount == 0 || selectedSongIndex >= songCount)
     {
-        Serial.printf("[PlaySetDiag] advance blocked playlist=%u allowWrap=%u hasSet=%u songCount=%u selectedIndex=%u\n",
-                      static_cast<unsigned int>(_selectedPlaylist), allowWrap ? 1U : 0U,
-                      hasActiveSet ? 1U : 0U, static_cast<unsigned int>(songCount), static_cast<unsigned int>(selectedSongIndex));
+        Serial.printf(
+            "[PlaySetDiag] advance blocked playlist=%u allowWrap=%u hasSet=%u songCount=%u selectedIndex=%u\n",
+            static_cast<unsigned int>(_selectedPlaylist), allowWrap ? 1U : 0U, hasActiveSet ? 1U : 0U,
+            static_cast<unsigned int>(songCount), static_cast<unsigned int>(selectedSongIndex));
         return false;
     }
 
@@ -1240,12 +1336,12 @@ void PlaySetMode::handleNextSetSongPress()
 {
     const uint32_t now = millis();
     Serial.printf("[PlaySetDiag] next pressed now=%lu last=%lu wrapUntil=%lu\n", static_cast<unsigned long>(now),
-                  static_cast<unsigned long>(_lastSetAdvancePressedAtMs), static_cast<unsigned long>(_setWrapConfirmUntilMs));
+                  static_cast<unsigned long>(_lastSetAdvancePressedAtMs),
+                  static_cast<unsigned long>(_setWrapConfirmUntilMs));
     if (_lastSetAdvancePressedAtMs != 0U &&
         static_cast<int32_t>(now - _lastSetAdvancePressedAtMs) < static_cast<int32_t>(SetAdvanceDebounceMs))
     {
-        Serial.printf("[PlaySetDiag] next debounced delta=%ld\n",
-                      static_cast<long>(now - _lastSetAdvancePressedAtMs));
+        Serial.printf("[PlaySetDiag] next debounced delta=%ld\n", static_cast<long>(now - _lastSetAdvancePressedAtMs));
         return;
     }
     _lastSetAdvancePressedAtMs = now;
@@ -1275,12 +1371,12 @@ void PlaySetMode::handleNextSetSongPress()
         return;
     }
 
-    if (_setWrapConfirmUntilMs != 0U &&
-        static_cast<int32_t>(now - _setWrapConfirmUntilMs) <= 0)
+    if (_setWrapConfirmUntilMs != 0U && static_cast<int32_t>(now - _setWrapConfirmUntilMs) <= 0)
     {
         if (advanceSelectedSetSong(true))
         {
-            Serial.printf("[PlaySetDiag] next wrap confirmed playlist=%u\n", static_cast<unsigned int>(_selectedPlaylist));
+            Serial.printf("[PlaySetDiag] next wrap confirmed playlist=%u\n",
+                          static_cast<unsigned int>(_selectedPlaylist));
             _showEndOfSetPrompt = false;
             _setWrapConfirmUntilMs = 0;
             renderPlayCenterUi();
@@ -1289,7 +1385,8 @@ void PlaySetMode::handleNextSetSongPress()
     }
 
     Serial.printf("[PlaySetDiag] next at end - waiting confirm playlist=%u windowUntil=%lu\n",
-                  static_cast<unsigned int>(_selectedPlaylist), static_cast<unsigned long>(now + SetWrapConfirmWindowMs));
+                  static_cast<unsigned int>(_selectedPlaylist),
+                  static_cast<unsigned long>(now + SetWrapConfirmWindowMs));
     _setWrapConfirmUntilMs = now + SetWrapConfirmWindowMs;
     _showEndOfSetPrompt = true;
     renderPlayCenterUi();
@@ -1331,7 +1428,8 @@ void PlaySetMode::renderTapTempoButtons(bool redrawLabel)
 
         if (redrawLabel)
         {
-            button->setLabel((_tapTempoDisplayLabel[0] != '\0') ? _tapTempoDisplayLabel : getFunction(buttonIndex).label());
+            button->setLabel((_tapTempoDisplayLabel[0] != '\0') ? _tapTempoDisplayLabel
+                                                                : getFunction(buttonIndex).label());
             button->draw(_screenUi);
             continue;
         }

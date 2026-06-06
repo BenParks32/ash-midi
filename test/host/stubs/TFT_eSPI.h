@@ -2,6 +2,8 @@
 
 #include <cstdint>
 
+#define GFXFONT_STUB 1
+
 struct GFXfont
 {
 };
