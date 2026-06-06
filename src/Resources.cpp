@@ -331,6 +331,10 @@ size_t Resources::listTextFiles(const char* directoryPath, TextFilePathEntry* en
 {
     if (directoryPath == nullptr || directoryPath[0] == '\0' || entries == nullptr || maxEntries == 0)
     {
+        Serial.printf("### Invalid params");
+        Serial.printf("# Directory path '%s'\n", directoryPath);
+        Serial.printf("# Entries pointer %s\n", entries != nullptr ? "valid" : "<null>");
+        Serial.printf("# Max entries %u\n", static_cast<unsigned int>(maxEntries));
         return 0;
     }
 

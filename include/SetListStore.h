@@ -88,6 +88,7 @@ public:
     virtual bool clearActiveSetList(byte playlistIndex) = 0;
     virtual bool activeSetList(byte playlistIndex, ActiveSetList &setList) const = 0;
     virtual bool activeSetSummary(byte playlistIndex, SetListSummary &summary) const = 0;
+    virtual bool activeSetPosition(byte playlistIndex, size_t &songCount, size_t &selectedSongIndex) const = 0;
     virtual bool selectSong(byte playlistIndex, size_t setSongIndex) = 0;
     virtual bool selectedSong(byte playlistIndex, SetListSongEntry &song) const = 0;
 };
@@ -108,20 +109,18 @@ public:
     bool clearActiveSetList(byte playlistIndex) override;
     bool activeSetList(byte playlistIndex, ActiveSetList &setList) const override;
     bool activeSetSummary(byte playlistIndex, SetListSummary &summary) const override;
+    bool activeSetPosition(byte playlistIndex, size_t &songCount, size_t &selectedSongIndex) const override;
     bool selectSong(byte playlistIndex, size_t setSongIndex) override;
     bool selectedSong(byte playlistIndex, SetListSongEntry &song) const override;
 
 private:
-    struct PlaylistState
-    {
-        bool hasActiveSet = false;
-        ActiveSetList setList;
-    };
-
     const IBinaryFileStore &_binaryFileStore;
     const ITextDirectoryStore &_directoryStore;
     const ISetListSongResolver &_songResolver;
-    PlaylistState _playlistStates[MaxPlaylistCount];
+    mutable TextFilePathEntry _listEntries[ActiveSetList::MaxSongs];
+    bool _hasActiveSet = false;
+    byte _activePlaylistIndex = 0;
+    ActiveSetList _activeSet;
 
     bool loadSetList(byte playlistIndex, const char *path, ActiveSetList &setList) const;
     bool loadSetListSummary(const char *path, SetListSummary &summary) const;

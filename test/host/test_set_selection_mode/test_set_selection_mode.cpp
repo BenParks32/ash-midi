@@ -224,6 +224,17 @@ class MockSetListStore : public ISetListStore
         summary.songCount = activeSet.songCount;
         return true;
     }
+    bool activeSetPosition(byte, size_t& songCount, size_t& selectedSongIndex) const override
+    {
+        if (!active)
+        {
+            return false;
+        }
+
+        songCount = activeSet.songCount;
+        selectedSongIndex = activeSet.selectedSongIndex;
+        return true;
+    }
 
     bool selectSong(byte, size_t) override { return false; }
     bool selectedSong(byte, SetListSongEntry&) const override { return false; }

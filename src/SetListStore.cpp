@@ -7,8 +7,7 @@
 
 namespace
 {
-template <typename T>
-void sortAscending(T *items, size_t count, bool (*compare)(const T &, const T &))
+template <typename T> void sortAscending(T* items, size_t count, bool (*compare)(const T&, const T&))
 {
     if (items == nullptr || count < 2)
     {
@@ -29,12 +28,9 @@ void sortAscending(T *items, size_t count, bool (*compare)(const T &, const T &)
     }
 }
 
-bool partCompare(const SetListPart &left, const SetListPart &right)
-{
-    return left.part < right.part;
-}
+bool partCompare(const SetListPart& left, const SetListPart& right) { return left.part < right.part; }
 
-bool songCompare(const SetListSongEntry &left, const SetListSongEntry &right)
+bool songCompare(const SetListSongEntry& left, const SetListSongEntry& right)
 {
     if (left.part != right.part)
     {
@@ -67,16 +63,13 @@ bool hasSetListExtension(const char* path)
 
 } // namespace
 
-SetListStore::SetListStore(const IBinaryFileStore &binaryFileStore,
-                           const ITextDirectoryStore &directoryStore,
-                           const ISetListSongResolver &songResolver)
+SetListStore::SetListStore(const IBinaryFileStore& binaryFileStore, const ITextDirectoryStore& directoryStore,
+                           const ISetListSongResolver& songResolver)
     : _binaryFileStore(binaryFileStore), _directoryStore(directoryStore), _songResolver(songResolver)
 {
 }
 
-size_t SetListStore::listSetLists(byte playlistIndex,
-                                  SetListSummary *summaries,
-                                  size_t maxSummaries) const
+size_t SetListStore::listSetLists(byte playlistIndex, SetListSummary* summaries, size_t maxSummaries) const
 {
     if (summaries == nullptr || maxSummaries == 0)
     {
@@ -90,20 +83,19 @@ size_t SetListStore::listSetLists(byte playlistIndex,
         return 0;
     }
 
-    TextFilePathEntry entries[ActiveSetList::MaxSongs];
-    const size_t entryCount = _directoryStore.listTextFiles(directoryPath, entries, ActiveSetList::MaxSongs);
+    const size_t entryCount = _directoryStore.listTextFiles(directoryPath, _listEntries, ActiveSetList::MaxSongs);
 
     size_t loadedCount = 0;
     for (size_t i = 0; i < entryCount && loadedCount < maxSummaries; ++i)
     {
-        if (!isSetListPath(entries[i].path))
+        if (!isSetListPath(_listEntries[i].path))
         {
             continue;
         }
 
-        if (!loadSetListSummary(entries[i].path, summaries[loadedCount]))
+        if (!loadSetListSummary(_listEntries[i].path, summaries[loadedCount]))
         {
-            Serial.printf("Set lists: failed to load summary from '%s'.\n", entries[i].path);
+            Serial.printf("Set lists: failed to load summary from '%s'.\n", _listEntries[i].path);
             continue;
         }
 
@@ -113,12 +105,12 @@ size_t SetListStore::listSetLists(byte playlistIndex,
     return loadedCount;
 }
 
-bool SetListStore::activateSetList(byte playlistIndex, const char *fileName)
+bool SetListStore::activateSetList(byte playlistIndex, const char* fileName)
 {
     if (playlistIndex >= MaxPlaylistCount || fileName == nullptr || fileName[0] == '\0')
     {
-        Serial.printf("Set lists: activate rejected for playlist %u file '%s'.\n", static_cast<unsigned int>(playlistIndex),
-                      fileName != nullptr ? fileName : "<null>");
+        Serial.printf("Set lists: activate rejected for playlist %u file '%s'.\n",
+                      static_cast<unsigned int>(playlistIndex), fileName != nullptr ? fileName : "<null>");
         return false;
     }
 
@@ -146,16 +138,16 @@ bool SetListStore::activateSetList(byte playlistIndex, const char *fileName)
         return false;
     }
 
-    PlaylistState &state = _playlistStates[playlistIndex];
-    state.setList = {};
-    if (!loadSetList(playlistIndex, fullPath, state.setList))
+    ActiveSetList nextSet = {};
+    if (!loadSetList(playlistIndex, fullPath, nextSet))
     {
-        state.hasActiveSet = false;
         Serial.printf("Set lists: failed to activate '%s'.\n", fullPath);
         return false;
     }
 
-    state.hasActiveSet = true;
+    _activeSet = nextSet;
+    _activePlaylistIndex = playlistIndex;
+    _hasActiveSet = true;
     return true;
 }
 
@@ -163,38 +155,53 @@ bool SetListStore::clearActiveSetList(byte playlistIndex)
 {
     if (playlistIndex >= MaxPlaylistCount)
     {
-        Serial.printf("Set lists: clear active set rejected for playlist %u.\n", static_cast<unsigned int>(playlistIndex));
+        Serial.printf("Set lists: clear active set rejected for playlist %u.\n",
+                      static_cast<unsigned int>(playlistIndex));
         return false;
     }
 
-    _playlistStates[playlistIndex].hasActiveSet = false;
-    _playlistStates[playlistIndex].setList = {};
+    if (_hasActiveSet && _activePlaylistIndex == playlistIndex)
+    {
+        _hasActiveSet = false;
+        _activeSet = {};
+    }
     return true;
 }
 
-bool SetListStore::activeSetList(byte playlistIndex, ActiveSetList &setList) const
+bool SetListStore::activeSetList(byte playlistIndex, ActiveSetList& setList) const
 {
-    if (playlistIndex >= MaxPlaylistCount || !_playlistStates[playlistIndex].hasActiveSet)
+    if (playlistIndex >= MaxPlaylistCount || !_hasActiveSet || _activePlaylistIndex != playlistIndex)
     {
         return false;
     }
 
-    setList = _playlistStates[playlistIndex].setList;
+    setList = _activeSet;
     return true;
 }
 
-bool SetListStore::activeSetSummary(byte playlistIndex, SetListSummary &summary) const
+bool SetListStore::activeSetSummary(byte playlistIndex, SetListSummary& summary) const
 {
-    if (playlistIndex >= MaxPlaylistCount || !_playlistStates[playlistIndex].hasActiveSet)
+    if (playlistIndex >= MaxPlaylistCount || !_hasActiveSet || _activePlaylistIndex != playlistIndex)
     {
         return false;
     }
 
-    const ActiveSetList &setList = _playlistStates[playlistIndex].setList;
-    safeCopy(summary.name, sizeof(summary.name), setList.name);
-    safeCopy(summary.fileName, sizeof(summary.fileName), fileNameFromPath(setList.sourcePath));
-    summary.partCount = setList.partCount;
-    summary.songCount = setList.songCount;
+    safeCopy(summary.name, sizeof(summary.name), _activeSet.name);
+    safeCopy(summary.fileName, sizeof(summary.fileName), fileNameFromPath(_activeSet.sourcePath));
+    summary.partCount = _activeSet.partCount;
+    summary.songCount = _activeSet.songCount;
+    return true;
+}
+
+bool SetListStore::activeSetPosition(byte playlistIndex, size_t& songCount, size_t& selectedSongIndex) const
+{
+    if (playlistIndex >= MaxPlaylistCount || !_hasActiveSet || _activePlaylistIndex != playlistIndex)
+    {
+        return false;
+    }
+
+    songCount = _activeSet.songCount;
+    selectedSongIndex = _activeSet.selectedSongIndex;
     return true;
 }
 
@@ -205,34 +212,32 @@ bool SetListStore::selectSong(byte playlistIndex, size_t setSongIndex)
         return false;
     }
 
-    PlaylistState &state = _playlistStates[playlistIndex];
-    if (!state.hasActiveSet || setSongIndex >= state.setList.songCount)
+    if (!_hasActiveSet || _activePlaylistIndex != playlistIndex || setSongIndex >= _activeSet.songCount)
     {
         return false;
     }
 
-    state.setList.selectedSongIndex = setSongIndex;
+    _activeSet.selectedSongIndex = setSongIndex;
     return true;
 }
 
-bool SetListStore::selectedSong(byte playlistIndex, SetListSongEntry &song) const
+bool SetListStore::selectedSong(byte playlistIndex, SetListSongEntry& song) const
 {
-    if (playlistIndex >= MaxPlaylistCount)
+    if (playlistIndex >= MaxPlaylistCount || !_hasActiveSet || _activePlaylistIndex != playlistIndex)
     {
         return false;
     }
 
-    const PlaylistState &state = _playlistStates[playlistIndex];
-    if (!state.hasActiveSet || state.setList.selectedSongIndex >= state.setList.songCount)
+    if (_activeSet.selectedSongIndex >= _activeSet.songCount)
     {
         return false;
     }
 
-    song = state.setList.songs[state.setList.selectedSongIndex];
+    song = _activeSet.songs[_activeSet.selectedSongIndex];
     return true;
 }
 
-bool SetListStore::loadSetList(byte playlistIndex, const char *path, ActiveSetList &setList) const
+bool SetListStore::loadSetList(byte playlistIndex, const char* path, ActiveSetList& setList) const
 {
     uint8_t* buffer = nullptr;
     size_t size = 0U;
@@ -274,7 +279,7 @@ bool SetListStore::loadSetList(byte playlistIndex, const char *path, ActiveSetLi
             return false;
         }
 
-        SetListPart &part = setList.parts[setList.partCount++];
+        SetListPart& part = setList.parts[setList.partCount++];
         part.part = partRecord->part;
         safeCopy(part.name, sizeof(part.name), mslt_get_string(catalogue, partRecord->nameIndex));
     }
@@ -291,7 +296,7 @@ bool SetListStore::loadSetList(byte playlistIndex, const char *path, ActiveSetLi
             return false;
         }
 
-        SetListSongEntry &song = setList.songs[setList.songCount++];
+        SetListSongEntry& song = setList.songs[setList.songCount++];
         song.number = songRecord->number;
         song.part = songRecord->part;
         safeCopy(song.songId, sizeof(song.songId), mslt_get_string(catalogue, songRecord->songIdIndex));
@@ -301,15 +306,14 @@ bool SetListStore::loadSetList(byte playlistIndex, const char *path, ActiveSetLi
     size_t unresolvedSongCount = 0;
     for (size_t songEntryIndex = 0; songEntryIndex < setList.songCount; ++songEntryIndex)
     {
-        SetListSongEntry &song = setList.songs[songEntryIndex];
+        SetListSongEntry& song = setList.songs[songEntryIndex];
 
         SetListResolvedSong resolvedSong = {};
         if (_songResolver.resolveSong(playlistIndex, song.songId, song.songIndex, resolvedSong))
         {
             song.available = true;
             song.patch = resolvedSong.patch;
-            safeCopy(song.name,
-                     sizeof(song.name),
+            safeCopy(song.name, sizeof(song.name),
                      resolvedSong.hasDisplayName ? resolvedSong.displayName : resolvedSong.name);
             ++resolvedSongCount;
         }
@@ -318,7 +322,8 @@ bool SetListStore::loadSetList(byte playlistIndex, const char *path, ActiveSetLi
             song.available = false;
             safeCopy(song.name, sizeof(song.name), song.songId);
             ++unresolvedSongCount;
-            Serial.printf("Set lists: unresolved song id '%s' in '%s'.\n", song.songId, path != nullptr ? path : "<null>");
+            Serial.printf("Set lists: unresolved song id '%s' in '%s'.\n", song.songId,
+                          path != nullptr ? path : "<null>");
         }
     }
 
@@ -332,7 +337,7 @@ bool SetListStore::loadSetList(byte playlistIndex, const char *path, ActiveSetLi
     return true;
 }
 
-bool SetListStore::loadSetListSummary(const char *path, SetListSummary &summary) const
+bool SetListStore::loadSetListSummary(const char* path, SetListSummary& summary) const
 {
     uint8_t* buffer = nullptr;
     size_t size = 0U;
@@ -358,20 +363,18 @@ bool SetListStore::loadSetListSummary(const char *path, SetListSummary &summary)
     return true;
 }
 
-bool SetListStore::isSetListPath(const char* path)
-{
-    return hasSetListExtension(path);
-}
+bool SetListStore::isSetListPath(const char* path) { return hasSetListExtension(path); }
 
-bool SetListStore::directoryForPlaylist(byte playlistIndex, char *directoryPath, size_t directoryPathSize)
+bool SetListStore::directoryForPlaylist(byte playlistIndex, char* directoryPath, size_t directoryPathSize)
 {
     if (playlistIndex >= MaxPlaylistCount || directoryPath == nullptr || directoryPathSize == 0)
     {
-        Serial.printf("Set lists: invalid directory lookup for playlist %u.\n", static_cast<unsigned int>(playlistIndex));
+        Serial.printf("Set lists: invalid directory lookup for playlist %u.\n",
+                      static_cast<unsigned int>(playlistIndex));
         return false;
     }
 
-    const char *path = nullptr;
+    const char* path = nullptr;
     switch (playlistIndex)
     {
     case Project7PlaylistIndex:
@@ -389,24 +392,19 @@ bool SetListStore::directoryForPlaylist(byte playlistIndex, char *directoryPath,
 
     if (path == nullptr)
     {
-        Serial.printf("Set lists: playlist %u has no configured set directory.\n", static_cast<unsigned int>(playlistIndex));
+        Serial.printf("Set lists: playlist %u has no configured set directory.\n",
+                      static_cast<unsigned int>(playlistIndex));
         return false;
     }
     safeCopy(directoryPath, directoryPathSize, path);
     return true;
 }
 
-void SetListStore::sortParts(SetListPart *parts, size_t count)
-{
-    sortAscending(parts, count, partCompare);
-}
+void SetListStore::sortParts(SetListPart* parts, size_t count) { sortAscending(parts, count, partCompare); }
 
-void SetListStore::sortSongs(SetListSongEntry *songs, size_t count)
-{
-    sortAscending(songs, count, songCompare);
-}
+void SetListStore::sortSongs(SetListSongEntry* songs, size_t count) { sortAscending(songs, count, songCompare); }
 
-void SetListStore::safeCopy(char *destination, size_t destinationSize, const char *source)
+void SetListStore::safeCopy(char* destination, size_t destinationSize, const char* source)
 {
     if (destination == nullptr || destinationSize == 0)
     {
@@ -422,13 +420,13 @@ void SetListStore::safeCopy(char *destination, size_t destinationSize, const cha
     destination[destinationSize - 1] = '\0';
 }
 
-const char *SetListStore::fileNameFromPath(const char *path)
+const char* SetListStore::fileNameFromPath(const char* path)
 {
     if (path == nullptr)
     {
         return "";
     }
 
-    const char *fileName = strrchr(path, '/');
+    const char* fileName = strrchr(path, '/');
     return fileName == nullptr ? path : fileName + 1;
 }

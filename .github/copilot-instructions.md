@@ -14,6 +14,7 @@ The target device being controlled by the device is a Quad Cortex Mini guitar pr
 
 - Provide a responsive and intuitive MIDI controller interface for live performance first, with full band rehearsal and home practice supported as secondary scenarios.
 - Prioritize changes that reduce on-stage friction, improve reliability, and keep interaction fast and easy to understand during performance.
+- Prioritize ultra memory efficiency in firmware changes to stay safely within STM32F401 RAM limits.
 - Allow users to customize button mappings, LED patterns, and display content through an SD card without needing to modify the firmware.
 - Maintain a clean separation between hardware-specific code and business logic to facilitate testing and future adaptability to other hardware platforms or MIDI devices.
 
@@ -64,6 +65,7 @@ The target device being controlled by the device is a Quad Cortex Mini guitar pr
 ## Change guidance
 
 - Limit each change to the smallest set of functions and files necessary to satisfy the task. Do not refactor, rename, or restructure code that is not directly required by the task.
+- Treat RAM usage as a primary constraint: prefer stack-safe and memory-efficient designs, avoid large fixed buffers and per-mode duplication, and justify any new persistent allocations.
 - When touching firmware logic, check whether a host-testable path exists before changing hardware-specific code. If a host-testable path exists, implement the logic there and keep the hardware layer as a thin adapter. If no host-testable path exists, document why in a comment and proceed with the hardware-specific change.
 - Follow the existing structure and naming patterns in `src\`, especially under `Modes` and `Touch`.
 

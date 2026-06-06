@@ -19,6 +19,7 @@
 #include "Modes/PatchMode.h"
 #include "Modes/PatchesMode.h"
 #include "Modes/PlayMode.h"
+#include "Modes/SetsMode.h"
 #include "Modes/SetSelectionMode.h"
 #include "Modes/SongsMode.h"
 #include "SetListStore.h"
@@ -106,6 +107,7 @@ PatchesMode patchesMode(touchButtonManager, ringManager, screenUi, midiManager, 
                         modeManager);
 SetSelectionMode setSelectionMode(touchButtonManager, ringManager, screenUi, midiManager, midiProvider, setListStore,
                                   modeManager);
+SetsMode setsMode(touchButtonManager, ringManager, screenUi, midiManager, midiProvider, setListStore, modeManager);
 HomeMode homeMode(touchButtonManager, ringManager, screenUi, midiManager, modeManager);
 MenuMode menuMode(touchButtonManager, ringManager, screenUi, midiManager, modeManager, settingsStore, resources,
                   touchCalibrator, appSettings);
@@ -167,7 +169,7 @@ void setup()
     modeRegistry[static_cast<uint8_t>(Modes::Menu)] = &menuMode;
     modeRegistry[static_cast<uint8_t>(Modes::ButtonDiagnostic)] = &buttonDiagnosticMode;
     modeRegistry[static_cast<uint8_t>(Modes::Patches)] = &patchesMode;
-    modeRegistry[static_cast<uint8_t>(Modes::Songs)] = &setSelectionMode;
+    modeRegistry[static_cast<uint8_t>(Modes::Songs)] = &setsMode;
     modeRegistry[static_cast<uint8_t>(Modes::SetSelection)] = &setSelectionMode;
 
     activeMode = &homeMode;

@@ -43,6 +43,8 @@ const uint32_t TapTempoFlashDurationMs = 10000;
 const uint32_t TunerFlashHalfPeriodMs = 500;
 const byte TunerButtonIndex = 7;
 const uint16_t TunerButtonColour = 0x801F;
+const uint32_t SetAdvanceDebounceMs = 200;
+const uint32_t SetWrapConfirmWindowMs = 2000;
 
 bool isHomePlaylistTransition(ModeTransitionValue transitionValue)
 {
@@ -57,7 +59,8 @@ PlayMode::PlayMode(TouchButtonManager& touchButtonManager, RingManager& ringMana
       _midiProvider(midiProvider), _buttonOverrideStore(buttonOverrideStore), _setListStore(setListStore),
       _selectedPreset(0),
       _selectedPlaylist(midiProvider.defaultPlaylistIndex()), _selectedSongIndex(0), _hasSelectedPreset(false),
-      _hasSelectedSong(false), _hasSelectedSetSong(false), _selectedSetSongUnavailable(false), _selectedButton(0),
+      _hasSelectedSong(false), _hasSelectedSetSong(false), _selectedSetSongUnavailable(false), _isPlaySetMode(false),
+      _selectedButton(0), _lastSetAdvancePressedAtMs(0), _setWrapConfirmUntilMs(0),
       _tapTempoEngine(), _nextTapTempoFlashToggleMs(0), _tapTempoFlashUntilMs(0), _isTapTempoLit(true),
       _nextTunerFlashToggleMs(0), _isTunerEnabled(false), _isGigViewEnabled(false), _isTunerFlashLit(true),
       _toggleStates{false, false, false, false, false, false, false, false},
@@ -75,6 +78,8 @@ void PlayMode::setSelectedPreset(byte selectedPreset)
     _hasSelectedSong = false;
     _hasSelectedSetSong = false;
     _selectedSetSongUnavailable = false;
+    _isPlaySetMode = false;
+    _setWrapConfirmUntilMs = 0;
     _selectedSongDisplayName[0] = '\0';
 }
 
@@ -88,6 +93,8 @@ void PlayMode::setTransitionValue(ModeTransitionValue transitionValue)
         _hasSelectedSong = false;
         _hasSelectedSetSong = false;
         _selectedSetSongUnavailable = false;
+        _isPlaySetMode = false;
+        _setWrapConfirmUntilMs = 0;
         _selectedSongDisplayName[0] = '\0';
         return;
     }
@@ -126,6 +133,8 @@ void PlayMode::setTransitionValue(ModeTransitionValue transitionValue)
         _hasSelectedSong = false;
         _hasSelectedSetSong = false;
         _selectedSetSongUnavailable = false;
+        _isPlaySetMode = false;
+        _setWrapConfirmUntilMs = 0;
         _selectedSongDisplayName[0] = '\0';
         return;
     }
@@ -168,6 +177,36 @@ void PlayMode::configureSetButton()
         Function("Set", SetButtonColour, ActionType::ChangeMode, static_cast<byte>(Modes::Songs), ActionType::None, 0);
 }
 
+void PlayMode::configureManageSetButton()
+{
+    _functions[TunerButtonIndex] =
+        Function("Set", SetButtonColour, ActionType::ChangeMode, static_cast<byte>(Modes::Songs), ActionType::None, 0);
+    _functions[TunerButtonIndex].setToggle(false);
+}
+
+void PlayMode::configurePlaySetButtons()
+{
+    _functions[SetButtonIndex] = Function("Next", SetButtonColour, ActionType::None, 0, ActionType::None, 0);
+    configureManageSetButton();
+}
+
+void PlayMode::refreshPlaySetState()
+{
+    size_t songCount = 0;
+    size_t selectedSongIndex = 0;
+    _isPlaySetMode = _setListStore.activeSetPosition(_selectedPlaylist, songCount, selectedSongIndex) && songCount > 0;
+    Serial.printf("[PlaySetDiag] refresh playlist=%u active=%u songCount=%u selectedIndex=%u\n",
+                  static_cast<unsigned int>(_selectedPlaylist), _isPlaySetMode ? 1U : 0U, static_cast<unsigned int>(songCount),
+                  static_cast<unsigned int>(selectedSongIndex));
+    if (!_isPlaySetMode)
+    {
+        return;
+    }
+
+    _hasSelectedSetSong = true;
+    _hasSelectedSong = false;
+}
+
 bool PlayMode::resolveSelectedSetSong()
 {
     _selectedSongDisplayName[0] = '\0';
@@ -180,10 +219,15 @@ bool PlayMode::resolveSelectedSetSong()
     SetListSongEntry setSong = {};
     if (!_setListStore.selectedSong(_selectedPlaylist, setSong))
     {
+        Serial.printf("[PlaySetDiag] resolveSelectedSetSong failed playlist=%u\n",
+                      static_cast<unsigned int>(_selectedPlaylist));
         _hasSelectedSetSong = false;
         return false;
     }
 
+    Serial.printf("[PlaySetDiag] resolveSelectedSetSong ok playlist=%u song='%s' available=%u patch=%u songIndex=%u\n",
+                  static_cast<unsigned int>(_selectedPlaylist), setSong.name, setSong.available ? 1U : 0U,
+                  static_cast<unsigned int>(setSong.patch), static_cast<unsigned int>(setSong.songIndex));
     std::snprintf(_selectedSongDisplayName, sizeof(_selectedSongDisplayName), "%s", setSong.name);
     _selectedSetSongUnavailable = !setSong.available;
     if (setSong.available)
@@ -235,15 +279,29 @@ void PlayMode::activate()
     _patchDisplayConfig.name[0] = '\0';
     _selectedSongDisplayName[0] = '\0';
     _selectedSetSongUnavailable = false;
+    _setWrapConfirmUntilMs = 0;
+    _lastSetAdvancePressedAtMs = 0;
     _buttonOverrideStore.refresh();
-    if (!resolveSelectedSetSong())
+    refreshPlaySetState();
+    if (_isPlaySetMode)
+    {
+        resolveSelectedSetSong();
+    }
+    else if (!resolveSelectedSetSong())
     {
         resolveSelectedSong();
     }
     _buttonOverrideStore.applyOverrides(_selectedPlaylist, _selectedPreset, _functions, TouchButtonManager::BUTTON_COUNT,
                                         &_patchDisplayConfig);
     configurePatchButton();
-    configureSetButton();
+    if (_isPlaySetMode)
+    {
+        configurePlaySetButtons();
+    }
+    else
+    {
+        configureSetButton();
+    }
     _isTapTempoLit = true;
     const uint32_t now = millis();
     if (_tapTempoEngine.hasFlashInterval() && _tapTempoFlashUntilMs != 0 &&
@@ -744,6 +802,21 @@ void PlayMode::buttonPressed(byte number)
         return;
     }
 
+    if (_isPlaySetMode)
+    {
+        if (number == SetButtonIndex)
+        {
+            handleNextSetSongPress();
+            return;
+        }
+
+        if (number == TunerButtonIndex)
+        {
+            _transitionDelegate.enterMode(Modes::Songs, currentPlayTransitionValue(false));
+            return;
+        }
+    }
+
     const Function& func = getFunction(number);
     if (func.hasMomentaryBehaviour())
     {
@@ -793,6 +866,12 @@ void PlayMode::buttonLongPressed(byte number)
 
     if (!isButtonEnabled(number))
     {
+        return;
+    }
+
+    if (_isPlaySetMode && number == TunerButtonIndex)
+    {
+        toggleAction(ActionType::SetTuner);
         return;
     }
 
@@ -965,6 +1044,109 @@ void PlayMode::clearTapTempoState()
     _tapTempoFlashUntilMs = 0;
     _isTapTempoLit = true;
     _tapTempoDisplayLabel[0] = '\0';
+}
+
+bool PlayMode::advanceSelectedSetSong(bool allowWrap)
+{
+    size_t songCount = 0;
+    size_t selectedSongIndex = 0;
+    const bool hasActiveSet = _setListStore.activeSetPosition(_selectedPlaylist, songCount, selectedSongIndex);
+    if (!hasActiveSet || songCount == 0 || selectedSongIndex >= songCount)
+    {
+        Serial.printf("[PlaySetDiag] advance blocked playlist=%u allowWrap=%u hasSet=%u songCount=%u selectedIndex=%u\n",
+                      static_cast<unsigned int>(_selectedPlaylist), allowWrap ? 1U : 0U,
+                      hasActiveSet ? 1U : 0U, static_cast<unsigned int>(songCount), static_cast<unsigned int>(selectedSongIndex));
+        return false;
+    }
+
+    Serial.printf("[PlaySetDiag] advance begin playlist=%u allowWrap=%u currentIndex=%u songCount=%u\n",
+                  static_cast<unsigned int>(_selectedPlaylist), allowWrap ? 1U : 0U,
+                  static_cast<unsigned int>(selectedSongIndex), static_cast<unsigned int>(songCount));
+    size_t nextSongIndex = selectedSongIndex + 1;
+    if (nextSongIndex >= songCount)
+    {
+        if (!allowWrap)
+        {
+            return false;
+        }
+
+        nextSongIndex = 0;
+    }
+
+    if (!_setListStore.selectSong(_selectedPlaylist, nextSongIndex))
+    {
+        Serial.printf("[PlaySetDiag] advance selectSong failed playlist=%u nextIndex=%u\n",
+                      static_cast<unsigned int>(_selectedPlaylist), static_cast<unsigned int>(nextSongIndex));
+        return false;
+    }
+
+    Serial.printf("[PlaySetDiag] advance selectSong ok playlist=%u nextIndex=%u\n",
+                  static_cast<unsigned int>(_selectedPlaylist), static_cast<unsigned int>(nextSongIndex));
+    _hasSelectedSetSong = true;
+    _hasSelectedSong = false;
+    resolveSelectedSetSong();
+    if (_hasSelectedPreset)
+    {
+        _midiProvider.recallPreset(_selectedPreset);
+    }
+    return true;
+}
+
+void PlayMode::handleNextSetSongPress()
+{
+    const uint32_t now = millis();
+    Serial.printf("[PlaySetDiag] next pressed now=%lu last=%lu wrapUntil=%lu\n", static_cast<unsigned long>(now),
+                  static_cast<unsigned long>(_lastSetAdvancePressedAtMs), static_cast<unsigned long>(_setWrapConfirmUntilMs));
+    if (_lastSetAdvancePressedAtMs != 0U &&
+        static_cast<int32_t>(now - _lastSetAdvancePressedAtMs) < static_cast<int32_t>(SetAdvanceDebounceMs))
+    {
+        Serial.printf("[PlaySetDiag] next debounced delta=%ld\n",
+                      static_cast<long>(now - _lastSetAdvancePressedAtMs));
+        return;
+    }
+    _lastSetAdvancePressedAtMs = now;
+
+    if (advanceSelectedSetSong(false))
+    {
+        _setWrapConfirmUntilMs = 0;
+        renderPlayCenterUi();
+        return;
+    }
+
+    size_t songCount = 0;
+    size_t selectedSongIndex = 0;
+    if (!_setListStore.activeSetPosition(_selectedPlaylist, songCount, selectedSongIndex) || songCount == 0)
+    {
+        Serial.printf("[PlaySetDiag] next no active set playlist=%u\n", static_cast<unsigned int>(_selectedPlaylist));
+        return;
+    }
+
+    const bool atEndOfSet = (selectedSongIndex + 1) >= songCount;
+    if (!atEndOfSet)
+    {
+        Serial.printf("[PlaySetDiag] next no-advance and not-end playlist=%u selectedIndex=%u songCount=%u\n",
+                      static_cast<unsigned int>(_selectedPlaylist), static_cast<unsigned int>(selectedSongIndex),
+                      static_cast<unsigned int>(songCount));
+        return;
+    }
+
+    if (_setWrapConfirmUntilMs != 0U &&
+        static_cast<int32_t>(now - _setWrapConfirmUntilMs) <= 0)
+    {
+        if (advanceSelectedSetSong(true))
+        {
+            Serial.printf("[PlaySetDiag] next wrap confirmed playlist=%u\n", static_cast<unsigned int>(_selectedPlaylist));
+            _setWrapConfirmUntilMs = 0;
+            renderPlayCenterUi();
+        }
+        return;
+    }
+
+    Serial.printf("[PlaySetDiag] next at end - waiting confirm playlist=%u windowUntil=%lu\n",
+                  static_cast<unsigned int>(_selectedPlaylist), static_cast<unsigned long>(now + SetWrapConfirmWindowMs));
+    _setWrapConfirmUntilMs = now + SetWrapConfirmWindowMs;
+    updateTrackedTextLabel(_snapshotLabel, "END OF SET", FF32, PlaySnapshotLabelScale, PlaySnapshotLabelLeftX,
+                           snapshotLabelY(), SetButtonColour);
 }
 
 void PlayMode::renderPatchNameLabel(uint16_t textColour)

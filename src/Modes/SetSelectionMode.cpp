@@ -298,6 +298,8 @@ void SetSelectionMode::selectHighlightedSetList()
 {
     if (_highlightedSetListIndex >= _setListCount)
     {
+        Serial.printf("[PlaySetDiag] set-load ignored highlighted=%u setCount=%u\n",
+                      static_cast<unsigned int>(_highlightedSetListIndex), static_cast<unsigned int>(_setListCount));
         return;
     }
 
@@ -315,11 +317,16 @@ void SetSelectionMode::selectHighlightedSetList()
 
     if (_highlightedSetListIndex == 0)
     {
-        _setListStore.clearActiveSetList(_selectedPlaylist);
+        const bool cleared = _setListStore.clearActiveSetList(_selectedPlaylist);
+        Serial.printf("[PlaySetDiag] set-clear playlist=%u result=%u\n", static_cast<unsigned int>(_selectedPlaylist),
+                      cleared ? 1U : 0U);
     }
     else
     {
-        _setListStore.activateSetList(_selectedPlaylist, _setLists[_highlightedSetListIndex].fileName);
+        const bool activated = _setListStore.activateSetList(_selectedPlaylist, _setLists[_highlightedSetListIndex].fileName);
+        Serial.printf("[PlaySetDiag] set-activate playlist=%u file='%s' result=%u\n",
+                      static_cast<unsigned int>(_selectedPlaylist), _setLists[_highlightedSetListIndex].fileName,
+                      activated ? 1U : 0U);
     }
 
     _isLoading = false;
@@ -361,7 +368,13 @@ void SetSelectionMode::selectHighlightedSetList()
 
 void SetSelectionMode::returnToPlay()
 {
-    _transitionDelegate.enterMode(Modes::Play, currentPlayTransitionValue(false));
+    const ModeTransitionValue transition = currentPlayTransitionValue(false);
+    Serial.printf("[PlaySetDiag] set-selection back -> play playlist=%u transition=0x%04X hasCurrentSong=%u currentPatch=%u "
+                  "currentSongIndex=%u\n",
+                  static_cast<unsigned int>(_selectedPlaylist), static_cast<unsigned int>(transition),
+                  _hasCurrentSong ? 1U : 0U, static_cast<unsigned int>(_currentPatch),
+                  static_cast<unsigned int>(_currentSongIndex));
+    _transitionDelegate.enterMode(Modes::Play, transition);
 }
 
 ModeTransitionValue SetSelectionMode::currentPlayTransitionValue(bool shouldRecall) const

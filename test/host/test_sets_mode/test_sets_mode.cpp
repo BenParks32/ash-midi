@@ -20,12 +20,6 @@ constexpr byte TestPlaylistIndex = 2;
 class FakeScreenUi : public IScreenUi
 {
   public:
-    struct DrawTextCall
-    {
-        char label[96];
-        uint16_t textColour;
-    };
-
     void drawBackgroundAndBorder() override {}
     void drawCenteredFrame(int32_t, int32_t, int32_t, int32_t, int32_t) override {}
     void drawCenteredFrame(int32_t, int32_t, int32_t, int32_t, int32_t, uint16_t, uint16_t) override {}
@@ -34,25 +28,12 @@ class FakeScreenUi : public IScreenUi
                   uint16_t, uint16_t) override
     {
     }
-    void drawText(const GFXfont*, uint8_t, const char* label, int32_t, int32_t, uint16_t textColour,
-                  uint16_t) override
-    {
-        if (drawTextCallCount < MaxDrawTextCalls)
-        {
-            std::snprintf(drawTextLog[drawTextCallCount].label, sizeof(drawTextLog[drawTextCallCount].label), "%s",
-                          label != nullptr ? label : "");
-            drawTextLog[drawTextCallCount].textColour = textColour;
-            ++drawTextCallCount;
-        }
-    }
+    void drawText(const GFXfont*, uint8_t, const char*, int32_t, int32_t, uint16_t, uint16_t) override {}
     void fillRect(int32_t, int32_t, int32_t, int32_t, uint16_t) override {}
     void drawRect(int32_t, int32_t, int32_t, int32_t, uint16_t) override {}
     void drawSmallText(const char*, int32_t, int32_t, uint16_t, uint16_t) override {}
     void drawCenteredText(const GFXfont*, uint8_t, const char*, int32_t, int32_t, uint16_t, uint16_t) override {}
-    void drawTouchButtonLabelAndPill(const char*, const Point&, const Size&, uint16_t, bool, uint16_t,
-                                     uint16_t) override
-    {
-    }
+    void drawTouchButtonLabelAndPill(const char*, const Point&, const Size&, uint16_t, bool, uint16_t, uint16_t) override {}
     void drawTouchButtonPill(const Point&, const Size&, uint16_t, uint16_t) override {}
     void setSdStatusInitializing() override {}
     void setSdStatusFailed() override {}
@@ -66,10 +47,6 @@ class FakeScreenUi : public IScreenUi
     int32_t boxHeight() const override { return 80; }
     int32_t bottomRowY() const override { return 240; }
     Size boxSize() const override { return {120, 80}; }
-
-    static constexpr int MaxDrawTextCalls = 32;
-    DrawTextCall drawTextLog[MaxDrawTextCalls] = {};
-    int drawTextCallCount = 0;
 };
 
 class MockMidiManager : public IMidiManager
@@ -120,32 +97,49 @@ class MockSetListStore : public ISetListStore
     {
         if (!active)
         {
-            setList = ActiveSetList{};
             return false;
         }
 
         setList = activeSet;
         return true;
     }
-    bool activeSetSummary(byte, SetListSummary& summary) const override
+    bool activeSetSummary(byte, SetListSummary&) const override { return false; }
+    bool activeSetPosition(byte, size_t& songCount, size_t& selectedSongIndex) const override
     {
         if (!active)
         {
-            summary = SetListSummary{};
             return false;
         }
 
-        std::snprintf(summary.name, sizeof(summary.name), "%s", activeSet.name);
-        std::snprintf(summary.fileName, sizeof(summary.fileName), "%s", "active.jsn");
-        summary.partCount = activeSet.partCount;
-        summary.songCount = activeSet.songCount;
+        songCount = activeSet.songCount;
+        selectedSongIndex = activeSet.selectedSongIndex;
         return true;
     }
-    bool selectSong(byte, size_t) override { return false; }
-    bool selectedSong(byte, SetListSongEntry&) const override { return false; }
+    bool selectSong(byte, size_t setSongIndex) override
+    {
+        ++selectSongCalls;
+        lastSetSongIndex = setSongIndex;
+        if (active && setSongIndex < activeSet.songCount)
+        {
+            activeSet.selectedSongIndex = setSongIndex;
+        }
+        return true;
+    }
+    bool selectedSong(byte, SetListSongEntry& song) const override
+    {
+        if (!active || activeSet.songCount == 0 || activeSet.selectedSongIndex >= activeSet.songCount)
+        {
+            return false;
+        }
+
+        song = activeSet.songs[activeSet.selectedSongIndex];
+        return true;
+    }
 
     bool active = false;
-    ActiveSetList activeSet = {};
+    mutable ActiveSetList activeSet = {};
+    int selectSongCalls = 0;
+    size_t lastSetSongIndex = 0;
 };
 
 class Fixture
@@ -169,59 +163,86 @@ class Fixture
     SetsMode mode;
 };
 
-int findDrawTextCall(const FakeScreenUi& ui, const char* label, uint16_t textColour)
+void seedSong(SetListSongEntry& song, uint16_t number, uint16_t part, byte patch, const char* name)
 {
-    for (int index = 0; index < ui.drawTextCallCount; ++index)
-    {
-        if (std::strcmp(ui.drawTextLog[index].label, label) == 0 && ui.drawTextLog[index].textColour == textColour)
-        {
-            return index;
-        }
-    }
-
-    return -1;
+    song.number = number;
+    song.part = part;
+    song.patch = patch;
+    song.available = true;
+    std::snprintf(song.name, sizeof(song.name), "%s", name);
 }
 
-void test_sets_mode_renders_active_set_summary_and_set_button()
+void seedActiveSet(Fixture& fixture)
 {
-    Fixture fixture;
     fixture.setListStore.active = true;
     std::snprintf(fixture.setListStore.activeSet.name, sizeof(fixture.setListStore.activeSet.name), "%s", "Friday");
-
-    fixture.mode.setTransitionValue(makePlayModeTransition(TestPlaylistIndex, 6, false));
-    fixture.mode.activate();
-
-    TEST_ASSERT_EQUAL_STRING("Back", fixture.touchButtonManager.getButton(4)->label());
-    TEST_ASSERT_EQUAL_STRING("Set", fixture.touchButtonManager.getButton(5)->label());
-    TEST_ASSERT_TRUE(findDrawTextCall(fixture.ui, "Loaded: Friday", 0x07FF) >= 0);
+    fixture.setListStore.activeSet.songCount = 3;
+    fixture.setListStore.activeSet.partCount = 2;
+    fixture.setListStore.activeSet.selectedSongIndex = 0;
+    seedSong(fixture.setListStore.activeSet.songs[0], 1, 1, 10, "Song A");
+    seedSong(fixture.setListStore.activeSet.songs[1], 2, 1, 11, "Song B");
+    seedSong(fixture.setListStore.activeSet.songs[2], 3, 2, 12, "Song C");
 }
 
-void test_sets_mode_set_button_opens_set_selection()
+void test_sets_mode_renders_manage_set_button_map()
 {
     Fixture fixture;
+    seedActiveSet(fixture);
 
     fixture.mode.setTransitionValue(makePlayModeTransition(TestPlaylistIndex, 6, false));
     fixture.mode.activate();
-    fixture.mode.buttonPressed(5);
+
+    TEST_ASSERT_EQUAL_STRING("Next", fixture.touchButtonManager.getButton(0)->label());
+    TEST_ASSERT_EQUAL_STRING("Select", fixture.touchButtonManager.getButton(1)->label());
+    TEST_ASSERT_EQUAL_STRING("Play", fixture.touchButtonManager.getButton(3)->label());
+    TEST_ASSERT_EQUAL_STRING("Prev", fixture.touchButtonManager.getButton(4)->label());
+    TEST_ASSERT_EQUAL_STRING("Load", fixture.touchButtonManager.getButton(6)->label());
+    TEST_ASSERT_EQUAL_STRING("Exit", fixture.touchButtonManager.getButton(7)->label());
+}
+
+void test_sets_mode_select_picks_song_and_returns_to_play_set()
+{
+    Fixture fixture;
+    seedActiveSet(fixture);
+
+    fixture.mode.setTransitionValue(makePlayModeSetSongTransition(TestPlaylistIndex, 10, false));
+    fixture.mode.activate();
+    fixture.mode.buttonPressed(0);
+    fixture.mode.buttonPressed(1);
+
+    TEST_ASSERT_EQUAL_INT(1, fixture.setListStore.selectSongCalls);
+    TEST_ASSERT_EQUAL_UINT(1, fixture.setListStore.lastSetSongIndex);
+    TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(Modes::Play), static_cast<uint8_t>(fixture.transitionDelegate.lastMode));
+    TEST_ASSERT_EQUAL_UINT16(makePlayModeSetSongTransition(TestPlaylistIndex, 11, false),
+                             fixture.transitionDelegate.lastTransitionValue);
+}
+
+void test_sets_mode_load_opens_set_selection()
+{
+    Fixture fixture;
+    seedActiveSet(fixture);
+
+    fixture.mode.setTransitionValue(makePlayModeSetSongTransition(TestPlaylistIndex, 10, false));
+    fixture.mode.activate();
+    fixture.mode.buttonPressed(6);
 
     TEST_ASSERT_EQUAL_INT(1, fixture.transitionDelegate.calls);
     TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(Modes::SetSelection),
                             static_cast<uint8_t>(fixture.transitionDelegate.lastMode));
-    TEST_ASSERT_EQUAL_UINT16(makePlayModeTransition(TestPlaylistIndex, 6, false),
-                             fixture.transitionDelegate.lastTransitionValue);
 }
 
-void test_sets_mode_back_returns_to_play()
+void test_sets_mode_exit_returns_to_normal_play_transition()
 {
     Fixture fixture;
+    seedActiveSet(fixture);
 
-    fixture.mode.setTransitionValue(makePlayModeSongTransition(TestPlaylistIndex, 3, false));
+    fixture.mode.setTransitionValue(makePlayModeSetSongTransition(TestPlaylistIndex, 10, false));
     fixture.mode.activate();
-    fixture.mode.buttonPressed(4);
+    fixture.mode.buttonPressed(7);
 
     TEST_ASSERT_EQUAL_INT(1, fixture.transitionDelegate.calls);
     TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(Modes::Play), static_cast<uint8_t>(fixture.transitionDelegate.lastMode));
-    TEST_ASSERT_EQUAL_UINT16(makePlayModeSongTransition(TestPlaylistIndex, 3, false),
+    TEST_ASSERT_EQUAL_UINT16(makePlayModeTransition(TestPlaylistIndex, 10, false),
                              fixture.transitionDelegate.lastTransitionValue);
 }
 } // namespace
@@ -235,8 +256,9 @@ int main(int argc, char** argv)
     (void)argv;
 
     UNITY_BEGIN();
-    RUN_TEST(test_sets_mode_renders_active_set_summary_and_set_button);
-    RUN_TEST(test_sets_mode_set_button_opens_set_selection);
-    RUN_TEST(test_sets_mode_back_returns_to_play);
+    RUN_TEST(test_sets_mode_renders_manage_set_button_map);
+    RUN_TEST(test_sets_mode_select_picks_song_and_returns_to_play_set);
+    RUN_TEST(test_sets_mode_load_opens_set_selection);
+    RUN_TEST(test_sets_mode_exit_returns_to_normal_play_transition);
     return UNITY_END();
 }

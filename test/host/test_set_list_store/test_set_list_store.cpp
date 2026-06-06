@@ -483,6 +483,45 @@ void test_activate_set_list_resolves_songs_from_button_override_catalog()
     TEST_ASSERT_EQUAL_UINT8(22, setList.songs[1].patch);
     TEST_ASSERT_EQUAL_STRING("Champions", setList.songs[1].name);
 }
+
+void test_activate_set_list_switches_active_playlist_context()
+{
+    const SetListPartFixture singlePart[] = {{1, "Full set"}};
+    const SetListSongFixture songs[] = {{1, 1, "song-a"}};
+    FakeBinaryFileStore binaryFileStore;
+    binaryFileStore.setFileContents("/sets/p7/friday.msl", buildSetListCatalogue("Friday Night", singlePart, 1, songs, 1));
+    binaryFileStore.setFileContents("/sets/opr/saturday.msl", buildSetListCatalogue("Saturday Night", singlePart, 1, songs, 1));
+    FakeDirectoryStore directoryStore("/sets/p7", "/sets/p7/friday.msl");
+    FakeSongResolver songResolver;
+    SetListStore store(binaryFileStore, directoryStore, songResolver);
+
+    TEST_ASSERT_TRUE(store.activateSetList(Project7PlaylistIndex, "friday.msl"));
+    TEST_ASSERT_TRUE(store.activateSetList(OprPlaylistIndex, "/sets/opr/saturday.msl"));
+
+    ActiveSetList setList = {};
+    TEST_ASSERT_FALSE(store.activeSetList(Project7PlaylistIndex, setList));
+    TEST_ASSERT_TRUE(store.activeSetList(OprPlaylistIndex, setList));
+    TEST_ASSERT_EQUAL_STRING("Saturday Night", setList.name);
+}
+
+void test_activate_set_list_failure_keeps_previous_active_set()
+{
+    const SetListPartFixture singlePart[] = {{1, "Full set"}};
+    const SetListSongFixture songs[] = {{1, 1, "song-a"}};
+    FakeBinaryFileStore binaryFileStore;
+    binaryFileStore.setFileContents("/sets/p7/friday.msl", buildSetListCatalogue("Friday Night", singlePart, 1, songs, 1));
+    FakeDirectoryStore directoryStore("/sets/p7", "/sets/p7/friday.msl");
+    FakeSongResolver songResolver;
+    SetListStore store(binaryFileStore, directoryStore, songResolver);
+
+    TEST_ASSERT_TRUE(store.activateSetList(Project7PlaylistIndex, "friday.msl"));
+    TEST_ASSERT_FALSE(store.activateSetList(OprPlaylistIndex, "/sets/opr/missing.msl"));
+
+    ActiveSetList setList = {};
+    TEST_ASSERT_TRUE(store.activeSetList(Project7PlaylistIndex, setList));
+    TEST_ASSERT_EQUAL_STRING("Friday Night", setList.name);
+    TEST_ASSERT_FALSE(store.activeSetList(OprPlaylistIndex, setList));
+}
 } // namespace
 
 int main(int, char **)
@@ -492,6 +531,8 @@ int main(int, char **)
     RUN_TEST(test_list_set_lists_reads_summaries_from_directory_entries);
     RUN_TEST(test_select_song_tracks_current_selection);
     RUN_TEST(test_activate_set_list_resolves_songs_from_button_override_catalog);
+    RUN_TEST(test_activate_set_list_switches_active_playlist_context);
+    RUN_TEST(test_activate_set_list_failure_keeps_previous_active_set);
     return UNITY_END();
 }
 

@@ -82,8 +82,13 @@ class PlayMode : public FunctionModeBase
     bool hasPatchDisplayName() const;
     void configurePatchButton();
     void configureSetButton();
+    void configureManageSetButton();
+    void configurePlaySetButtons();
+    void refreshPlaySetState();
     bool resolveSelectedSetSong();
     bool resolveSelectedSong();
+    bool advanceSelectedSetSong(bool allowWrap);
+    void handleNextSetSongPress();
     ModeTransitionValue currentPlayTransitionValue(bool shouldRecall) const;
     bool usesSelectionBorder(byte number) const override;
     uint8_t ringBrightnessForButton(byte number) const override;
@@ -100,7 +105,10 @@ class PlayMode : public FunctionModeBase
     bool _hasSelectedSong;
     bool _hasSelectedSetSong;
     bool _selectedSetSongUnavailable;
+    bool _isPlaySetMode;
     byte _selectedButton;
+    uint32_t _lastSetAdvancePressedAtMs;
+    uint32_t _setWrapConfirmUntilMs;
     TapTempoEngine _tapTempoEngine;
     uint32_t _nextTapTempoFlashToggleMs;
     uint32_t _tapTempoFlashUntilMs;
