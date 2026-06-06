@@ -5,12 +5,13 @@ enum class Modes : uint8_t
 {
     Home = 0,
     Play = 1,
-    Patch = 2,
-    Menu = 3,
-    ButtonDiagnostic = 4,
-    Patches = 5,
-    Songs = 6,
-    SetSelection = 7,
+    PlaySet = 2,
+    Patch = 3,
+    Menu = 4,
+    ButtonDiagnostic = 5,
+    Patches = 6,
+    Songs = 7,
+    SetSelection = 8,
     Count,
 };
 

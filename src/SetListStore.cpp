@@ -205,6 +205,41 @@ bool SetListStore::activeSetPosition(byte playlistIndex, size_t& songCount, size
     return true;
 }
 
+bool SetListStore::activeSetSongAt(byte playlistIndex, size_t setSongIndex, SetListSongEntry& song) const
+{
+    if (playlistIndex >= MaxPlaylistCount || !_hasActiveSet || _activePlaylistIndex != playlistIndex ||
+        setSongIndex >= _activeSet.songCount)
+    {
+        return false;
+    }
+
+    song = _activeSet.songs[setSongIndex];
+    return true;
+}
+
+bool SetListStore::activeSetPartName(byte playlistIndex, uint16_t partNumber, char* name, size_t nameSize) const
+{
+    if (name == nullptr || nameSize == 0 || playlistIndex >= MaxPlaylistCount || !_hasActiveSet ||
+        _activePlaylistIndex != playlistIndex)
+    {
+        return false;
+    }
+
+    name[0] = '\0';
+    for (size_t index = 0; index < _activeSet.partCount; ++index)
+    {
+        if (_activeSet.parts[index].part != partNumber)
+        {
+            continue;
+        }
+
+        safeCopy(name, nameSize, _activeSet.parts[index].name);
+        return true;
+    }
+
+    return false;
+}
+
 bool SetListStore::selectSong(byte playlistIndex, size_t setSongIndex)
 {
     if (playlistIndex >= MaxPlaylistCount)

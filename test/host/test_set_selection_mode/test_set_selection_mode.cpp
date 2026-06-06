@@ -235,6 +235,37 @@ class MockSetListStore : public ISetListStore
         selectedSongIndex = activeSet.selectedSongIndex;
         return true;
     }
+    bool activeSetSongAt(byte, size_t setSongIndex, SetListSongEntry& song) const override
+    {
+        if (!active || setSongIndex >= activeSet.songCount)
+        {
+            return false;
+        }
+
+        song = activeSet.songs[setSongIndex];
+        return true;
+    }
+    bool activeSetPartName(byte, uint16_t partNumber, char* name, size_t nameSize) const override
+    {
+        if (name == nullptr || nameSize == 0)
+        {
+            return false;
+        }
+
+        name[0] = '\0';
+        for (size_t index = 0; index < activeSet.partCount; ++index)
+        {
+            if (activeSet.parts[index].part != partNumber)
+            {
+                continue;
+            }
+
+            std::snprintf(name, nameSize, "%s", activeSet.parts[index].name);
+            return true;
+        }
+
+        return false;
+    }
 
     bool selectSong(byte, size_t) override { return false; }
     bool selectedSong(byte, SetListSongEntry&) const override { return false; }
@@ -367,7 +398,7 @@ void test_set_selection_mode_uses_agreed_button_map_and_marks_active_set()
     TEST_ASSERT_TRUE(findFillRectCall(fixture.ui, 5, 141, 470, 29) >= 0);
 }
 
-void test_set_selection_mode_selects_highlighted_set_without_leaving_screen()
+void test_set_selection_mode_selects_highlighted_set_and_returns_to_play_set_mode()
 {
     Fixture fixture;
     fixture.setListStore.setListCount = 2;
@@ -388,10 +419,13 @@ void test_set_selection_mode_selects_highlighted_set_without_leaving_screen()
     TEST_ASSERT_EQUAL_INT(fullListClearCountBeforeSelect, countFillRectCalls(fixture.ui, 5, 82, 470, 156));
     TEST_ASSERT_TRUE(findDrawTextCall(fixture.ui, "Loading...", TFT_WHITE) >= 0);
     TEST_ASSERT_TRUE(findDrawTextCall(fixture.ui, "Loaded: Friday", ExpectedActiveSetColour) >= 0);
-    TEST_ASSERT_EQUAL_INT(0, fixture.transitionDelegate.calls);
+    TEST_ASSERT_EQUAL_INT(1, fixture.transitionDelegate.calls);
+    TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(Modes::PlaySet), static_cast<uint8_t>(fixture.transitionDelegate.lastMode));
+    TEST_ASSERT_EQUAL_UINT16(makePlayModeTransition(TestPlaylistIndex, 6, false),
+                             fixture.transitionDelegate.lastTransitionValue);
 }
 
-void test_set_selection_mode_redraws_previous_active_row_without_clearing_page()
+void test_set_selection_mode_selecting_new_set_returns_to_play_set_mode()
 {
     Fixture fixture;
     fixture.setListStore.setListCount = 2;
@@ -405,13 +439,12 @@ void test_set_selection_mode_redraws_previous_active_row_without_clearing_page()
     fixture.mode.setTransitionValue(makePlayModeTransition(TestPlaylistIndex, 6, false));
     fixture.mode.activate();
     fixture.mode.buttonPressed(7);
-    const int fullListClearCountBeforeSelect = countFillRectCalls(fixture.ui, 5, 82, 470, 156);
-    const int saturdayRowRedrawsBeforeSelect = countFillRectCalls(fixture.ui, 5, 173, 470, 29);
     fixture.mode.buttonPressed(0);
 
-    TEST_ASSERT_EQUAL_INT(fullListClearCountBeforeSelect, countFillRectCalls(fixture.ui, 5, 82, 470, 156));
-    TEST_ASSERT_TRUE(countFillRectCalls(fixture.ui, 5, 173, 470, 29) > saturdayRowRedrawsBeforeSelect);
-    TEST_ASSERT_TRUE(findDrawTextCall(fixture.ui, "Loaded: Friday", ExpectedActiveSetColour) >= 0);
+    TEST_ASSERT_EQUAL_INT(1, fixture.transitionDelegate.calls);
+    TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(Modes::PlaySet), static_cast<uint8_t>(fixture.transitionDelegate.lastMode));
+    TEST_ASSERT_EQUAL_UINT16(makePlayModeTransition(TestPlaylistIndex, 6, false),
+                             fixture.transitionDelegate.lastTransitionValue);
 }
 
 void test_set_selection_mode_can_clear_active_set_without_leaving_screen()
@@ -433,7 +466,7 @@ void test_set_selection_mode_can_clear_active_set_without_leaving_screen()
     TEST_ASSERT_EQUAL_INT(0, fixture.transitionDelegate.calls);
 }
 
-void test_set_selection_mode_back_returns_to_play_with_current_context()
+void test_set_selection_mode_back_returns_to_set_mode_with_current_context()
 {
     Fixture fixture;
 
@@ -442,7 +475,7 @@ void test_set_selection_mode_back_returns_to_play_with_current_context()
     fixture.mode.buttonPressed(4);
 
     TEST_ASSERT_EQUAL_INT(1, fixture.transitionDelegate.calls);
-    TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(Modes::Play), static_cast<uint8_t>(fixture.transitionDelegate.lastMode));
+    TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(Modes::Songs), static_cast<uint8_t>(fixture.transitionDelegate.lastMode));
     TEST_ASSERT_EQUAL_UINT16(makePlayModeTransition(TestPlaylistIndex, 6, false),
                              fixture.transitionDelegate.lastTransitionValue);
 }
@@ -482,10 +515,10 @@ int main(int argc, char** argv)
 
     UNITY_BEGIN();
     RUN_TEST(test_set_selection_mode_uses_agreed_button_map_and_marks_active_set);
-    RUN_TEST(test_set_selection_mode_selects_highlighted_set_without_leaving_screen);
-    RUN_TEST(test_set_selection_mode_redraws_previous_active_row_without_clearing_page);
+    RUN_TEST(test_set_selection_mode_selects_highlighted_set_and_returns_to_play_set_mode);
+    RUN_TEST(test_set_selection_mode_selecting_new_set_returns_to_play_set_mode);
     RUN_TEST(test_set_selection_mode_can_clear_active_set_without_leaving_screen);
-    RUN_TEST(test_set_selection_mode_back_returns_to_play_with_current_context);
+    RUN_TEST(test_set_selection_mode_back_returns_to_set_mode_with_current_context);
     RUN_TEST(test_set_selection_mode_keeps_loaded_label_visible_while_paging);
     return UNITY_END();
 }

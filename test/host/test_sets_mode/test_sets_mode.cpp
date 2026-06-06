@@ -92,7 +92,14 @@ class MockSetListStore : public ISetListStore
   public:
     size_t listSetLists(byte, SetListSummary*, size_t) const override { return 0; }
     bool activateSetList(byte, const char*) override { return false; }
-    bool clearActiveSetList(byte) override { return true; }
+    bool clearActiveSetList(byte playlistIndex) override
+    {
+        ++clearActiveSetCalls;
+        lastClearedPlaylist = playlistIndex;
+        active = false;
+        activeSet = {};
+        return true;
+    }
     bool activeSetList(byte, ActiveSetList& setList) const override
     {
         if (!active)
@@ -114,6 +121,37 @@ class MockSetListStore : public ISetListStore
         songCount = activeSet.songCount;
         selectedSongIndex = activeSet.selectedSongIndex;
         return true;
+    }
+    bool activeSetSongAt(byte, size_t setSongIndex, SetListSongEntry& song) const override
+    {
+        if (!active || setSongIndex >= activeSet.songCount)
+        {
+            return false;
+        }
+
+        song = activeSet.songs[setSongIndex];
+        return true;
+    }
+    bool activeSetPartName(byte, uint16_t partNumber, char* name, size_t nameSize) const override
+    {
+        if (name == nullptr || nameSize == 0)
+        {
+            return false;
+        }
+
+        name[0] = '\0';
+        for (size_t index = 0; index < activeSet.partCount; ++index)
+        {
+            if (activeSet.parts[index].part != partNumber)
+            {
+                continue;
+            }
+
+            std::snprintf(name, nameSize, "%s", activeSet.parts[index].name);
+            return true;
+        }
+
+        return false;
     }
     bool selectSong(byte, size_t setSongIndex) override
     {
@@ -140,6 +178,8 @@ class MockSetListStore : public ISetListStore
     mutable ActiveSetList activeSet = {};
     int selectSongCalls = 0;
     size_t lastSetSongIndex = 0;
+    int clearActiveSetCalls = 0;
+    byte lastClearedPlaylist = 0;
 };
 
 class Fixture
@@ -212,7 +252,7 @@ void test_sets_mode_select_picks_song_and_returns_to_play_set()
 
     TEST_ASSERT_EQUAL_INT(1, fixture.setListStore.selectSongCalls);
     TEST_ASSERT_EQUAL_UINT(1, fixture.setListStore.lastSetSongIndex);
-    TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(Modes::Play), static_cast<uint8_t>(fixture.transitionDelegate.lastMode));
+    TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(Modes::PlaySet), static_cast<uint8_t>(fixture.transitionDelegate.lastMode));
     TEST_ASSERT_EQUAL_UINT16(makePlayModeSetSongTransition(TestPlaylistIndex, 11, false),
                              fixture.transitionDelegate.lastTransitionValue);
 }
@@ -244,6 +284,9 @@ void test_sets_mode_exit_returns_to_normal_play_transition()
     TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(Modes::Play), static_cast<uint8_t>(fixture.transitionDelegate.lastMode));
     TEST_ASSERT_EQUAL_UINT16(makePlayModeTransition(TestPlaylistIndex, 10, false),
                              fixture.transitionDelegate.lastTransitionValue);
+    TEST_ASSERT_EQUAL_INT(1, fixture.setListStore.clearActiveSetCalls);
+    TEST_ASSERT_EQUAL_UINT8(TestPlaylistIndex, fixture.setListStore.lastClearedPlaylist);
+    TEST_ASSERT_FALSE(fixture.setListStore.active);
 }
 } // namespace
 

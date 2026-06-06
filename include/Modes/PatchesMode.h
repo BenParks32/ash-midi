@@ -35,5 +35,6 @@ class PatchesMode : public FunctionModeBase
     IButtonOverrideStore& _buttonOverrideStore;
     byte _selectedPlaylist;
     byte _currentPatch;
+    bool _returnToPlaySet;
     byte _buttonPatchNumbers[TouchButtonManager::BUTTON_COUNT];
 };

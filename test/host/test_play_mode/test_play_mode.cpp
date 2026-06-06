@@ -317,6 +317,37 @@ class MockSetListStore : public ISetListStore
         selectedSongIndex = activeSet.selectedSongIndex;
         return true;
     }
+    bool activeSetSongAt(byte, size_t setSongIndex, SetListSongEntry& song) const override
+    {
+        if (!hasActiveSet || setSongIndex >= activeSet.songCount)
+        {
+            return false;
+        }
+
+        song = activeSet.songs[setSongIndex];
+        return true;
+    }
+    bool activeSetPartName(byte, uint16_t partNumber, char* name, size_t nameSize) const override
+    {
+        if (name == nullptr || nameSize == 0)
+        {
+            return false;
+        }
+
+        name[0] = '\0';
+        for (size_t index = 0; index < activeSet.partCount; ++index)
+        {
+            if (activeSet.parts[index].part != partNumber)
+            {
+                continue;
+            }
+
+            std::snprintf(name, nameSize, "%s", activeSet.parts[index].name);
+            return true;
+        }
+
+        return false;
+    }
     bool selectSong(byte playlistIndex, size_t setSongIndex) override
     {
         lastPlaylistIndex = playlistIndex;
@@ -718,15 +749,13 @@ void test_next_button_advances_selected_set_song_context()
     std::snprintf(fixture.setListStore.activeSet.songs[1].name, sizeof(fixture.setListStore.activeSet.songs[1].name), "%s",
                   "Set Song 2");
 
-    fixture.mode.setTransitionValue(makePlayModeSetSongTransition(DefaultPlaylistIndex, 12, true));
+    fixture.mode.setTransitionValue(makePlayModeTransition(DefaultPlaylistIndex, 12, true));
     fixture.mode.activate();
-    fixture.mode.buttonPressed(5);
 
-    TEST_ASSERT_EQUAL_INT(0, fixture.transitionDelegate.calls);
-    TEST_ASSERT_EQUAL_INT(1, fixture.setListStore.selectSongCalls);
-    TEST_ASSERT_EQUAL_UINT8(1, fixture.setListStore.lastSetSongIndex);
-    TEST_ASSERT_EQUAL_INT(2, fixture.midiProvider.recallPresetCalls);
-    TEST_ASSERT_EQUAL_UINT8(15, fixture.midiProvider.lastRecallPreset);
+    TEST_ASSERT_EQUAL_INT(1, fixture.transitionDelegate.calls);
+    TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(Modes::PlaySet), static_cast<uint8_t>(fixture.transitionDelegate.lastMode));
+    TEST_ASSERT_EQUAL_UINT16(makePlayModeTransition(DefaultPlaylistIndex, 12, true),
+                             fixture.transitionDelegate.lastTransitionValue);
 }
 
 void test_activate_with_unresolved_set_song_keeps_patch_and_renders_unavailable_in_red()
@@ -740,12 +769,13 @@ void test_activate_with_unresolved_set_song_keeps_patch_and_renders_unavailable_
     std::snprintf(fixture.setListStore.activeSong.name, sizeof(fixture.setListStore.activeSong.name), "%s",
                   "Missing Song");
 
-    fixture.mode.setTransitionValue(makePlayModeSetSongTransition(DefaultPlaylistIndex, 6, false));
+    fixture.mode.setTransitionValue(makePlayModeSetSongTransition(DefaultPlaylistIndex, 6, true));
     fixture.mode.activate();
 
-    TEST_ASSERT_EQUAL_INT(0, fixture.midiProvider.recallPresetCalls);
+    TEST_ASSERT_EQUAL_INT(1, fixture.midiProvider.recallPresetCalls);
+    TEST_ASSERT_EQUAL_UINT8(6, fixture.midiProvider.lastRecallPreset);
     TEST_ASSERT_EQUAL_UINT8(6, fixture.overrideStore.lastPatchNumber);
-    TEST_ASSERT_TRUE(findDrawTextCallIndex(fixture.ui, "Song: Missing Song", TFT_RED) >= 0);
+    TEST_ASSERT_TRUE(findDrawTextCallIndex(fixture.ui, "Song: Missing Song", TFT_RED) < 0);
 }
 
 void test_next_button_requires_second_press_to_wrap_end_of_set()
@@ -759,16 +789,38 @@ void test_next_button_requires_second_press_to_wrap_end_of_set()
     std::snprintf(fixture.setListStore.activeSet.songs[0].name, sizeof(fixture.setListStore.activeSet.songs[0].name), "%s",
                   "Solo");
 
-    fixture.mode.setTransitionValue(makePlayModeSetSongTransition(DefaultPlaylistIndex, 11, true));
+    fixture.mode.setTransitionValue(makePlayModeTransition(DefaultPlaylistIndex, 11, true));
     fixture.mode.activate();
-    fixture.mode.buttonPressed(5);
 
     TEST_ASSERT_EQUAL_INT(0, fixture.setListStore.selectSongCalls);
+    TEST_ASSERT_EQUAL_INT(1, fixture.transitionDelegate.calls);
+    TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(Modes::PlaySet), static_cast<uint8_t>(fixture.transitionDelegate.lastMode));
+    TEST_ASSERT_EQUAL_UINT16(makePlayModeTransition(DefaultPlaylistIndex, 11, true),
+                             fixture.transitionDelegate.lastTransitionValue);
+}
 
-    delay(210);
-    fixture.mode.buttonPressed(5);
-    TEST_ASSERT_EQUAL_INT(1, fixture.setListStore.selectSongCalls);
-    TEST_ASSERT_EQUAL_UINT8(0, fixture.setListStore.lastSetSongIndex);
+void test_activate_with_active_set_and_manual_patch_transition_keeps_manual_patch()
+{
+    PlayModeFixture fixture;
+    fixture.setListStore.hasActiveSet = true;
+    fixture.setListStore.activeSet.songCount = 2;
+    fixture.setListStore.activeSet.selectedSongIndex = 0;
+    fixture.setListStore.activeSet.songs[0].available = true;
+    fixture.setListStore.activeSet.songs[0].patch = 12;
+    std::snprintf(fixture.setListStore.activeSet.songs[0].name, sizeof(fixture.setListStore.activeSet.songs[0].name), "%s",
+                  "Set Song 1");
+    fixture.setListStore.activeSet.songs[1].available = true;
+    fixture.setListStore.activeSet.songs[1].patch = 15;
+    std::snprintf(fixture.setListStore.activeSet.songs[1].name, sizeof(fixture.setListStore.activeSet.songs[1].name), "%s",
+                  "Set Song 2");
+
+    fixture.mode.setTransitionValue(makePlayModeTransition(DefaultPlaylistIndex, 22, true));
+    fixture.mode.activate();
+
+    TEST_ASSERT_EQUAL_INT(1, fixture.transitionDelegate.calls);
+    TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(Modes::PlaySet), static_cast<uint8_t>(fixture.transitionDelegate.lastMode));
+    TEST_ASSERT_EQUAL_UINT16(makePlayModeTransition(DefaultPlaylistIndex, 22, true),
+                             fixture.transitionDelegate.lastTransitionValue);
 }
 
 void test_play_set_set_button_opens_manage_set_mode()
@@ -782,12 +834,11 @@ void test_play_set_set_button_opens_manage_set_mode()
     std::snprintf(fixture.setListStore.activeSet.songs[0].name, sizeof(fixture.setListStore.activeSet.songs[0].name), "%s",
                   "Song A");
 
-    fixture.mode.setTransitionValue(makePlayModeSetSongTransition(DefaultPlaylistIndex, 7, true));
+    fixture.mode.setTransitionValue(makePlayModeTransition(DefaultPlaylistIndex, 7, true));
     fixture.mode.activate();
-    fixture.mode.buttonPressed(7);
 
     TEST_ASSERT_EQUAL_INT(1, fixture.transitionDelegate.calls);
-    TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(Modes::Songs), static_cast<uint8_t>(fixture.transitionDelegate.lastMode));
+    TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(Modes::PlaySet), static_cast<uint8_t>(fixture.transitionDelegate.lastMode));
 }
 
 void test_activate_recalls_selected_preset_before_scene_select()
@@ -1608,6 +1659,7 @@ int main(int argc, char** argv)
     RUN_TEST(test_next_button_advances_selected_set_song_context);
     RUN_TEST(test_activate_with_unresolved_set_song_keeps_patch_and_renders_unavailable_in_red);
     RUN_TEST(test_next_button_requires_second_press_to_wrap_end_of_set);
+    RUN_TEST(test_activate_with_active_set_and_manual_patch_transition_keeps_manual_patch);
     RUN_TEST(test_play_set_set_button_opens_manage_set_mode);
     RUN_TEST(test_activate_recalls_selected_preset_before_scene_select);
     RUN_TEST(test_momentary_override_uses_button_down_and_release_and_suppresses_short_and_long_press);

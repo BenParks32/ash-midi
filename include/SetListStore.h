@@ -89,6 +89,8 @@ public:
     virtual bool activeSetList(byte playlistIndex, ActiveSetList &setList) const = 0;
     virtual bool activeSetSummary(byte playlistIndex, SetListSummary &summary) const = 0;
     virtual bool activeSetPosition(byte playlistIndex, size_t &songCount, size_t &selectedSongIndex) const = 0;
+    virtual bool activeSetSongAt(byte playlistIndex, size_t setSongIndex, SetListSongEntry &song) const = 0;
+    virtual bool activeSetPartName(byte playlistIndex, uint16_t partNumber, char *name, size_t nameSize) const = 0;
     virtual bool selectSong(byte playlistIndex, size_t setSongIndex) = 0;
     virtual bool selectedSong(byte playlistIndex, SetListSongEntry &song) const = 0;
 };
@@ -110,6 +112,8 @@ public:
     bool activeSetList(byte playlistIndex, ActiveSetList &setList) const override;
     bool activeSetSummary(byte playlistIndex, SetListSummary &summary) const override;
     bool activeSetPosition(byte playlistIndex, size_t &songCount, size_t &selectedSongIndex) const override;
+    bool activeSetSongAt(byte playlistIndex, size_t setSongIndex, SetListSongEntry &song) const override;
+    bool activeSetPartName(byte playlistIndex, uint16_t partNumber, char *name, size_t nameSize) const override;
     bool selectSong(byte playlistIndex, size_t setSongIndex) override;
     bool selectedSong(byte playlistIndex, SetListSongEntry &song) const override;
 

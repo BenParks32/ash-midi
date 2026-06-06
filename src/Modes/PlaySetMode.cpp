@@ -1,4 +1,4 @@
-#include "Modes/PlayMode.h"
+#include "Modes/PlaySetMode.h"
 #include "ColorUtils.h"
 
 #include <TFT_eSPI.h>
@@ -45,6 +45,13 @@ const byte TunerButtonIndex = 7;
 const uint16_t TunerButtonColour = 0x801F;
 const uint32_t SetAdvanceDebounceMs = 200;
 const uint32_t SetWrapConfirmWindowMs = 2000;
+const int32_t CenterSectionInset = 2;
+const int32_t CenterSectionPadding = 6;
+const int32_t CenterSplitRightWidth = 150;
+const int32_t CenterLine1OffsetY = 46;
+const int32_t CenterLine2OffsetY = 98;
+const int32_t CenterSceneOffsetY = 128;
+const size_t MaxUpcomingRows = 4;
 
 bool isHomePlaylistTransition(ModeTransitionValue transitionValue)
 {
@@ -52,14 +59,16 @@ bool isHomePlaylistTransition(ModeTransitionValue transitionValue)
 }
 } // namespace
 
-PlayMode::PlayMode(TouchButtonManager& touchButtonManager, RingManager& ringManager, IScreenUi& screenUi,
-                   IMidiManager& midiManager, IMidiProvider& midiProvider, IButtonOverrideStore& buttonOverrideStore,
-                   ISetListStore& setListStore, IModeTransistionDelegate& transitionDelegate)
+PlaySetMode::PlaySetMode(TouchButtonManager& touchButtonManager, RingManager& ringManager, IScreenUi& screenUi,
+                         IMidiManager& midiManager, IMidiProvider& midiProvider,
+                         IButtonOverrideStore& buttonOverrideStore, ISetListStore& setListStore,
+                         IModeTransistionDelegate& transitionDelegate)
     : FunctionModeBase(touchButtonManager, ringManager, screenUi, midiManager, transitionDelegate),
       _midiProvider(midiProvider), _buttonOverrideStore(buttonOverrideStore), _setListStore(setListStore),
       _selectedPreset(0),
       _selectedPlaylist(midiProvider.defaultPlaylistIndex()), _selectedSongIndex(0), _hasSelectedPreset(false),
-      _hasSelectedSong(false), _hasSelectedSetSong(false), _selectedSetSongUnavailable(false), _isPlaySetMode(false),
+      _hasSelectedSong(false), _hasSelectedSetSong(false), _selectedSetSongUnavailable(false),
+      _showEndOfSetPrompt(false), _isPlaySetMode(false),
       _selectedButton(0), _lastSetAdvancePressedAtMs(0), _setWrapConfirmUntilMs(0),
       _tapTempoEngine(), _nextTapTempoFlashToggleMs(0), _tapTempoFlashUntilMs(0), _isTapTempoLit(true),
       _nextTunerFlashToggleMs(0), _isTunerEnabled(false), _isGigViewEnabled(false), _isTunerFlashLit(true),
@@ -70,7 +79,7 @@ PlayMode::PlayMode(TouchButtonManager& touchButtonManager, RingManager& ringMana
     setupFunctions();
 }
 
-void PlayMode::setSelectedPreset(byte selectedPreset)
+void PlaySetMode::setSelectedPreset(byte selectedPreset)
 {
     _selectedPreset = selectedPreset;
     _hasSelectedPreset = true;
@@ -78,12 +87,13 @@ void PlayMode::setSelectedPreset(byte selectedPreset)
     _hasSelectedSong = false;
     _hasSelectedSetSong = false;
     _selectedSetSongUnavailable = false;
+    _showEndOfSetPrompt = false;
     _isPlaySetMode = false;
     _setWrapConfirmUntilMs = 0;
     _selectedSongDisplayName[0] = '\0';
 }
 
-void PlayMode::setTransitionValue(ModeTransitionValue transitionValue)
+void PlaySetMode::setTransitionValue(ModeTransitionValue transitionValue)
 {
     if (transitionValue == ModeTransitionNone)
     {
@@ -106,7 +116,14 @@ void PlayMode::setTransitionValue(ModeTransitionValue transitionValue)
         _hasSelectedPreset = playModeTransitionShouldRecall(transitionValue);
         _selectedSongDisplayName[0] = '\0';
         _selectedSetSongUnavailable = false;
-        _hasSelectedSetSong = false;
+        _showEndOfSetPrompt = false;
+        _hasSelectedSetSong = isPlayModeSetSongTransition(transitionValue);
+        if (_hasSelectedSetSong)
+        {
+            _selectedSongIndex = 0;
+            _hasSelectedSong = false;
+            return;
+        }
         if (isPlayModeSongTransition(transitionValue))
         {
             _selectedSongIndex = playModeTransitionSongIndex(transitionValue);
@@ -127,6 +144,7 @@ void PlayMode::setTransitionValue(ModeTransitionValue transitionValue)
         _hasSelectedSong = false;
         _hasSelectedSetSong = false;
         _selectedSetSongUnavailable = false;
+        _showEndOfSetPrompt = false;
         _isPlaySetMode = false;
         _setWrapConfirmUntilMs = 0;
         _selectedSongDisplayName[0] = '\0';
@@ -144,7 +162,7 @@ void PlayMode::setTransitionValue(ModeTransitionValue transitionValue)
     setSelectedPreset(static_cast<byte>(transitionValue));
 }
 
-void PlayMode::setupFunctions()
+void PlaySetMode::setupFunctions()
 {
     _functions[0] = Function("Clean", 0x07E0, ActionType::SelectScene, 0, ActionType::None, 0);
     _functions[1] = Function("Crunch", 0xFD20, ActionType::SelectScene, 1, ActionType::None, 0);
@@ -159,37 +177,56 @@ void PlayMode::setupFunctions()
     _functions[TunerButtonIndex].setToggle(true);
 }
 
-void PlayMode::configurePatchButton()
+void PlaySetMode::configurePatchButton()
 {
     _functions[4] = Function("Patch", 0xFFE0, ActionType::ChangeMode, static_cast<byte>(Modes::Patches),
                              ActionType::ChangeMode, static_cast<byte>(Modes::Patch));
 }
 
-void PlayMode::configureSetButton()
+void PlaySetMode::configureSetButton()
 {
     _functions[SetButtonIndex] =
         Function("Set", SetButtonColour, ActionType::ChangeMode, static_cast<byte>(Modes::Songs), ActionType::None, 0);
 }
 
-void PlayMode::configureManageSetButton()
+void PlaySetMode::configureManageSetButton()
 {
     _functions[TunerButtonIndex] =
         Function("Set", SetButtonColour, ActionType::ChangeMode, static_cast<byte>(Modes::Songs), ActionType::None, 0);
     _functions[TunerButtonIndex].setToggle(false);
 }
 
-void PlayMode::configurePlaySetButtons()
+void PlaySetMode::configurePlaySetButtons()
 {
     _functions[SetButtonIndex] = Function("Next", SetButtonColour, ActionType::None, 0, ActionType::None, 0);
     configureManageSetButton();
 }
 
-void PlayMode::refreshPlaySetState()
+void PlaySetMode::refreshPlaySetState()
 {
-    _isPlaySetMode = false;
+    size_t songCount = 0;
+    size_t selectedSongIndex = 0;
+    _isPlaySetMode = _setListStore.activeSetPosition(_selectedPlaylist, songCount, selectedSongIndex) && songCount > 0;
+    Serial.printf("[PlaySetDiag] refresh playlist=%u active=%u songCount=%u selectedIndex=%u\n",
+                  static_cast<unsigned int>(_selectedPlaylist), _isPlaySetMode ? 1U : 0U, static_cast<unsigned int>(songCount),
+                  static_cast<unsigned int>(selectedSongIndex));
+    if (!_isPlaySetMode)
+    {
+        return;
+    }
+
+    if (!_hasSelectedSetSong && !_hasSelectedSong && !_hasSelectedPreset)
+    {
+        _hasSelectedSetSong = true;
+    }
+
+    if (_hasSelectedSetSong)
+    {
+        _hasSelectedSong = false;
+    }
 }
 
-bool PlayMode::resolveSelectedSetSong()
+bool PlaySetMode::resolveSelectedSetSong()
 {
     _selectedSongDisplayName[0] = '\0';
     _selectedSetSongUnavailable = false;
@@ -220,7 +257,7 @@ bool PlayMode::resolveSelectedSetSong()
     return true;
 }
 
-bool PlayMode::resolveSelectedSong()
+bool PlaySetMode::resolveSelectedSong()
 {
     _selectedSongDisplayName[0] = '\0';
     if (!_hasSelectedSong)
@@ -243,19 +280,24 @@ bool PlayMode::resolveSelectedSong()
     return true;
 }
 
-ModeTransitionValue PlayMode::currentPlayTransitionValue(bool shouldRecall) const
+ModeTransitionValue PlaySetMode::currentPlayTransitionValue(bool shouldRecall) const
 {
+    if (_hasSelectedSetSong)
+    {
+        return makePlayModeSetSongTransition(_selectedPlaylist, _selectedPreset, shouldRecall);
+    }
+
     return _hasSelectedSong ? makePlayModeSongTransition(_selectedPlaylist, _selectedSongIndex, shouldRecall)
                             : makePlayModeTransition(_selectedPlaylist, _selectedPreset, shouldRecall);
 }
 
-void PlayMode::activate()
+void PlaySetMode::activate()
 {
     size_t setSongCount = 0;
     size_t setSelectedSongIndex = 0;
-    if (_setListStore.activeSetPosition(_selectedPlaylist, setSongCount, setSelectedSongIndex) && setSongCount > 0)
+    if (!_setListStore.activeSetPosition(_selectedPlaylist, setSongCount, setSelectedSongIndex) || setSongCount == 0)
     {
-        _transitionDelegate.enterMode(Modes::PlaySet, currentPlayTransitionValue(_hasSelectedPreset));
+        _transitionDelegate.enterMode(Modes::Play, currentPlayTransitionValue(_hasSelectedPreset));
         return;
     }
 
@@ -264,15 +306,30 @@ void PlayMode::activate()
     _patchDisplayConfig.name[0] = '\0';
     _selectedSongDisplayName[0] = '\0';
     _selectedSetSongUnavailable = false;
+    _showEndOfSetPrompt = false;
     _setWrapConfirmUntilMs = 0;
     _lastSetAdvancePressedAtMs = 0;
     _buttonOverrideStore.refresh();
     refreshPlaySetState();
-    resolveSelectedSong();
+    if (_isPlaySetMode)
+    {
+        resolveSelectedSetSong();
+    }
+    else if (!resolveSelectedSetSong())
+    {
+        resolveSelectedSong();
+    }
     _buttonOverrideStore.applyOverrides(_selectedPlaylist, _selectedPreset, _functions, TouchButtonManager::BUTTON_COUNT,
                                         &_patchDisplayConfig);
     configurePatchButton();
-    configureSetButton();
+    if (_isPlaySetMode)
+    {
+        configurePlaySetButtons();
+    }
+    else
+    {
+        configureSetButton();
+    }
     _isTapTempoLit = true;
     const uint32_t now = millis();
     if (_tapTempoEngine.hasFlashInterval() && _tapTempoFlashUntilMs != 0 &&
@@ -316,29 +373,144 @@ void PlayMode::activate()
     renderPlayCenterUi();
 }
 
-void PlayMode::deactivate()
+void PlaySetMode::deactivate()
 {
     clearTapTempoState();
     clearPlayCenterUi();
 }
 
-void PlayMode::renderPlayCenterUi()
+void PlaySetMode::renderPlayCenterUi()
 {
-    renderPatchBadge();
-    renderSongNameLabel(_selectedSetSongUnavailable ? TFT_RED : TFT_WHITE);
-    renderPatchNameLabel(TFT_WHITE);
-    renderSnapshotLabel(_selectedButton, TFT_WHITE);
+    const int32_t centerX = CenterSectionInset + CenterSectionPadding;
+    const int32_t centerY = _screenUi.boxHeight() + CenterSectionInset;
+    const int32_t centerWidth = (_screenUi.boxWidth() * 4) - ((CenterSectionInset + CenterSectionPadding) * 2);
+    const int32_t centerHeight = (_screenUi.bottomRowY() - CenterSectionInset) - centerY;
+    const int32_t splitX = centerX + (centerWidth - CenterSplitRightWidth);
+    const int32_t leftX = centerX + CenterSectionPadding;
+    const int32_t rightX = splitX + CenterSectionPadding;
+
+    _screenUi.fillRect(centerX, centerY, centerWidth, centerHeight, TFT_BLACK);
+    _screenUi.drawRect(centerX, centerY, centerWidth, centerHeight, TFT_DARKGREY);
+    _screenUi.fillRect(splitX, centerY + 1, 1, centerHeight - 2, TFT_DARKGREY);
+    _screenUi.fillRect(centerX, centerY + CenterLine1OffsetY, splitX - centerX, 1, TFT_DARKGREY);
+    _screenUi.fillRect(centerX, centerY + CenterLine2OffsetY, splitX - centerX, 1, TFT_DARKGREY);
+
+    SetListSongEntry currentSong = {};
+    size_t songCount = 0;
+    size_t selectedSongIndex = 0;
+    const bool hasSetPosition = _setListStore.activeSetPosition(_selectedPlaylist, songCount, selectedSongIndex);
+    const bool hasCurrentSong =
+        hasSetPosition && selectedSongIndex < songCount && _setListStore.activeSetSongAt(_selectedPlaylist, selectedSongIndex, currentSong);
+
+    uint16_t currentPart = hasCurrentSong ? currentSong.part : 0;
+    size_t songInPart = 0;
+    size_t songsInPart = 0;
+    if (hasCurrentSong)
+    {
+        SetListSongEntry song = {};
+        for (size_t index = 0; index < songCount; ++index)
+        {
+            if (!_setListStore.activeSetSongAt(_selectedPlaylist, index, song) || song.part != currentPart)
+            {
+                continue;
+            }
+
+            ++songsInPart;
+            if (index <= selectedSongIndex)
+            {
+                ++songInPart;
+            }
+        }
+    }
+
+    char songLine[TrackedTextLabel::Capacity] = {};
+    if (hasCurrentSong)
+    {
+        std::snprintf(songLine, sizeof(songLine), "S: %s (%u/%u)", currentSong.name, static_cast<unsigned int>(songInPart),
+                      static_cast<unsigned int>(songsInPart));
+    }
+    else
+    {
+        std::snprintf(songLine, sizeof(songLine), "%s", "S: No active song");
+    }
+    _screenUi.drawText(FF22, 1, songLine, leftX, centerY + 18, _selectedSetSongUnavailable ? TFT_RED : TFT_WHITE, TFT_BLACK);
+
+    char patchLine[TrackedTextLabel::Capacity] = {};
+    if (_patchDisplayConfig.name[0] != '\0')
+    {
+        std::snprintf(patchLine, sizeof(patchLine), "P: %s", _patchDisplayConfig.name);
+    }
+    else
+    {
+        std::snprintf(patchLine, sizeof(patchLine), "P: %u", static_cast<unsigned int>(_selectedPreset));
+    }
+    _screenUi.drawText(FF22, 1, patchLine, leftX, centerY + 36, TFT_WHITE, TFT_BLACK);
+
+    const char* notesLabel = _selectedSetSongUnavailable ? "Notes: unresolved" : "Notes: -";
+    _screenUi.drawText(FF22, 1, notesLabel, leftX, centerY + 66, _selectedSetSongUnavailable ? TFT_RED : TFT_WHITE, TFT_BLACK);
+
+    char sceneLine[TrackedTextLabel::Capacity] = {};
+    if (_showEndOfSetPrompt)
+    {
+        std::snprintf(sceneLine, sizeof(sceneLine), "%s", "END OF SET");
+        _screenUi.drawText(FF32, 1, sceneLine, leftX, centerY + CenterSceneOffsetY, SetButtonColour, TFT_BLACK);
+    }
+    else if (isSceneSelectionButton(_selectedButton))
+    {
+        char sceneLabel[16] = {};
+        formatSnapshotLabelUppercase(_selectedButton, sceneLabel, sizeof(sceneLabel));
+        std::snprintf(sceneLine, sizeof(sceneLine), "Scene: %s", sceneLabel);
+        _screenUi.drawText(FF22, 1, sceneLine, leftX, centerY + CenterSceneOffsetY, TFT_WHITE, TFT_BLACK);
+    }
+
+    char partName[SetListPart::MaxNameLength] = {};
+    if (hasCurrentSong && !_setListStore.activeSetPartName(_selectedPlaylist, currentPart, partName, sizeof(partName)))
+    {
+        std::snprintf(partName, sizeof(partName), "Part %u", static_cast<unsigned int>(currentPart));
+    }
+    _screenUi.drawText(FF22, 1, partName, rightX, centerY + 18, TFT_WHITE, TFT_BLACK);
+
+    size_t shownUpcoming = 0;
+    if (hasCurrentSong)
+    {
+        SetListSongEntry upcomingSong = {};
+        for (size_t index = selectedSongIndex + 1; index < songCount && shownUpcoming < MaxUpcomingRows; ++index)
+        {
+            if (!_setListStore.activeSetSongAt(_selectedPlaylist, index, upcomingSong))
+            {
+                continue;
+            }
+
+            if (upcomingSong.part != currentPart)
+            {
+                _screenUi.fillRect(rightX, centerY + 34 + static_cast<int32_t>(shownUpcoming * 20), CenterSplitRightWidth - 16, 1,
+                                   TFT_DARKGREY);
+                break;
+            }
+
+            char upcomingLine[TrackedTextLabel::Capacity] = {};
+            std::snprintf(upcomingLine, sizeof(upcomingLine), "%u %s", static_cast<unsigned int>(upcomingSong.number),
+                          upcomingSong.name);
+            _screenUi.drawText(FF22, 1, upcomingLine, rightX, centerY + 34 + static_cast<int32_t>(shownUpcoming * 20), TFT_WHITE,
+                               TFT_BLACK);
+            ++shownUpcoming;
+        }
+    }
 }
 
-void PlayMode::clearPlayCenterUi()
+void PlaySetMode::clearPlayCenterUi()
 {
-    clearPatchBadge();
-    clearTrackedTextLabel(_songNameLabel, FF22, PlaySongNameScale, songAndPatchLabelLeftX(), songNameLabelY());
-    clearTrackedTextLabel(_patchNameLabel, FF22, PlayPatchNameScale, songAndPatchLabelLeftX(), patchNameLabelY());
-    clearTrackedTextLabel(_snapshotLabel, FF32, PlaySnapshotLabelScale, PlaySnapshotLabelLeftX, snapshotLabelY());
+    const int32_t centerX = CenterSectionInset + CenterSectionPadding;
+    const int32_t centerY = _screenUi.boxHeight() + CenterSectionInset;
+    const int32_t centerWidth = (_screenUi.boxWidth() * 4) - ((CenterSectionInset + CenterSectionPadding) * 2);
+    const int32_t centerHeight = (_screenUi.bottomRowY() - CenterSectionInset) - centerY;
+    _screenUi.fillRect(centerX, centerY, centerWidth, centerHeight, TFT_BLACK);
+    _songNameLabel.text[0] = '\0';
+    _patchNameLabel.text[0] = '\0';
+    _snapshotLabel.text[0] = '\0';
 }
 
-void PlayMode::renderPatchBadge()
+void PlaySetMode::renderPatchBadge()
 {
     const PatchBadgeMetrics metrics = patchBadgeMetrics();
 
@@ -350,7 +522,7 @@ void PlayMode::renderPatchBadge()
     renderPatchBadgeNumber(_selectedPreset, TFT_WHITE);
 }
 
-void PlayMode::clearPatchBadge()
+void PlaySetMode::clearPatchBadge()
 {
     const PatchBadgeMetrics metrics = patchBadgeMetrics();
 
@@ -362,7 +534,7 @@ void PlayMode::clearPatchBadge()
     renderPatchBadgeNumber(_selectedPreset, TFT_BLACK);
 }
 
-void PlayMode::renderPatchBadgeNumber(byte patchNumber, uint16_t textColour)
+void PlaySetMode::renderPatchBadgeNumber(byte patchNumber, uint16_t textColour)
 {
     const int32_t frameCenterX = patchBadgeFrameCenterX();
     const int32_t numberY = patchBadgeFrameTopY() + PlayPatchBadgeNumberOffset;
@@ -373,7 +545,7 @@ void PlayMode::renderPatchBadgeNumber(byte patchNumber, uint16_t textColour)
                                TFT_BLACK);
 }
 
-void PlayMode::renderSongNameLabel(uint16_t textColour)
+void PlaySetMode::renderSongNameLabel(uint16_t textColour)
 {
     char songNameLabel[TrackedTextLabel::Capacity] = {'\0'};
     formatSongNameDisplayLabel(_selectedSongDisplayName, songNameLabel, sizeof(songNameLabel));
@@ -381,7 +553,7 @@ void PlayMode::renderSongNameLabel(uint16_t textColour)
                            songNameLabelY(), textColour);
 }
 
-void PlayMode::renderSnapshotLabel(byte snapshotButton, uint16_t textColour)
+void PlaySetMode::renderSnapshotLabel(byte snapshotButton, uint16_t textColour)
 {
     if (!isSceneSelectionButton(snapshotButton))
     {
@@ -395,7 +567,7 @@ void PlayMode::renderSnapshotLabel(byte snapshotButton, uint16_t textColour)
                            snapshotLabelY(), textColour);
 }
 
-void PlayMode::formatPatchNumberLabel(byte patchNumber, char* buffer, size_t bufferSize)
+void PlaySetMode::formatPatchNumberLabel(byte patchNumber, char* buffer, size_t bufferSize)
 {
     if (buffer == nullptr || bufferSize == 0)
     {
@@ -405,7 +577,7 @@ void PlayMode::formatPatchNumberLabel(byte patchNumber, char* buffer, size_t buf
     std::snprintf(buffer, bufferSize, "%02u", static_cast<unsigned int>(patchNumber));
 }
 
-void PlayMode::formatSongNameDisplayLabel(const char* songName, char* buffer, size_t bufferSize)
+void PlaySetMode::formatSongNameDisplayLabel(const char* songName, char* buffer, size_t bufferSize)
 {
     if (buffer == nullptr || bufferSize == 0U)
     {
@@ -429,7 +601,7 @@ void PlayMode::formatSongNameDisplayLabel(const char* songName, char* buffer, si
                   songName);
 }
 
-void PlayMode::formatPatchNameDisplayLabel(const char* patchName, char* buffer, size_t bufferSize)
+void PlaySetMode::formatPatchNameDisplayLabel(const char* patchName, char* buffer, size_t bufferSize)
 {
     if (buffer == nullptr || bufferSize == 0U)
     {
@@ -453,7 +625,7 @@ void PlayMode::formatPatchNameDisplayLabel(const char* patchName, char* buffer, 
                   patchName);
 }
 
-void PlayMode::formatSnapshotLabelUppercase(byte snapshotButton, char* buffer, size_t bufferSize) const
+void PlaySetMode::formatSnapshotLabelUppercase(byte snapshotButton, char* buffer, size_t bufferSize) const
 {
     if (buffer == nullptr || bufferSize == 0)
     {
@@ -476,7 +648,7 @@ void PlayMode::formatSnapshotLabelUppercase(byte snapshotButton, char* buffer, s
     buffer[out] = '\0';
 }
 
-void PlayMode::updateTrackedTextLabel(TrackedTextLabel& trackedLabel, const char* newText, const GFXfont* font,
+void PlaySetMode::updateTrackedTextLabel(TrackedTextLabel& trackedLabel, const char* newText, const GFXfont* font,
                                       uint8_t scale, int32_t x, int32_t y, uint16_t textColour)
 {
     if (trackedLabel.text[0] != '\0')
@@ -494,7 +666,7 @@ void PlayMode::updateTrackedTextLabel(TrackedTextLabel& trackedLabel, const char
     _screenUi.drawText(font, scale, trackedLabel.text, x, y, textColour, TFT_BLACK);
 }
 
-void PlayMode::clearTrackedTextLabel(TrackedTextLabel& trackedLabel, const GFXfont* font, uint8_t scale, int32_t x,
+void PlaySetMode::clearTrackedTextLabel(TrackedTextLabel& trackedLabel, const GFXfont* font, uint8_t scale, int32_t x,
                                      int32_t y)
 {
     if (trackedLabel.text[0] == '\0')
@@ -506,13 +678,13 @@ void PlayMode::clearTrackedTextLabel(TrackedTextLabel& trackedLabel, const GFXfo
     trackedLabel.text[0] = '\0';
 }
 
-int32_t PlayMode::patchBadgeFrameCenterX() const
+int32_t PlaySetMode::patchBadgeFrameCenterX() const
 {
     const int32_t screenWidth = _screenUi.boxWidth() * 4;
     return screenWidth - PlayPatchBadgeRightMargin - (PlayPatchBadgeFrameWidth / 2);
 }
 
-PlayMode::PatchBadgeMetrics PlayMode::patchBadgeMetrics() const
+PlaySetMode::PatchBadgeMetrics PlaySetMode::patchBadgeMetrics() const
 {
     const int32_t frameCenterX = patchBadgeFrameCenterX();
     const int32_t frameTopY = patchBadgeFrameTopY();
@@ -524,7 +696,7 @@ PlayMode::PatchBadgeMetrics PlayMode::patchBadgeMetrics() const
     return metrics;
 }
 
-int32_t PlayMode::patchBadgeFrameTopY() const
+int32_t PlaySetMode::patchBadgeFrameTopY() const
 {
     const int32_t centerTopY = _screenUi.boxHeight();
     const int32_t centerHeight = _screenUi.bottomRowY() - centerTopY;
@@ -537,23 +709,23 @@ int32_t PlayMode::patchBadgeFrameTopY() const
     return centerTopY + swappedTopGap;
 }
 
-int32_t PlayMode::songNameLabelY() const
+int32_t PlaySetMode::songNameLabelY() const
 {
     return _screenUi.boxHeight() + PlayPatchNameOffsetY - PlayLabelRowSpacing;
 }
 
-int32_t PlayMode::songAndPatchLabelLeftX() const
+int32_t PlaySetMode::songAndPatchLabelLeftX() const
 {
     const int32_t pillWidth = _screenUi.boxWidth() * 3 / 5;
     return (_screenUi.boxWidth() / 2) - (pillWidth / 2);
 }
 
-int32_t PlayMode::patchNameLabelY() const
+int32_t PlaySetMode::patchNameLabelY() const
 {
     return _screenUi.boxHeight() + PlayPatchNameOffsetY + PlayPatchNameExtraOffsetY;
 }
 
-int32_t PlayMode::snapshotLabelY() const
+int32_t PlaySetMode::snapshotLabelY() const
 {
     if (hasSongDisplayName() && hasPatchDisplayName())
     {
@@ -568,13 +740,13 @@ int32_t PlayMode::snapshotLabelY() const
     return _screenUi.boxHeight() + PlaySnapshotLabelOffsetY;
 }
 
-bool PlayMode::hasSongDisplayName() const { return _selectedSongDisplayName[0] != '\0'; }
+bool PlaySetMode::hasSongDisplayName() const { return _selectedSongDisplayName[0] != '\0'; }
 
-bool PlayMode::hasPatchDisplayName() const { return _patchDisplayConfig.name[0] != '\0'; }
+bool PlaySetMode::hasPatchDisplayName() const { return _patchDisplayConfig.name[0] != '\0'; }
 
-void PlayMode::updateVisuals() { renderAllButtons(); }
+void PlaySetMode::updateVisuals() { renderAllButtons(); }
 
-void PlayMode::renderButton(byte number)
+void PlaySetMode::renderButton(byte number)
 {
     if (number >= TouchButtonManager::BUTTON_COUNT)
     {
@@ -613,7 +785,7 @@ void PlayMode::renderButton(byte number)
     button->draw(_screenUi);
 }
 
-void PlayMode::updateSnapshotSelectionVisuals(byte previousSelected, byte currentSelected)
+void PlaySetMode::updateSnapshotSelectionVisuals(byte previousSelected, byte currentSelected)
 {
     if (previousSelected >= FirstSnapshotButtonIndex && previousSelected <= LastSnapshotButtonIndex)
     {
@@ -629,12 +801,12 @@ void PlayMode::updateSnapshotSelectionVisuals(byte previousSelected, byte curren
     renderSnapshotLabel(currentSelected, TFT_WHITE);
 }
 
-bool PlayMode::usesSelectionBorder(byte number) const
+bool PlaySetMode::usesSelectionBorder(byte number) const
 {
     return isSceneSelectionButton(number);
 }
 
-int8_t PlayMode::firstSceneSelectionButton() const
+int8_t PlaySetMode::firstSceneSelectionButton() const
 {
     for (byte buttonIndex = FirstSnapshotButtonIndex; buttonIndex <= LastSnapshotButtonIndex; ++buttonIndex)
     {
@@ -647,7 +819,7 @@ int8_t PlayMode::firstSceneSelectionButton() const
     return -1;
 }
 
-bool PlayMode::isSceneSelectionButton(byte number) const
+bool PlaySetMode::isSceneSelectionButton(byte number) const
 {
     if (number < FirstSnapshotButtonIndex || number > LastSnapshotButtonIndex || !isButtonEnabled(number))
     {
@@ -659,7 +831,7 @@ bool PlayMode::isSceneSelectionButton(byte number) const
            func.action(FunctionBehaviour::ShortPress).type == ActionType::SelectScene;
 }
 
-bool PlayMode::isTapTempoButton(byte number) const
+bool PlaySetMode::isTapTempoButton(byte number) const
 {
     if (number >= TouchButtonManager::BUTTON_COUNT || !isButtonEnabled(number))
     {
@@ -669,7 +841,7 @@ bool PlayMode::isTapTempoButton(byte number) const
     return getFunction(number).action(FunctionBehaviour::ShortPress).type == ActionType::TapTempo;
 }
 
-ActionType PlayMode::toggleActionTypeForButton(byte number) const
+ActionType PlaySetMode::toggleActionTypeForButton(byte number) const
 {
     if (number >= TouchButtonManager::BUTTON_COUNT || !isButtonEnabled(number))
     {
@@ -693,13 +865,13 @@ ActionType PlayMode::toggleActionTypeForButton(byte number) const
     }
 }
 
-bool PlayMode::isToggleButton(byte number) const
+bool PlaySetMode::isToggleButton(byte number) const
 {
     return number < TouchButtonManager::BUTTON_COUNT && isButtonEnabled(number) && getFunction(number).isToggle() &&
            !getFunction(number).hasMomentaryBehaviour();
 }
 
-bool PlayMode::isToggleActionEnabled(ActionType actionType) const
+bool PlaySetMode::isToggleActionEnabled(ActionType actionType) const
 {
     switch (actionType)
     {
@@ -712,7 +884,7 @@ bool PlayMode::isToggleActionEnabled(ActionType actionType) const
     }
 }
 
-uint8_t PlayMode::ringBrightnessForButton(byte number) const
+uint8_t PlaySetMode::ringBrightnessForButton(byte number) const
 {
     if (isTapTempoButton(number))
     {
@@ -745,7 +917,7 @@ uint8_t PlayMode::ringBrightnessForButton(byte number) const
     return RingManager::FullBrightness;
 }
 
-void PlayMode::buttonDown(byte number)
+void PlaySetMode::buttonDown(byte number)
 {
     if (number >= TouchButtonManager::BUTTON_COUNT || !isButtonEnabled(number))
     {
@@ -761,7 +933,7 @@ void PlayMode::buttonDown(byte number)
     executeAction(func.action(FunctionBehaviour::ButtonDown));
 }
 
-void PlayMode::buttonPressed(byte number)
+void PlaySetMode::buttonPressed(byte number)
 {
     if (number >= TouchButtonManager::BUTTON_COUNT)
     {
@@ -828,7 +1000,7 @@ void PlayMode::buttonPressed(byte number)
     updateSnapshotSelectionVisuals(previousSelected, _selectedButton);
 }
 
-void PlayMode::buttonLongPressed(byte number)
+void PlaySetMode::buttonLongPressed(byte number)
 {
     if (number >= TouchButtonManager::BUTTON_COUNT)
     {
@@ -867,7 +1039,7 @@ void PlayMode::buttonLongPressed(byte number)
     executeAction(longPressAction);
 }
 
-void PlayMode::buttonReleased(byte number)
+void PlaySetMode::buttonReleased(byte number)
 {
     if (number >= TouchButtonManager::BUTTON_COUNT || !isButtonEnabled(number))
     {
@@ -883,7 +1055,7 @@ void PlayMode::buttonReleased(byte number)
     executeAction(func.action(FunctionBehaviour::ButtonRelease));
 }
 
-void PlayMode::frameTick()
+void PlaySetMode::frameTick()
 {
     const uint32_t now = millis();
     if (_tapTempoEngine.tick(now).shouldSendMidi)
@@ -916,9 +1088,9 @@ void PlayMode::frameTick()
     }
 }
 
-void PlayMode::encoderPressed() { _transitionDelegate.enterMode(Modes::Home, ModeTransitionNone); }
+void PlaySetMode::encoderPressed() { _transitionDelegate.enterMode(Modes::Home, ModeTransitionNone); }
 
-void PlayMode::executeAction(const FunctionAction& action)
+void PlaySetMode::executeAction(const FunctionAction& action)
 {
     switch (action.type)
     {
@@ -957,13 +1129,10 @@ void PlayMode::executeAction(const FunctionAction& action)
         }
         else if (targetMode == Modes::Patches)
         {
-            _transitionDelegate.enterMode(targetMode, makePlayModeTransition(_selectedPlaylist, _selectedPreset, false));
+            _transitionDelegate.enterMode(targetMode,
+                                          makePlayModeSetSongTransition(_selectedPlaylist, _selectedPreset, false));
         }
         else if (targetMode == Modes::Songs)
-        {
-            _transitionDelegate.enterMode(targetMode, currentPlayTransitionValue(false));
-        }
-        else if (targetMode == Modes::PlaySet)
         {
             _transitionDelegate.enterMode(targetMode, currentPlayTransitionValue(false));
         }
@@ -972,7 +1141,7 @@ void PlayMode::executeAction(const FunctionAction& action)
     }
 }
 
-void PlayMode::toggleAction(ActionType actionType)
+void PlaySetMode::toggleAction(ActionType actionType)
 {
     const bool nextEnabled = !isToggleActionEnabled(actionType);
     switch (actionType)
@@ -993,7 +1162,7 @@ void PlayMode::toggleAction(ActionType actionType)
     renderToggleButtons(actionType, true);
 }
 
-void PlayMode::registerTapTempoPress(uint32_t pressedAtMs)
+void PlaySetMode::registerTapTempoPress(uint32_t pressedAtMs)
 {
     _tapTempoEngine.registerPress(pressedAtMs);
 
@@ -1012,7 +1181,7 @@ void PlayMode::registerTapTempoPress(uint32_t pressedAtMs)
     renderTapTempoButtons(true);
 }
 
-void PlayMode::clearTapTempoState()
+void PlaySetMode::clearTapTempoState()
 {
     _tapTempoEngine.clear();
     _nextTapTempoFlashToggleMs = 0;
@@ -1021,7 +1190,7 @@ void PlayMode::clearTapTempoState()
     _tapTempoDisplayLabel[0] = '\0';
 }
 
-bool PlayMode::advanceSelectedSetSong(bool allowWrap)
+bool PlaySetMode::advanceSelectedSetSong(bool allowWrap)
 {
     size_t songCount = 0;
     size_t selectedSongIndex = 0;
@@ -1067,7 +1236,7 @@ bool PlayMode::advanceSelectedSetSong(bool allowWrap)
     return true;
 }
 
-void PlayMode::handleNextSetSongPress()
+void PlaySetMode::handleNextSetSongPress()
 {
     const uint32_t now = millis();
     Serial.printf("[PlaySetDiag] next pressed now=%lu last=%lu wrapUntil=%lu\n", static_cast<unsigned long>(now),
@@ -1083,6 +1252,7 @@ void PlayMode::handleNextSetSongPress()
 
     if (advanceSelectedSetSong(false))
     {
+        _showEndOfSetPrompt = false;
         _setWrapConfirmUntilMs = 0;
         renderPlayCenterUi();
         return;
@@ -1111,6 +1281,7 @@ void PlayMode::handleNextSetSongPress()
         if (advanceSelectedSetSong(true))
         {
             Serial.printf("[PlaySetDiag] next wrap confirmed playlist=%u\n", static_cast<unsigned int>(_selectedPlaylist));
+            _showEndOfSetPrompt = false;
             _setWrapConfirmUntilMs = 0;
             renderPlayCenterUi();
         }
@@ -1120,11 +1291,11 @@ void PlayMode::handleNextSetSongPress()
     Serial.printf("[PlaySetDiag] next at end - waiting confirm playlist=%u windowUntil=%lu\n",
                   static_cast<unsigned int>(_selectedPlaylist), static_cast<unsigned long>(now + SetWrapConfirmWindowMs));
     _setWrapConfirmUntilMs = now + SetWrapConfirmWindowMs;
-    updateTrackedTextLabel(_snapshotLabel, "END OF SET", FF32, PlaySnapshotLabelScale, PlaySnapshotLabelLeftX,
-                           snapshotLabelY(), SetButtonColour);
+    _showEndOfSetPrompt = true;
+    renderPlayCenterUi();
 }
 
-void PlayMode::renderPatchNameLabel(uint16_t textColour)
+void PlaySetMode::renderPatchNameLabel(uint16_t textColour)
 {
     char patchNameLabel[TrackedTextLabel::Capacity] = {'\0'};
     formatPatchNameDisplayLabel(_patchDisplayConfig.name, patchNameLabel, sizeof(patchNameLabel));
@@ -1132,7 +1303,7 @@ void PlayMode::renderPatchNameLabel(uint16_t textColour)
                            patchNameLabelY(), textColour);
 }
 
-void PlayMode::renderTapTempoButtons(bool redrawLabel)
+void PlaySetMode::renderTapTempoButtons(bool redrawLabel)
 {
     for (byte buttonIndex = 0; buttonIndex < TouchButtonManager::BUTTON_COUNT; ++buttonIndex)
     {
@@ -1170,7 +1341,7 @@ void PlayMode::renderTapTempoButtons(bool redrawLabel)
     }
 }
 
-void PlayMode::renderToggleButtons(ActionType actionType, bool redrawLabel)
+void PlaySetMode::renderToggleButtons(ActionType actionType, bool redrawLabel)
 {
     for (byte buttonIndex = 0; buttonIndex < TouchButtonManager::BUTTON_COUNT; ++buttonIndex)
     {
@@ -1209,7 +1380,7 @@ void PlayMode::renderToggleButtons(ActionType actionType, bool redrawLabel)
     }
 }
 
-void PlayMode::formatTapTempoBpmLabel(uint32_t intervalMs, char* buffer, size_t bufferSize)
+void PlaySetMode::formatTapTempoBpmLabel(uint32_t intervalMs, char* buffer, size_t bufferSize)
 {
     if (buffer == nullptr || bufferSize == 0U)
     {

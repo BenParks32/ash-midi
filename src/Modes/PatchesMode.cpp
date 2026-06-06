@@ -38,7 +38,8 @@ PatchesMode::PatchesMode(TouchButtonManager& touchButtonManager, RingManager& ri
                          IModeTransistionDelegate& transitionDelegate)
     : FunctionModeBase(touchButtonManager, ringManager, screenUi, midiManager, transitionDelegate),
       _midiProvider(midiProvider), _buttonOverrideStore(buttonOverrideStore),
-      _selectedPlaylist(midiProvider.defaultPlaylistIndex()), _currentPatch(0), _buttonPatchNumbers{InvalidPatchNumber}
+      _selectedPlaylist(midiProvider.defaultPlaylistIndex()), _currentPatch(0), _returnToPlaySet(false),
+      _buttonPatchNumbers{InvalidPatchNumber}
 {
     resetButtons();
 }
@@ -64,8 +65,10 @@ void PatchesMode::buttonPressed(byte number)
 
     if (number == BackButtonIndex)
     {
-        const ModeTransitionValue transitionValue = makePlayModeTransition(_selectedPlaylist, _currentPatch, false);
-        _transitionDelegate.enterMode(Modes::Play, transitionValue);
+        const ModeTransitionValue transitionValue = _returnToPlaySet
+                                                        ? makePlayModeSetSongTransition(_selectedPlaylist, _currentPatch, false)
+                                                        : makePlayModeTransition(_selectedPlaylist, _currentPatch, false);
+        _transitionDelegate.enterMode(_returnToPlaySet ? Modes::PlaySet : Modes::Play, transitionValue);
         return;
     }
 
@@ -76,7 +79,7 @@ void PatchesMode::buttonPressed(byte number)
     }
 
     const ModeTransitionValue transitionValue = makePlayModeTransition(_selectedPlaylist, patchNumber, true);
-    _transitionDelegate.enterMode(Modes::Play, transitionValue);
+    _transitionDelegate.enterMode(_returnToPlaySet ? Modes::PlaySet : Modes::Play, transitionValue);
 }
 
 void PatchesMode::buttonLongPressed(byte number)
@@ -95,6 +98,7 @@ void PatchesMode::setTransitionValue(ModeTransitionValue transitionValue)
     {
         _selectedPlaylist = _midiProvider.defaultPlaylistIndex();
         _currentPatch = 0;
+        _returnToPlaySet = false;
         return;
     }
 
@@ -102,6 +106,7 @@ void PatchesMode::setTransitionValue(ModeTransitionValue transitionValue)
     {
         _selectedPlaylist = playModeTransitionPlaylist(transitionValue);
         _currentPatch = playModeTransitionPatch(transitionValue);
+        _returnToPlaySet = isPlayModeSetSongTransition(transitionValue);
         return;
     }
 
@@ -109,10 +114,12 @@ void PatchesMode::setTransitionValue(ModeTransitionValue transitionValue)
     {
         _selectedPlaylist = static_cast<byte>(transitionValue & ModeTransitionHomePlaylistValueMask);
         _currentPatch = 0;
+        _returnToPlaySet = false;
         return;
     }
 
     _currentPatch = static_cast<byte>(transitionValue & ModeTransitionPatchValueMask);
+    _returnToPlaySet = false;
 }
 
 void PatchesMode::resetButtons()

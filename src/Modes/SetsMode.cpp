@@ -28,16 +28,14 @@ const char* PrevLabel = "Prev";
 const char* LoadLabel = "Load";
 const char* ExitLabel = "Exit";
 const char* EmptySetLabel = "No active set";
-const char* LoadedPrefix = "Set: ";
 const char* PartLabelPrefix = "Prt ";
 
 const uint16_t ActiveSetColour = 0x07FF;
-const uint8_t HeaderScale = 1;
 const uint8_t RowScale = 1;
 const int32_t ListPadding = 5;
-const int32_t HeaderLineHeight = 18;
-const int32_t HeaderGap = 4;
+const int32_t CenterSectionInset = 2;
 const int32_t RowHeight = 28;
+const int32_t CursorHeight = RowHeight + 1;
 const int32_t RowTextInsetX = 10;
 const int32_t RowTextInsetY = 6;
 const size_t VisibleRowCount = 4;
@@ -202,12 +200,13 @@ void SetsMode::openSetSelection()
 
 void SetsMode::returnToPlaySet()
 {
-    _transitionDelegate.enterMode(Modes::Play, currentPlaySetTransitionValue(false));
+    _transitionDelegate.enterMode(Modes::PlaySet, currentPlaySetTransitionValue(false));
 }
 
 void SetsMode::exitToPlay()
 {
-    _transitionDelegate.enterMode(Modes::Play, currentPlayTransitionValue(false));
+    _setListStore.clearActiveSetList(_selectedPlaylist);
+    _transitionDelegate.enterMode(Modes::Play, makePlayModeTransition(_selectedPlaylist, _currentPatch, false));
 }
 
 void SetsMode::moveSelection(int16_t steps)
@@ -312,11 +311,6 @@ ModeTransitionValue SetsMode::currentPlayTransitionValue(bool shouldRecall) cons
 
 void SetsMode::renderScreen() const
 {
-    char activeLabel[ActiveSetList::MaxNameLength + 12] = {};
-    std::snprintf(activeLabel, sizeof(activeLabel), "%s%s", LoadedPrefix, _hasActiveSet ? _activeSetName : EmptySetLabel);
-    _screenUi.drawText(FF22, HeaderScale, activeLabel, listStartX() + RowTextInsetX, listStartY() + RowTextInsetY,
-                       _hasActiveSet ? ActiveSetColour : TFT_WHITE, TFT_BLACK);
-
     if (!_hasActiveSet)
     {
         renderEmptyState();
@@ -328,8 +322,9 @@ void SetsMode::renderScreen() const
 
 void SetsMode::clearScreen() const
 {
-    _screenUi.fillRect(0, _screenUi.boxHeight(), _screenUi.boxWidth() * 4, _screenUi.bottomRowY() - _screenUi.boxHeight(),
-                       TFT_BLACK);
+    const int32_t centerTopY = _screenUi.boxHeight() + CenterSectionInset;
+    const int32_t centerBottomY = _screenUi.bottomRowY() - CenterSectionInset;
+    _screenUi.fillRect(listStartX(), centerTopY, listWidth(), centerBottomY - centerTopY, TFT_BLACK);
 }
 
 void SetsMode::renderVisibleSongs() const
@@ -368,7 +363,7 @@ void SetsMode::renderSongRow(size_t songIndex, bool highlighted) const
 
     char rowLabel[64] = {};
     formatSongRowLabel(_activeSet.songs[songIndex], rowLabel, sizeof(rowLabel));
-    _screenUi.fillRect(rowX, rowTop, listWidth(), RowHeight, backgroundColour);
+    _screenUi.fillRect(rowX, rowTop, listWidth(), CursorHeight, backgroundColour);
     _screenUi.drawText(FF22, RowScale, rowLabel, rowX + RowTextInsetX, rowTop + RowTextInsetY, textColour,
                        backgroundColour);
 }
@@ -388,27 +383,24 @@ size_t SetsMode::visibleSongStartIndexFor(size_t songIndex) const
 
 int32_t SetsMode::listStartX() const { return ListPadding; }
 
-int32_t SetsMode::listStartY() const { return _screenUi.boxHeight() + ListPadding; }
+int32_t SetsMode::listStartY() const { return _screenUi.boxHeight() + CenterSectionInset + ListPadding; }
 
 int32_t SetsMode::listWidth() const { return (_screenUi.boxWidth() * 4) - (ListPadding * 2); }
 
 int32_t SetsMode::listHeight() const
 {
-    return (_screenUi.bottomRowY() - _screenUi.boxHeight()) - (ListPadding * 2);
+    return (_screenUi.bottomRowY() - CenterSectionInset) - listStartY() - ListPadding;
 }
 
 int32_t SetsMode::rowGap() const
 {
-    const int32_t top = listStartY() + HeaderLineHeight + HeaderGap;
-    const int32_t height = (_screenUi.bottomRowY() - ListPadding) - top;
-    const int32_t totalGapHeight = height - (static_cast<int32_t>(VisibleRowCount) * RowHeight);
+    const int32_t totalGapHeight = listHeight() - (static_cast<int32_t>(VisibleRowCount) * RowHeight);
     return totalGapHeight / static_cast<int32_t>(VisibleRowCount - 1);
 }
 
 int32_t SetsMode::rowY(size_t visibleRow) const
 {
-    const int32_t startY = listStartY() + HeaderLineHeight + HeaderGap;
-    return startY + (static_cast<int32_t>(visibleRow) * (RowHeight + rowGap()));
+    return listStartY() + (static_cast<int32_t>(visibleRow) * (RowHeight + rowGap()));
 }
 
 void SetsMode::formatSongRowLabel(const SetListSongEntry& song, char* buffer, size_t bufferSize) const
@@ -418,8 +410,8 @@ void SetsMode::formatSongRowLabel(const SetListSongEntry& song, char* buffer, si
         return;
     }
 
-    std::snprintf(buffer, bufferSize, "%u. %s (P%u)", static_cast<unsigned int>(song.number), song.name,
-                  static_cast<unsigned int>(song.part));
+    std::snprintf(buffer, bufferSize, "%u.%u %s", static_cast<unsigned int>(song.part),
+                  static_cast<unsigned int>(song.number), song.name);
 }
 
 uint8_t SetsMode::ringBrightnessForButton(byte number) const

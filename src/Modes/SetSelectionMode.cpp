@@ -315,11 +315,13 @@ void SetSelectionMode::selectHighlightedSetList()
     _isLoading = true;
     renderHeaderLabel();
 
+    bool selectionApplied = false;
     if (_highlightedSetListIndex == 0)
     {
         const bool cleared = _setListStore.clearActiveSetList(_selectedPlaylist);
         Serial.printf("[PlaySetDiag] set-clear playlist=%u result=%u\n", static_cast<unsigned int>(_selectedPlaylist),
                       cleared ? 1U : 0U);
+        selectionApplied = cleared;
     }
     else
     {
@@ -327,12 +329,20 @@ void SetSelectionMode::selectHighlightedSetList()
         Serial.printf("[PlaySetDiag] set-activate playlist=%u file='%s' result=%u\n",
                       static_cast<unsigned int>(_selectedPlaylist), _setLists[_highlightedSetListIndex].fileName,
                       activated ? 1U : 0U);
+        selectionApplied = activated;
     }
 
     _isLoading = false;
     loadSetLists();
     initializeSelection();
     renderHeaderLabel();
+
+    if (selectionApplied && _highlightedSetListIndex != 0)
+    {
+        const ModeTransitionValue transition = currentPlayTransitionValue(false);
+        _transitionDelegate.enterMode(Modes::PlaySet, transition);
+        return;
+    }
 
     const size_t nextVisibleSetListStartIndex = visibleSetListStartIndexFor(_highlightedSetListIndex);
     if (previousVisibleSetListStartIndex != nextVisibleSetListStartIndex)
@@ -369,12 +379,12 @@ void SetSelectionMode::selectHighlightedSetList()
 void SetSelectionMode::returnToPlay()
 {
     const ModeTransitionValue transition = currentPlayTransitionValue(false);
-    Serial.printf("[PlaySetDiag] set-selection back -> play playlist=%u transition=0x%04X hasCurrentSong=%u currentPatch=%u "
+    Serial.printf("[PlaySetDiag] set-selection back -> sets playlist=%u transition=0x%04X hasCurrentSong=%u currentPatch=%u "
                   "currentSongIndex=%u\n",
                   static_cast<unsigned int>(_selectedPlaylist), static_cast<unsigned int>(transition),
                   _hasCurrentSong ? 1U : 0U, static_cast<unsigned int>(_currentPatch),
                   static_cast<unsigned int>(_currentSongIndex));
-    _transitionDelegate.enterMode(Modes::Play, transition);
+    _transitionDelegate.enterMode(Modes::Songs, transition);
 }
 
 ModeTransitionValue SetSelectionMode::currentPlayTransitionValue(bool shouldRecall) const
