@@ -132,6 +132,20 @@
               "colour": "0x801F"
             }
           }
+        },
+        "3": {
+          "name": "Sanctuary",
+          "longName": "She Sells Sanctuary",
+          "buttons": {
+            "0": {
+              "label": "Intro",
+              "colour": "001F"
+            },
+            "1": {
+              "label": "Verse",
+              "colour": "0x801F"
+            }
+          }
         }
       }
     }
