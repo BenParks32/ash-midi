@@ -384,6 +384,7 @@ void test_set_selection_mode_uses_agreed_button_map_and_marks_active_set()
     fixture.mode.activate();
 
     TEST_ASSERT_TRUE(fixture.setListStore.loadingLabelDrawnBeforeListLoad);
+    TEST_ASSERT_EQUAL_INT(0, countDrawTextCalls(fixture.ui, "No set"));
     TEST_ASSERT_EQUAL_STRING("Select", fixture.touchButtonManager.getButton(0)->label());
     TEST_ASSERT_EQUAL_STRING("Last", fixture.touchButtonManager.getButton(1)->label());
     TEST_ASSERT_EQUAL_STRING("PgDn", fixture.touchButtonManager.getButton(2)->label());
@@ -407,7 +408,6 @@ void test_set_selection_mode_selects_highlighted_set_and_returns_to_play_set_mod
 
     fixture.mode.setTransitionValue(makePlayModeTransition(TestPlaylistIndex, 6, false));
     fixture.mode.activate();
-    fixture.mode.buttonPressed(3);
     const int fillRectCallCountBeforeSelect = fixture.ui.fillRectCallCount;
     const int fullListClearCountBeforeSelect = countFillRectCalls(fixture.ui, 5, 82, 470, 156);
     fixture.mode.buttonPressed(0);
@@ -445,25 +445,6 @@ void test_set_selection_mode_selecting_new_set_returns_to_play_set_mode()
     TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(Modes::PlaySet), static_cast<uint8_t>(fixture.transitionDelegate.lastMode));
     TEST_ASSERT_EQUAL_UINT16(makePlayModeTransition(TestPlaylistIndex, 6, false),
                              fixture.transitionDelegate.lastTransitionValue);
-}
-
-void test_set_selection_mode_can_clear_active_set_without_leaving_screen()
-{
-    Fixture fixture;
-    fixture.setListStore.setListCount = 1;
-    seedSet(fixture, 0, "Friday", "friday.jsn");
-    fixture.setListStore.active = true;
-    std::snprintf(fixture.setListStore.activeSet.name, sizeof(fixture.setListStore.activeSet.name), "%s", "Friday");
-    std::snprintf(fixture.setListStore.activeSet.sourcePath, sizeof(fixture.setListStore.activeSet.sourcePath), "%s",
-                  "/sets/p7/friday.jsn");
-
-    fixture.mode.setTransitionValue(makePlayModeTransition(TestPlaylistIndex, 6, false));
-    fixture.mode.activate();
-    fixture.mode.buttonPressed(5);
-    fixture.mode.buttonPressed(0);
-
-    TEST_ASSERT_EQUAL_INT(1, fixture.setListStore.clearActiveCalls);
-    TEST_ASSERT_EQUAL_INT(0, fixture.transitionDelegate.calls);
 }
 
 void test_set_selection_mode_back_returns_to_set_mode_with_current_context()
@@ -517,7 +498,6 @@ int main(int argc, char** argv)
     RUN_TEST(test_set_selection_mode_uses_agreed_button_map_and_marks_active_set);
     RUN_TEST(test_set_selection_mode_selects_highlighted_set_and_returns_to_play_set_mode);
     RUN_TEST(test_set_selection_mode_selecting_new_set_returns_to_play_set_mode);
-    RUN_TEST(test_set_selection_mode_can_clear_active_set_without_leaving_screen);
     RUN_TEST(test_set_selection_mode_back_returns_to_set_mode_with_current_context);
     RUN_TEST(test_set_selection_mode_keeps_loaded_label_visible_while_paging);
     return UNITY_END();

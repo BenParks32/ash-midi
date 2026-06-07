@@ -37,4 +37,5 @@
 
 #define FF20 &FreeSans9pt7b
 #define FF22 &FreeSansBold12pt7b
+#define FF24 &FreeSansBold18pt7b
 #define FF32 &FreeSansBoldOblique24pt7b

@@ -51,6 +51,17 @@ struct SongConfig
     SongConfig() : patchNumber(0), name{0}, displayName{0}, id{0} {}
 };
 
+struct SongNotes
+{
+    static constexpr size_t MaxLines = 4;
+    static constexpr size_t LineCapacity = 64;
+
+    char lines[MaxLines][LineCapacity];
+    uint8_t lineCount;
+
+    SongNotes() : lines{}, lineCount(0) {}
+};
+
 class IButtonOverrideStore
 {
   public:
@@ -80,6 +91,13 @@ class IButtonOverrideStore
         (void)outSong;
         return false;
     }
+    virtual bool songNotesForIndex(byte playlistIndex, byte songIndex, SongNotes* outNotes) const
+    {
+        (void)playlistIndex;
+        (void)songIndex;
+        (void)outNotes;
+        return false;
+    }
     virtual bool songForId(byte playlistIndex, const char* songId, byte& songIndex, SongConfig& outSong) const
     {
         (void)playlistIndex;
@@ -102,6 +120,7 @@ class ButtonOverrideStore : public IButtonOverrideStore
     size_t listPatches(byte playlistIndex, PatchListEntry* entries, size_t capacity) const override;
     size_t listSongs(byte playlistIndex, SongListEntry* entries, size_t capacity) const override;
     bool songForIndex(byte playlistIndex, byte songIndex, SongConfig* outSong) const override;
+    bool songNotesForIndex(byte playlistIndex, byte songIndex, SongNotes* outNotes) const override;
     bool songForId(byte playlistIndex, const char* songId, byte& songIndex, SongConfig& outSong) const override;
 
   private:

@@ -107,6 +107,31 @@ void copyConfigString(const char* source, char* destination, size_t destinationC
     destination[destinationCapacity - 1U] = '\0';
 }
 
+void copySongNotes(const SongCatalogue& songsCatalogue, const MCFG_Song& song, SongNotes* outNotes)
+{
+    if (outNotes == nullptr)
+    {
+        return;
+    }
+
+    *outNotes = SongNotes{};
+    if (song.notesCount == 0U)
+    {
+        return;
+    }
+
+    const size_t notesToCopy =
+        (static_cast<size_t>(song.notesCount) < SongNotes::MaxLines) ? static_cast<size_t>(song.notesCount)
+                                                                     : SongNotes::MaxLines;
+    for (size_t noteIndex = 0; noteIndex < notesToCopy; ++noteIndex)
+    {
+        copyConfigString(songNoteString(songsCatalogue, song, noteIndex), outNotes->lines[noteIndex],
+                         sizeof(outNotes->lines[noteIndex]));
+    }
+
+    outNotes->lineCount = static_cast<uint8_t>(notesToCopy);
+}
+
 const char* const* songPathCandidatesForPlaylist(byte playlistIndex, size_t& candidateCount)
 {
     switch (playlistIndex)
@@ -591,6 +616,35 @@ bool ButtonOverrideStore::songForIndex(byte playlistIndex, byte songIndex, SongC
     return true;
 }
 
+bool ButtonOverrideStore::songNotesForIndex(byte playlistIndex, byte songIndex, SongNotes* outNotes) const
+{
+    if (outNotes == nullptr)
+    {
+        return false;
+    }
+
+    *outNotes = SongNotes{};
+
+    SongCatalogue songsCatalogue;
+    const char* loadedPath = nullptr;
+    if (!loadSongCatalogueForPlaylist(playlistIndex, songsCatalogue, loadedPath))
+    {
+        return false;
+    }
+    (void)loadedPath;
+
+    bool foundSong = false;
+    if (songIndex < songsCatalogue.header->songCount)
+    {
+        copySongNotes(songsCatalogue, songsCatalogue.songs[songIndex], outNotes);
+        foundSong = true;
+    }
+
+    freeSongCatalogue(songsCatalogue);
+
+    return foundSong;
+}
+
 bool ButtonOverrideStore::songForId(byte playlistIndex, const char* songId, byte& songIndex, SongConfig& outSong) const
 {
     songIndex = 0;
@@ -614,7 +668,6 @@ bool ButtonOverrideStore::songForId(byte playlistIndex, const char* songId, byte
     {
         const MCFG_Song& song = songsCatalogue.songs[candidateIndex];
         const char* configuredSongId = songString(songsCatalogue, song.idIndex);
-
         if (configuredSongId == nullptr || std::strcmp(configuredSongId, songId) != 0)
         {
             continue;

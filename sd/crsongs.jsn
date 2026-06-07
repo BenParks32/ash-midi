@@ -1,281 +1,380 @@
 [
     {
+        "id": "20th-century-boy",
         "name": "20thCBoy",
         "longName": "20th Century Boy",
         "patch": 0
     },
     {
+        "id": "dont-look-back-in-anger",
         "name": "Anger",
         "longName": "Don't Look Back in Anger",
         "patch": 0
     },
     {
+        "id": "basket-case",
         "name": "Basket",
         "longName": "Basket Case",
-        "patch": 0
+        "patch": 0,
+        "notes": [
+            "E Flat"
+        ]
     },
     {
+        "id": "blitzkrieg-bop",
         "name": "Bbop",
         "longName": "Blitzkrieg Bop",
         "patch": 0
     },
     {
+        "id": "i-believe-in-a-thing-called-love",
         "name": "Believe",
         "longName": "I Believe in a Thing Called Love",
-        "patch": 0
+        "patch": 0,
+        "notes": [
+            "E Flat"
+        ]
     },
     {
+        "id": "bohemian-like-you",
         "name": "Bohmn",
         "longName": "Bohemian Like You",
         "patch": 0
     },
     {
-        "name": "Boys",
+        "id": "boys-of-summer",
+        "name": "Summer",
         "longName": "Boys of Summer",
-        "patch": 0
+        "patch": 0,
+        "notes": [
+            "E Flat"
+        ]
     },
     {
+        "id": "mr-brightside",
         "name": "Brightside",
         "longName": "Mr Brightside",
-        "patch": 0
+        "patch": 0,
+        "notes": [
+            "E Flat"
+        ]
     },
     {
+        "id": "buck-rogers",
         "name": "Buck",
         "longName": "Buck Rogers",
         "patch": 0
     },
     {
+        "id": "london-calling",
         "name": "Calling",
         "longName": "London Calling",
         "patch": 0
     },
     {
+        "id": "cigarettes-and-alcohol",
         "name": "Cigs",
         "longName": "Cigarettes & Alcohol",
         "patch": 0
     },
     {
+        "id": "common-people",
         "name": "Common",
         "longName": "Common People",
         "patch": 0
     },
     {
+        "id": "creep",
         "name": "Creep",
         "patch": 0
     },
     {
+        "id": "chelsea-dagger",
         "name": "Dagger",
         "longName": "Chelsea Dagger",
         "patch": 0
     },
     {
+        "id": "dakota",
         "name": "Dakota",
         "patch": 0
     },
     {
+        "id": "dancing-in-the-dark",
         "name": "Dancing",
         "longName": "Dancing in the Dark",
-        "patch": 0
+        "patch": 0,
+        "notes": [
+            "E Flat"
+        ]
     },
     {
+        "id": "teenage-dirtbag",
         "name": "Dirtbag",
         "longName": "Teenage Dirtbag",
         "patch": 0
     },
     {
+        "id": "disco-2000",
         "name": "Disco",
         "longName": "Disco 2000",
         "patch": 0
     },
     {
-        "name": "DncFlor",
-        "longName": "I bet That You Look Good on the Dancefloor",
+        "id": "dancefloor",
+        "name": "Dancefloor",
+        "longName": "Look Good on the Dancefloor",
         "patch": 0
     },
     {
+        "id": "dont-stop-me-now",
         "name": "DontStp",
         "longName": "Don't Stop Me Now",
-        "patch": 0
+        "patch": 0,
+        "notes": [
+            "F Am Dm Gm C",
+            "F F7 Bb Gm D7"
+        ]
     },
     {
+        "id": "shes-electric",
         "name": "Electric",
         "longName": "She's Electric",
         "patch": 0
     },
     {
+        "id": "thats-entertainment",
         "name": "Entrtmnt",
         "longName": "That's Entertainment",
         "patch": 0
     },
     {
+        "id": "everlong",
         "name": "Everlong",
-        "patch": 0
+        "patch": 0,
+        "notes": [
+            "Drop D"
+        ]
     },
     {
+        "id": "fire",
         "name": "Fire",
         "patch": 0
     },
     {
+        "id": "learn-to-fly",
         "name": "Fly",
         "longName": "Learn to Fly",
         "patch": 0
     },
     {
+        "id": "are-you-gonna-be-my-girl",
         "name": "Girl",
         "longName": "Are You Gonna Be My Girl",
         "patch": 0
     },
     {
+        "id": "hard-to-handle",
         "name": "Handle",
         "longName": "Hard to Handle",
         "patch": 0
     },
     {
+        "id": "my-hero",
         "name": "Hero",
-        "longName": "Mr Hero",
+        "longName": "My Hero",
         "patch": 0
     },
     {
-        "name": "Hi&Dry",
+        "id": "high-and-dry",
+        "name": "High",
         "longName": "High and Dry",
         "patch": 0
     },
     {
+        "id": "teenage-kicks",
         "name": "Kicks",
         "longName": "Teenage Kicks",
         "patch": 0
     },
     {
+        "id": "killing-in-the-name",
         "name": "Killing",
         "longName": "Killing In The Name",
-        "patch": 2
+        "patch": 2,
+        "notes": [
+            "Flange ON",
+            "Exp down"
+        ]
     },
     {
+        "id": "lucky-man",
         "name": "Lucky",
         "longName": "Lucky Man",
-        "patch": 3
+        "patch": 4
     },
     {
-        "name": "Malic",
+        "id": "town-called-malice",
+        "name": "Malice",
         "longName": "Town Called Malice",
         "patch": 0
     },
     {
+        "id": "girl-from-mars",
         "name": "Mars",
         "longName": "Girl From Mars",
         "patch": 0
     },
     {
+        "id": "proud-mary",
         "name": "Mary",
         "longName": "Proud Mary",
         "patch": 0
     },
     {
+        "id": "have-a-nice-day",
         "name": "NiceDay",
         "longName": "Have a Nice Day",
         "patch": 0
     },
     {
+        "id": "not-nineteen-forever",
         "name": "Not19",
         "longName": "Not Nineteen Forever",
         "patch": 0
     },
     {
+        "id": "paranoid",
         "name": "Paranoid",
         "patch": 0
     },
     {
+        "id": "parklife",
         "name": "Parklife",
         "patch": 0
     },
     {
-        "name": "Punk",
+        "id": "sheena-is-a-punk-rocker",
+        "name": "Sheena",
         "longName": "Sheena is a Punk Rocker",
         "patch": 0
     },
     {
+        "id": "why-does-it-always-rain-on-me",
         "name": "RainOn",
         "longName": "Why Does It Always Rain On Me?",
         "patch": 0
     },
     {
+        "id": "a-little-respect",
         "name": "Respect",
         "longName": "A Little Respect",
-        "patch": 0
+        "patch": 0,
+        "notes": [
+            "E Flat"
+        ]
     },
     {
+        "id": "i-predict-a-riot",
         "name": "Riot",
         "longName": "I Predict a Riot",
         "patch": 0
     },
     {
+        "id": "i-love-rock-n-roll",
         "name": "RnR",
         "longName": "I Love Rock 'N Roll",
         "patch": 0
     },
     {
+        "id": "rocks",
         "name": "Rocks",
         "patch": 0
     },
     {
+        "id": "she-sells-sanctuary",
         "name": "Sanctuary",
         "longName": "She Sells Sanctuary",
         "patch": 3
     },
     {
+        "id": "sweet-child-of-mine",
         "name": "SCoM",
         "longName": "Sweet Child of Mine",
-        "patch": 0
+        "patch": 0,
+        "notes": [
+            "E Flat"
+        ]
     },
     {
+        "id": "sit-down",
         "name": "SitDwn",
         "longName": "Sit Down",
         "patch": 0
     },
     {
+        "id": "all-the-small-things",
         "name": "SmThgns",
         "longName": "All The Small Things",
         "patch": 0
     },
     {
+        "id": "sex-on-fire",
         "name": "SOF",
         "longName": "Sex on Fire",
         "patch": 0
     },
     {
+        "id": "song-2",
         "name": "Song 2",
         "patch": 0
     },
     {
+        "id": "sup",
         "name": "Sup",
         "patch": 0
     },
     {
-        "name": "ThngsIDone",
+        "id": "all-these-things-that-ive-done",
+        "name": "Things",
         "longName": "All These Things That I've Done",
+        "patch": 0,
+        "notes": [
+            "E Flat"
+        ]
+    },
+    {
+        "id": "bohemian-rhapsody",
+        "name": "BoRhap",
+        "longName": "Bohemian Rhapsody",
         "patch": 0
     },
     {
+        "id": "times-like-these",
         "name": "Times",
         "longName": "Times Like These",
         "patch": 0
     },
     {
+        "id": "use-somebody",
         "name": "Use",
         "longName": "Use Somebody",
         "patch": 0
     },
     {
+        "id": "pretty-vacant",
         "name": "Vacant",
         "longName": "Pretty Vacant",
         "patch": 0
     },
     {
+        "id": "valerie",
         "name": "Valerie",
         "patch": 0
     },
     {
-        "name": "With",
+        "id": "with-or-without-you",
+        "name": "Without",
         "longName": "With or Without You",
         "patch": 1
     }

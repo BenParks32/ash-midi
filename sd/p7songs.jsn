@@ -56,7 +56,10 @@
         "id": "crush-crush-crush",
         "name": "Crush",
         "longName": "Crush Crush Crush",
-        "patch": 0
+        "patch": 0,
+        "notes": [
+            "Drop D"
+        ]
     },
     {
         "id": "dakota",
@@ -166,7 +169,10 @@
         "id": "place-your-hands",
         "name": "Place",
         "longName": "Place Your Hands",
-        "patch": 0
+        "patch": 0,
+        "notes": [
+            "Drop D"
+        ]
     },
     {
         "id": "i-predict-a-riot",

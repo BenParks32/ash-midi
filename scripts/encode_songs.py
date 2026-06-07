@@ -3,7 +3,7 @@ import struct
 import sys
 
 MSNG_MAGIC = 0x4D534E47
-MSNG_VERSION = 1
+MSNG_VERSION = 2
 NONE = 0xFFFF
 
 def add_string(table, s):
@@ -21,15 +21,28 @@ def encode(json_data, out_path):
 
     strings = []
     songs = []
+    note_indices = []
 
     for entry in json_data:
         name_idx = add_string(strings, entry["name"])
         long_idx = add_string(strings, entry.get("longName"))
         id_idx = add_string(strings, entry.get("id"))
+        notes = entry.get("notes", [])
+        if notes is None:
+            notes = []
+        if not isinstance(notes, list):
+            raise ValueError("notes must be an array of strings")
+        if len(notes) > 255:
+            raise ValueError("notes array too long (max 255 lines)")
+        notes_start = len(note_indices)
+        for note in notes:
+            if not isinstance(note, str):
+                raise ValueError("notes entries must be strings")
+            note_indices.append(add_string(strings, note))
         patch = int(entry["patch"])
         if patch < 0 or patch > 255:
             raise ValueError(f"patch out of range (0..255): {patch}")
-        songs.append((name_idx, long_idx, id_idx, patch))
+        songs.append((name_idx, long_idx, id_idx, notes_start, len(notes), patch))
 
     # Build string table
     offsets = []
@@ -44,31 +57,38 @@ def encode(json_data, out_path):
         blob
     )
 
+    notes_table = b"".join(pack_u16(index) for index in note_indices)
+
     # Build song table
     song_table = b""
-    for name_idx, long_idx, id_idx, patch in songs:
+    for name_idx, long_idx, id_idx, notes_start, notes_count, patch in songs:
         song_table += pack_u16(name_idx)
         song_table += pack_u16(long_idx)
         song_table += pack_u16(id_idx)
+        song_table += pack_u16(notes_start)
+        song_table += pack_u8(notes_count)
         song_table += pack_u8(patch)
 
     # Compute offsets
-    header_size = 4 + 2 + 2 + 4 + 4
+    header_size = 4 + 2 + 2 + 4 + 4 + 4
     offset_string = header_size
     offset_songs = offset_string + len(string_table)
+    offset_notes = offset_songs + len(song_table)
 
     header = (
         pack_u32(MSNG_MAGIC) +
         pack_u16(MSNG_VERSION) +
         pack_u16(len(songs)) +
         pack_u32(offset_string) +
-        pack_u32(offset_songs)
+        pack_u32(offset_songs) +
+        pack_u32(offset_notes)
     )
 
     with open(out_path, "wb") as f:
         f.write(header)
         f.write(string_table)
         f.write(song_table)
+        f.write(notes_table)
 
     print("Wrote", out_path)
 

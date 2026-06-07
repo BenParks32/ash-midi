@@ -4,7 +4,7 @@
 #include <stdint.h>
 
 #define MSNG_MAGIC 0x4D534E47u /* 'MSNG' */
-#define MSNG_VERSION 1u
+#define MSNG_VERSION 2u
 #define MSNG_STRING_NONE 0xFFFFu
 
 #if defined(__GNUC__)
@@ -20,6 +20,7 @@ struct PACKED MCFG_SongFileHeader
     uint16_t songCount;
     uint32_t stringTableOffset;
     uint32_t songTableOffset;
+    uint32_t notesTableOffset;
 };
 
 struct PACKED MCFG_Song
@@ -27,6 +28,8 @@ struct PACKED MCFG_Song
     uint16_t nameIndex;
     uint16_t longNameIndex;
     uint16_t idIndex;
+    uint16_t notesStart;
+    uint8_t notesCount;
     uint8_t patch;
 };
 

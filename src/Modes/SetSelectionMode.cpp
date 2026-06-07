@@ -25,7 +25,6 @@ const uint16_t PageUpButtonColour = 0x07FF;
 const uint16_t SetUpButtonColour = 0xFFE0;
 const uint16_t ActiveSetColour = 0x07FF;
 
-const char* NoSetListLabel = "No set";
 const char* NoActiveSetLabel = "None";
 const char* LoadingLabel = "Loading...";
 const char* LoadedSetPrefix = "Loaded: ";
@@ -217,13 +216,8 @@ void SetSelectionMode::resetButtons()
 
 void SetSelectionMode::loadSetLists()
 {
-    _setLists[0] = SetListSummary{};
-    std::snprintf(_setLists[0].name, sizeof(_setLists[0].name), "%s", NoSetListLabel);
-    std::snprintf(_setLists[0].fileName, sizeof(_setLists[0].fileName), "%s", "");
-
-    const size_t listedCount =
-        _setListStore.listSetLists(_selectedPlaylist, &_setLists[1], MaxVisibleSetLists - 1U);
-    _setListCount = 1U + listedCount;
+    const size_t listedCount = _setListStore.listSetLists(_selectedPlaylist, _setLists, MaxVisibleSetLists);
+    _setListCount = listedCount;
 
     _hasActiveSet = false;
     _activeSetFileName[0] = '\0';
@@ -246,7 +240,7 @@ void SetSelectionMode::initializeSelection()
         return;
     }
 
-    for (size_t index = 1; index < _setListCount; ++index)
+    for (size_t index = 0; index < _setListCount; ++index)
     {
         if (std::strcmp(_setLists[index].fileName, _activeSetFileName) == 0)
         {
@@ -315,29 +309,18 @@ void SetSelectionMode::selectHighlightedSetList()
     _isLoading = true;
     renderHeaderLabel();
 
-    bool selectionApplied = false;
-    if (_highlightedSetListIndex == 0)
-    {
-        const bool cleared = _setListStore.clearActiveSetList(_selectedPlaylist);
-        Serial.printf("[PlaySetDiag] set-clear playlist=%u result=%u\n", static_cast<unsigned int>(_selectedPlaylist),
-                      cleared ? 1U : 0U);
-        selectionApplied = cleared;
-    }
-    else
-    {
-        const bool activated = _setListStore.activateSetList(_selectedPlaylist, _setLists[_highlightedSetListIndex].fileName);
-        Serial.printf("[PlaySetDiag] set-activate playlist=%u file='%s' result=%u\n",
-                      static_cast<unsigned int>(_selectedPlaylist), _setLists[_highlightedSetListIndex].fileName,
-                      activated ? 1U : 0U);
-        selectionApplied = activated;
-    }
+    const bool selectionApplied =
+        _setListStore.activateSetList(_selectedPlaylist, _setLists[_highlightedSetListIndex].fileName);
+    Serial.printf("[PlaySetDiag] set-activate playlist=%u file='%s' result=%u\n",
+                  static_cast<unsigned int>(_selectedPlaylist), _setLists[_highlightedSetListIndex].fileName,
+                  selectionApplied ? 1U : 0U);
 
     _isLoading = false;
     loadSetLists();
     initializeSelection();
     renderHeaderLabel();
 
-    if (selectionApplied && _highlightedSetListIndex != 0)
+    if (selectionApplied)
     {
         const ModeTransitionValue transition = currentPlayTransitionValue(false);
         _transitionDelegate.enterMode(Modes::PlaySet, transition);
@@ -509,7 +492,7 @@ bool SetSelectionMode::setListIndexForFileName(const char* fileName, size_t& set
         return false;
     }
 
-    for (size_t index = 1; index < _setListCount; ++index)
+    for (size_t index = 0; index < _setListCount; ++index)
     {
         if (std::strcmp(_setLists[index].fileName, fileName) == 0)
         {
@@ -523,7 +506,8 @@ bool SetSelectionMode::setListIndexForFileName(const char* fileName, size_t& set
 
 bool SetSelectionMode::isActiveSetList(size_t setListIndex) const
 {
-    return _hasActiveSet && setListIndex > 0 && std::strcmp(_setLists[setListIndex].fileName, _activeSetFileName) == 0;
+    return _hasActiveSet && setListIndex < _setListCount &&
+           std::strcmp(_setLists[setListIndex].fileName, _activeSetFileName) == 0;
 }
 
 size_t SetSelectionMode::visibleSetListCapacity() const { return VisibleRowCount * ColumnCount; }

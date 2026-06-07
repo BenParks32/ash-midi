@@ -9,9 +9,11 @@ struct GFXfont
 };
 
 static GFXfont g_ff22 = {};
+static GFXfont g_ff24 = {};
 static GFXfont g_ff32 = {};
 
 static GFXfont* const FF22 = &g_ff22;
+static GFXfont* const FF24 = &g_ff24;
 static GFXfont* const FF32 = &g_ff32;
 
 #ifndef GFXFF

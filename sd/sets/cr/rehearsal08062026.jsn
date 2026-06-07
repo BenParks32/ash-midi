@@ -1,0 +1,141 @@
+{
+    "name": "Rehearsal08062026",
+    "parts": [
+        {
+            "part": 1,
+            "name": "Rehearsal08062026"
+        }
+    ],
+    "songs": [
+        {
+            "number": 1,
+            "part": 1,
+            "songId": "she-sells-sanctuary"
+        },
+        {
+            "number": 2,
+            "part": 1,
+            "songId": "sheena-is-a-punk-rocker"
+        },
+        {
+            "number": 3,
+            "part": 1,
+            "songId": "times-like-these"
+        },
+        {
+            "number": 4,
+            "part": 1,
+            "songId": "hard-to-handle"
+        },
+        {
+            "number": 5,
+            "part": 1,
+            "songId": "boys-of-summer"
+        },
+        {
+            "number": 6,
+            "part": 1,
+            "songId": "high-and-dry"
+        },
+        {
+            "number": 7,
+            "part": 1,
+            "songId": "london-calling"
+        },
+        {
+            "number": 8,
+            "part": 1,
+            "songId": "use-somebody"
+        },
+        {
+            "number": 9,
+            "part": 1,
+            "songId": "are-you-gonna-be-my-girl"
+        },
+        {
+            "number": 10,
+            "part": 1,
+            "songId": "with-or-without-you"
+        },
+        {
+            "number": 11,
+            "part": 1,
+            "songId": "girl-from-mars"
+        },
+        {
+            "number": 12,
+            "part": 1,
+            "songId": "cigarettes-and-alcohol"
+        },
+        {
+            "number": 13,
+            "part": 1,
+            "songId": "all-these-things-that-ive-done"
+        },
+        {
+            "number": 14,
+            "part": 1,
+            "songId": "bohemian-rhapsody"
+        },
+        {
+            "number": 15,
+            "part": 1,
+            "songId": "i-believe-in-a-thing-called-love"
+        },
+        {
+            "number": 16,
+            "part": 1,
+            "songId": "basket-case"
+        },
+        {
+            "number": 17,
+            "part": 1,
+            "songId": "song-2"
+        },
+        {
+            "number": 18,
+            "part": 1,
+            "songId": "creep"
+        },
+        {
+            "number": 19,
+            "part": 1,
+            "songId": "everlong"
+        },
+        {
+            "number": 20,
+            "part": 1,
+            "songId": "killing-in-the-name"
+        },
+        {
+            "number": 21,
+            "part": 1,
+            "songId": "town-called-malice"
+        },
+        {
+            "number": 22,
+            "part": 1,
+            "songId": "dancefloor"
+        },
+        {
+            "number": 23,
+            "part": 1,
+            "songId": "dont-look-back-in-anger"
+        },
+        {
+            "number": 24,
+            "part": 1,
+            "songId": "sex-on-fire"
+        },
+        {
+            "number": 25,
+            "part": 1,
+            "songId": "20th-century-boy"
+        },
+        {
+            "number": 26,
+            "part": 1,
+            "songId": "parklife"
+        }
+    ]
+}

@@ -19,6 +19,7 @@ struct SongFixture
     const char* name;
     const char* longName;
     uint8_t patch;
+    std::vector<const char*> notes;
 };
 
 struct ButtonActionFixture
@@ -73,9 +74,10 @@ PlayModeFixture makePlayMode(const char* name, std::vector<PatchFixture> patches
     return PlayModeFixture{name, std::move(patches)};
 }
 
-SongFixture makeSong(const char* id, const char* name, const char* longName, uint8_t patch)
+SongFixture makeSong(const char* id, const char* name, const char* longName, uint8_t patch,
+                     std::vector<const char*> notes = {})
 {
-    return SongFixture{id, name, longName, patch};
+    return SongFixture{id, name, longName, patch, notes};
 }
 
 void appendU16(std::vector<uint8_t>& out, uint16_t value)
@@ -115,11 +117,30 @@ uint16_t addString(std::vector<std::string>& strings, const char* value)
 std::vector<uint8_t> buildSongCatalogue(const std::vector<SongFixture>& songs)
 {
     std::vector<std::string> strings;
+    struct SongRecord
+    {
+        uint16_t nameIndex;
+        uint16_t longNameIndex;
+        uint16_t idIndex;
+        uint16_t notesStart;
+        uint8_t notesCount;
+        uint8_t patch;
+    };
+
+    std::vector<uint16_t> noteIndices;
+    std::vector<SongRecord> songRecords;
     for (const SongFixture& song : songs)
     {
-        addString(strings, song.id);
-        addString(strings, song.name);
-        addString(strings, song.longName);
+        const uint16_t nameIndex = addString(strings, song.name);
+        const uint16_t longNameIndex = addString(strings, song.longName);
+        const uint16_t idIndex = addString(strings, song.id);
+        const uint16_t notesStart = static_cast<uint16_t>(noteIndices.size());
+        for (const char* note : song.notes)
+        {
+            noteIndices.push_back(addString(strings, note));
+        }
+        songRecords.push_back(
+            {nameIndex, longNameIndex, idIndex, notesStart, static_cast<uint8_t>(song.notes.size()), song.patch});
     }
 
     std::vector<uint8_t> stringBlob;
@@ -139,26 +160,37 @@ std::vector<uint8_t> buildSongCatalogue(const std::vector<SongFixture>& songs)
     }
     stringTable.insert(stringTable.end(), stringBlob.begin(), stringBlob.end());
 
-    std::vector<uint8_t> songTable;
-    for (const SongFixture& song : songs)
+    std::vector<uint8_t> notesTable;
+    for (uint16_t noteIndex : noteIndices)
     {
-        appendU16(songTable, addString(strings, song.name));
-        appendU16(songTable, addString(strings, song.longName));
-        appendU16(songTable, addString(strings, song.id));
+        appendU16(notesTable, noteIndex);
+    }
+
+    std::vector<uint8_t> songTable;
+    for (const SongRecord& song : songRecords)
+    {
+        appendU16(songTable, song.nameIndex);
+        appendU16(songTable, song.longNameIndex);
+        appendU16(songTable, song.idIndex);
+        appendU16(songTable, song.notesStart);
+        songTable.push_back(song.notesCount);
         songTable.push_back(song.patch);
     }
 
     std::vector<uint8_t> output;
     const uint32_t stringTableOffset = static_cast<uint32_t>(sizeof(MCFG_SongFileHeader));
     const uint32_t songTableOffset = stringTableOffset + static_cast<uint32_t>(stringTable.size());
+    const uint32_t notesTableOffset = songTableOffset + static_cast<uint32_t>(songTable.size());
 
     appendU32(output, MSNG_MAGIC);
     appendU16(output, MSNG_VERSION);
     appendU16(output, static_cast<uint16_t>(songs.size()));
     appendU32(output, stringTableOffset);
     appendU32(output, songTableOffset);
+    appendU32(output, notesTableOffset);
     output.insert(output.end(), stringTable.begin(), stringTable.end());
     output.insert(output.end(), songTable.begin(), songTable.end());
+    output.insert(output.end(), notesTable.begin(), notesTable.end());
     return output;
 }
 
@@ -386,15 +418,17 @@ void test_song_catalogue_round_trips_ids_and_display_names()
 {
     const std::vector<PlayModeFixture> config = {makePlayMode("Project7", {})};
     loadButtonConfig(config);
-    const std::vector<SongFixture> songs = {makeSong("zombie", "Zombie", nullptr, 1),
-                                            makeSong("boulevard", "Boulevard", "Boulevard of Broken Dreams", 2)};
+    const std::vector<SongFixture> songs = {
+        makeSong("zombie", "Zombie", nullptr, 1, {"This opening needs a capo"}),
+        makeSong("boulevard", "Boulevard", "Boulevard of Broken Dreams", 2, {"Drop D", "Use chorus effect"}),
+        makeSong("she-sells-sanctuary", "Sanctuary", "She Sells Sanctuary", 3, {"E Flat"})};
     loadProject7Songs(songs);
 
     ButtonOverrideStore store;
     TEST_ASSERT_TRUE(store.refresh());
 
     SongListEntry entries[4] = {};
-    TEST_ASSERT_EQUAL_UINT32(2, store.listSongs(Project7PlaylistIndex, entries, 4));
+    TEST_ASSERT_EQUAL_UINT32(3, store.listSongs(Project7PlaylistIndex, entries, 4));
     TEST_ASSERT_EQUAL_STRING("zombie", entries[0].id);
     TEST_ASSERT_EQUAL_STRING("Zombie", entries[0].name);
 
@@ -403,7 +437,30 @@ void test_song_catalogue_round_trips_ids_and_display_names()
     TEST_ASSERT_EQUAL_STRING("Boulevard", song.name);
     TEST_ASSERT_EQUAL_STRING("Boulevard of Broken Dreams", song.displayName);
 
+    SongNotes notes = {};
+    TEST_ASSERT_TRUE(store.songNotesForIndex(Project7PlaylistIndex, 0, &notes));
+    TEST_ASSERT_EQUAL_UINT8(1, notes.lineCount);
+    TEST_ASSERT_EQUAL_STRING("This opening needs a capo", notes.lines[0]);
+
+    notes = SongNotes{};
+    TEST_ASSERT_TRUE(store.songNotesForIndex(Project7PlaylistIndex, 1, &notes));
+    TEST_ASSERT_EQUAL_UINT8(2, notes.lineCount);
+    TEST_ASSERT_EQUAL_STRING("Drop D", notes.lines[0]);
+    TEST_ASSERT_EQUAL_STRING("Use chorus effect", notes.lines[1]);
+
     byte songIndex = 0;
+    notes = SongNotes{};
+    TEST_ASSERT_TRUE(store.songForId(Project7PlaylistIndex, "she-sells-sanctuary", songIndex, song));
+    TEST_ASSERT_EQUAL_UINT8(2, songIndex);
+    TEST_ASSERT_EQUAL_STRING("Sanctuary", song.name);
+    TEST_ASSERT_EQUAL_STRING("She Sells Sanctuary", song.displayName);
+    TEST_ASSERT_EQUAL_STRING("she-sells-sanctuary", song.id);
+    TEST_ASSERT_TRUE(store.songForIndex(Project7PlaylistIndex, 2, &song));
+    TEST_ASSERT_EQUAL_STRING("she-sells-sanctuary", song.id);
+    TEST_ASSERT_TRUE(store.songNotesForIndex(Project7PlaylistIndex, 2, &notes));
+    TEST_ASSERT_EQUAL_UINT8(1, notes.lineCount);
+    TEST_ASSERT_EQUAL_STRING("E Flat", notes.lines[0]);
+
     TEST_ASSERT_TRUE(store.songForId(Project7PlaylistIndex, "boulevard", songIndex, song));
     TEST_ASSERT_EQUAL_UINT8(1, songIndex);
     TEST_ASSERT_EQUAL_STRING("boulevard", song.id);

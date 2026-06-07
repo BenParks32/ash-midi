@@ -15,6 +15,8 @@ struct SongCatalogue
     const uint32_t* strOffsets = nullptr;
     const char* strBlob = nullptr;
     const MCFG_Song* songs = nullptr;
+    uint16_t notesTableCount = 0U;
+    const uint16_t* notesTable = nullptr;
 };
 
 inline bool loadSongCatalogue(File& f, SongCatalogue& cat)
@@ -90,6 +92,42 @@ inline bool loadSongCatalogue(File& f, SongCatalogue& cat)
     cat.strBlob = (const char*)(buf + strBlobStart);
     cat.songs = (const MCFG_Song*)(buf + header->songTableOffset);
 
+    const size_t songTableEnd = header->songTableOffset + static_cast<size_t>(header->songCount) * sizeof(MCFG_Song);
+    if (header->notesTableOffset < songTableEnd || header->notesTableOffset > size)
+    {
+        free(buf);
+        return false;
+    }
+
+    const size_t notesTableBytes = size - header->notesTableOffset;
+    if ((notesTableBytes % sizeof(uint16_t)) != 0U)
+    {
+        free(buf);
+        return false;
+    }
+
+    const size_t notesTableCount = notesTableBytes / sizeof(uint16_t);
+    if (notesTableCount > UINT16_MAX)
+    {
+        free(buf);
+        return false;
+    }
+
+    cat.notesTableCount = static_cast<uint16_t>(notesTableCount);
+    cat.notesTable = (notesTableCount > 0U) ? (const uint16_t*)(buf + header->notesTableOffset) : nullptr;
+
+    for (uint16_t songIndex = 0; songIndex < cat.header->songCount; ++songIndex)
+    {
+        const MCFG_Song& song = cat.songs[songIndex];
+        const size_t noteStart = static_cast<size_t>(song.notesStart);
+        const size_t noteEnd = noteStart + static_cast<size_t>(song.notesCount);
+        if (noteEnd > cat.notesTableCount)
+        {
+            free(buf);
+            return false;
+        }
+    }
+
     return true;
 }
 
@@ -111,6 +149,22 @@ inline const char* songString(const SongCatalogue& cat, uint16_t idx)
     if (idx >= cat.stringCount)
         return "";
     return cat.strBlob + cat.strOffsets[idx];
+}
+
+inline const char* songNoteString(const SongCatalogue& cat, const MCFG_Song& song, size_t noteIndex)
+{
+    if (song.notesCount == 0U || cat.notesTable == nullptr || noteIndex >= static_cast<size_t>(song.notesCount))
+    {
+        return "";
+    }
+
+    const size_t notesTableIndex = static_cast<size_t>(song.notesStart) + noteIndex;
+    if (notesTableIndex >= cat.notesTableCount)
+    {
+        return "";
+    }
+
+    return songString(cat, cat.notesTable[notesTableIndex]);
 }
 
 #endif

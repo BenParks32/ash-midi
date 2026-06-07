@@ -46,13 +46,14 @@ const uint16_t TunerButtonColour = 0x801F;
 const uint32_t SetAdvanceDebounceMs = 200;
 const uint32_t SetWrapConfirmWindowMs = 2000;
 const int32_t CenterSectionInset = 2;
-const int32_t CenterSectionPadding = 6;
-const int32_t CenterSplitRightWidth = 150;
+const int32_t CenterSectionPadding = 3;
+const int32_t CenterSplitRightWidth = 232;
 const int32_t CenterLine1OffsetY = 46;
-const int32_t CenterLine2OffsetY = 98;
 const int32_t CenterSceneOffsetY = 128;
-const int32_t UpcomingRowSpacing = 24;
-const size_t MaxUpcomingRows = 5;
+const int32_t NotesStartOffsetY = CenterLine1OffsetY + 8;
+const int32_t NotesRowSpacing = 35;
+const int32_t UpcomingRowSpacing = 39;
+const size_t MaxUpcomingRows = 4;
 
 bool isHomePlaylistTransition(ModeTransitionValue transitionValue)
 {
@@ -97,8 +98,8 @@ int32_t measureTextWidth(const GFXfont* font, uint8_t scale, const char* text)
 #endif
 }
 
-void formatUpcomingSongNameLabel(const GFXfont* font, uint8_t scale, const char* songName, int32_t maxWidthPx, char* buffer,
-                                 size_t bufferSize)
+void formatUpcomingSongNameLabel(const GFXfont* font, uint8_t scale, const char* songName, int32_t maxWidthPx,
+                                 char* buffer, size_t bufferSize)
 {
     if (buffer == nullptr || bufferSize == 0U)
     {
@@ -156,7 +157,7 @@ PlaySetMode::PlaySetMode(TouchButtonManager& touchButtonManager, RingManager& ri
       _tapTempoFlashUntilMs(0), _isTapTempoLit(true), _nextTunerFlashToggleMs(0), _isTunerEnabled(false),
       _isGigViewEnabled(false), _isTunerFlashLit(true),
       _toggleStates{false, false, false, false, false, false, false, false}, _patchDisplayConfig(),
-      _selectedSongDisplayName{0}, _songNameLabel{{0}}, _patchNameLabel{{0}}, _snapshotLabel{{0}},
+      _selectedSongDisplayName{0}, _selectedSongNotes{}, _songNameLabel{{0}}, _patchNameLabel{{0}}, _snapshotLabel{{0}},
       _tapTempoDisplayLabel{0}
 {
     setupFunctions();
@@ -174,6 +175,7 @@ void PlaySetMode::setSelectedPreset(byte selectedPreset)
     _isPlaySetMode = false;
     _setWrapConfirmUntilMs = 0;
     _selectedSongDisplayName[0] = '\0';
+    _selectedSongNotes = SongNotes{};
 }
 
 void PlaySetMode::setTransitionValue(ModeTransitionValue transitionValue)
@@ -189,6 +191,7 @@ void PlaySetMode::setTransitionValue(ModeTransitionValue transitionValue)
         _isPlaySetMode = false;
         _setWrapConfirmUntilMs = 0;
         _selectedSongDisplayName[0] = '\0';
+        _selectedSongNotes = SongNotes{};
         return;
     }
 
@@ -198,6 +201,7 @@ void PlaySetMode::setTransitionValue(ModeTransitionValue transitionValue)
         _selectedPreset = playModeTransitionPatch(transitionValue);
         _hasSelectedPreset = playModeTransitionShouldRecall(transitionValue);
         _selectedSongDisplayName[0] = '\0';
+        _selectedSongNotes = SongNotes{};
         _selectedSetSongUnavailable = false;
         _showEndOfSetPrompt = false;
         _hasSelectedSetSong = isPlayModeSetSongTransition(transitionValue);
@@ -231,6 +235,7 @@ void PlaySetMode::setTransitionValue(ModeTransitionValue transitionValue)
         _isPlaySetMode = false;
         _setWrapConfirmUntilMs = 0;
         _selectedSongDisplayName[0] = '\0';
+        _selectedSongNotes = SongNotes{};
         return;
     }
 
@@ -315,6 +320,7 @@ bool PlaySetMode::resolveSelectedSetSong()
     _selectedSetSongUnavailable = false;
     if (!_hasSelectedSetSong)
     {
+        _selectedSongNotes = SongNotes{};
         return false;
     }
 
@@ -324,18 +330,36 @@ bool PlaySetMode::resolveSelectedSetSong()
         Serial.printf("[PlaySetDiag] resolveSelectedSetSong failed playlist=%u\n",
                       static_cast<unsigned int>(_selectedPlaylist));
         _hasSelectedSetSong = false;
+        _selectedSongNotes = SongNotes{};
         return false;
     }
 
     Serial.printf("[PlaySetDiag] resolveSelectedSetSong ok playlist=%u song='%s' available=%u patch=%u songIndex=%u\n",
                   static_cast<unsigned int>(_selectedPlaylist), setSong.name, setSong.available ? 1U : 0U,
                   static_cast<unsigned int>(setSong.patch), static_cast<unsigned int>(setSong.songIndex));
-    std::snprintf(_selectedSongDisplayName, sizeof(_selectedSongDisplayName), "%s", setSong.name);
     _selectedSetSongUnavailable = !setSong.available;
     if (setSong.available)
     {
+        SongConfig song = {};
+        if (_buttonOverrideStore.songForIndex(_selectedPlaylist, setSong.songIndex, &song))
+        {
+            std::snprintf(_selectedSongDisplayName, sizeof(_selectedSongDisplayName), "%s", song.name);
+        }
+        else
+        {
+            std::snprintf(_selectedSongDisplayName, sizeof(_selectedSongDisplayName), "%s", setSong.name);
+        }
         _selectedPreset = setSong.patch;
         _hasSelectedPreset = true;
+        _selectedSongNotes = SongNotes{};
+        if (!_buttonOverrideStore.songNotesForIndex(_selectedPlaylist, setSong.songIndex, &_selectedSongNotes))
+        {
+            _selectedSongNotes = SongNotes{};
+        }
+    }
+    else
+    {
+        _selectedSongNotes = SongNotes{};
     }
     return true;
 }
@@ -345,6 +369,7 @@ bool PlaySetMode::resolveSelectedSong()
     _selectedSongDisplayName[0] = '\0';
     if (!_hasSelectedSong)
     {
+        _selectedSongNotes = SongNotes{};
         return false;
     }
 
@@ -355,11 +380,17 @@ bool PlaySetMode::resolveSelectedSong()
         _hasSelectedPreset = false;
         _hasSelectedSong = false;
         _selectedSongIndex = 0;
+        _selectedSongNotes = SongNotes{};
         return false;
     }
 
     _selectedPreset = song.patchNumber;
-    std::snprintf(_selectedSongDisplayName, sizeof(_selectedSongDisplayName), "%s", song.displayName);
+    std::snprintf(_selectedSongDisplayName, sizeof(_selectedSongDisplayName), "%s", song.name);
+    _selectedSongNotes = SongNotes{};
+    if (!_buttonOverrideStore.songNotesForIndex(_selectedPlaylist, _selectedSongIndex, &_selectedSongNotes))
+    {
+        _selectedSongNotes = SongNotes{};
+    }
     return true;
 }
 
@@ -475,7 +506,6 @@ void PlaySetMode::renderPlayCenterUi()
     _screenUi.fillRect(centerX, centerY, centerWidth, centerHeight, TFT_BLACK);
     _screenUi.fillRect(splitX, centerY + 1, 1, centerHeight - 2, TFT_DARKGREY);
     _screenUi.fillRect(centerX, centerY + CenterLine1OffsetY, splitX - centerX, 1, TFT_DARKGREY);
-    _screenUi.fillRect(centerX, centerY + CenterLine2OffsetY, splitX - centerX, 1, TFT_DARKGREY);
 
     SetListSongEntry currentSong = {};
     size_t songCount = 0;
@@ -508,51 +538,58 @@ void PlaySetMode::renderPlayCenterUi()
     char songLine[TrackedTextLabel::Capacity] = {};
     if (hasCurrentSong)
     {
-        std::snprintf(songLine, sizeof(songLine), "S: %s (%u/%u)", currentSong.name,
-                      static_cast<unsigned int>(songInPart), static_cast<unsigned int>(songsInPart));
+        const char* currentSongName = currentSong.name;
+        SongConfig currentSongConfig = {};
+        if (currentSong.available &&
+            _buttonOverrideStore.songForIndex(_selectedPlaylist, currentSong.songIndex, &currentSongConfig) &&
+            currentSongConfig.name[0] != '\0')
+        {
+            currentSongName = currentSongConfig.name;
+        }
+
+        const int32_t currentSongTextMaxWidth = (splitX - leftX) - 2;
+        char currentSongPrefix[16] = {};
+        std::snprintf(currentSongPrefix, sizeof(currentSongPrefix), "%u/%u ",
+                      static_cast<unsigned int>(currentSong.number), static_cast<unsigned int>(songsInPart));
+        const int32_t currentSongNameMaxWidth = currentSongTextMaxWidth - measureTextWidth(FF24, 1, currentSongPrefix);
+
+        char truncatedCurrentSongName[TrackedTextLabel::Capacity] = {};
+        formatUpcomingSongNameLabel(FF24, 1, currentSongName, currentSongNameMaxWidth, truncatedCurrentSongName,
+                                    sizeof(truncatedCurrentSongName));
+        std::snprintf(songLine, sizeof(songLine), "%s%s", currentSongPrefix, truncatedCurrentSongName);
     }
     else
     {
-        std::snprintf(songLine, sizeof(songLine), "%s", "S: No active song");
+        std::snprintf(songLine, sizeof(songLine), "%s", "No active song");
     }
-    _screenUi.drawText(FF22, 1, songLine, leftX, centerY + 5, _selectedSetSongUnavailable ? TFT_RED : TFT_WHITE,
+    _screenUi.drawText(FF24, 1, songLine, leftX, centerY + 10, _selectedSetSongUnavailable ? TFT_RED : TFT_WHITE,
                        TFT_BLACK);
 
-    char patchLine[TrackedTextLabel::Capacity] = {};
-    if (_patchDisplayConfig.name[0] != '\0')
-    {
-        std::snprintf(patchLine, sizeof(patchLine), "P: %s", _patchDisplayConfig.name);
-    }
-    else
-    {
-        std::snprintf(patchLine, sizeof(patchLine), "P: %u", static_cast<unsigned int>(_selectedPreset));
-    }
-    _screenUi.drawText(FF22, 1, patchLine, leftX, centerY + 36, TFT_WHITE, TFT_BLACK);
-
-    const char* notesLabel = _selectedSetSongUnavailable ? "Notes: unresolved" : "Notes: -";
-    _screenUi.drawText(FF22, 1, notesLabel, leftX, centerY + 66, _selectedSetSongUnavailable ? TFT_RED : TFT_WHITE,
-                       TFT_BLACK);
-
-    char sceneLine[TrackedTextLabel::Capacity] = {};
+    const int32_t notesX = leftX;
+    const int32_t notesY = centerY + NotesStartOffsetY;
+    const int32_t notesMaxWidth = (splitX - leftX) - 2;
     if (_showEndOfSetPrompt)
     {
-        std::snprintf(sceneLine, sizeof(sceneLine), "%s", "END OF SET");
-        _screenUi.drawText(FF32, 1, sceneLine, leftX, centerY + CenterSceneOffsetY, SetButtonColour, TFT_BLACK);
+        _screenUi.drawText(FF24, 1, "END OF SET", notesX, notesY, SetButtonColour, TFT_BLACK);
     }
-    else if (isSceneSelectionButton(_selectedButton))
+    else if (_selectedSongNotes.lineCount > 0U)
     {
-        char sceneLabel[16] = {};
-        formatSnapshotLabelUppercase(_selectedButton, sceneLabel, sizeof(sceneLabel));
-        std::snprintf(sceneLine, sizeof(sceneLine), "Scene: %s", sceneLabel);
-        _screenUi.drawText(FF22, 1, sceneLine, leftX, centerY + CenterSceneOffsetY, TFT_WHITE, TFT_BLACK);
+        for (size_t lineIndex = 0; lineIndex < static_cast<size_t>(_selectedSongNotes.lineCount); ++lineIndex)
+        {
+            char truncatedNoteLine[TrackedTextLabel::Capacity] = {};
+            formatUpcomingSongNameLabel(FF24, 1, _selectedSongNotes.lines[lineIndex], notesMaxWidth, truncatedNoteLine,
+                                        sizeof(truncatedNoteLine));
+            _screenUi.drawText(FF24, 1, truncatedNoteLine, notesX,
+                               notesY + static_cast<int32_t>(lineIndex * NotesRowSpacing),
+                               _selectedSetSongUnavailable ? TFT_RED : TFT_WHITE, TFT_BLACK);
+        }
     }
-
-    char partName[SetListPart::MaxNameLength] = {};
-    if (hasCurrentSong && !_setListStore.activeSetPartName(_selectedPlaylist, currentPart, partName, sizeof(partName)))
+    else
     {
-        std::snprintf(partName, sizeof(partName), "Part %u", static_cast<unsigned int>(currentPart));
+        const char* notesLabel = _selectedSetSongUnavailable ? "unresolved" : "-";
+        _screenUi.drawText(FF24, 1, notesLabel, notesX, notesY, _selectedSetSongUnavailable ? TFT_RED : TFT_WHITE,
+                           TFT_BLACK);
     }
-    _screenUi.drawText(FF22, 1, partName, rightX, centerY + 5, TFT_WHITE, TFT_BLACK);
 
     size_t shownUpcoming = 0;
     if (hasCurrentSong)
@@ -565,10 +602,10 @@ void PlaySetMode::renderPlayCenterUi()
                 continue;
             }
 
+            const int32_t upcomingRowY = centerY + 5 + static_cast<int32_t>(shownUpcoming * UpcomingRowSpacing);
             if (upcomingSong.part != currentPart)
             {
-                _screenUi.fillRect(rightX, centerY + 34 + static_cast<int32_t>(shownUpcoming * UpcomingRowSpacing),
-                                   CenterSplitRightWidth - 16, 1, TFT_DARKGREY);
+                _screenUi.fillRect(rightX, upcomingRowY, CenterSplitRightWidth - 16, 1, TFT_DARKGREY);
                 break;
             }
 
@@ -583,17 +620,16 @@ void PlaySetMode::renderPlayCenterUi()
 
             const int32_t upcomingTextMaxWidth = (CenterSplitRightWidth - CenterSectionPadding) - 2;
             char upcomingPrefix[16] = {};
-            std::snprintf(upcomingPrefix, sizeof(upcomingPrefix), "%u ", static_cast<unsigned int>(upcomingSong.number));
+            std::snprintf(upcomingPrefix, sizeof(upcomingPrefix), "%u ",
+                          static_cast<unsigned int>(upcomingSong.number));
             const int32_t upcomingNameMaxWidth = upcomingTextMaxWidth - measureTextWidth(FF22, 1, upcomingPrefix);
 
             char upcomingLine[TrackedTextLabel::Capacity] = {};
             char truncatedUpcomingName[TrackedTextLabel::Capacity] = {};
-            formatUpcomingSongNameLabel(FF22, 1, upcomingName, upcomingNameMaxWidth, truncatedUpcomingName,
+            formatUpcomingSongNameLabel(FF24, 1, upcomingName, upcomingNameMaxWidth, truncatedUpcomingName,
                                         sizeof(truncatedUpcomingName));
             std::snprintf(upcomingLine, sizeof(upcomingLine), "%s%s", upcomingPrefix, truncatedUpcomingName);
-            _screenUi.drawText(FF22, 1, upcomingLine, rightX,
-                               centerY + 34 + static_cast<int32_t>(shownUpcoming * UpcomingRowSpacing), TFT_WHITE,
-                               TFT_BLACK);
+            _screenUi.drawText(FF24, 1, upcomingLine, rightX, upcomingRowY, TFT_WHITE, TFT_BLACK);
             ++shownUpcoming;
         }
     }
@@ -896,8 +932,6 @@ void PlaySetMode::updateSnapshotSelectionVisuals(byte previousSelected, byte cur
     {
         renderButton(currentSelected);
     }
-
-    renderSnapshotLabel(currentSelected, TFT_WHITE);
 }
 
 bool PlaySetMode::usesSelectionBorder(byte number) const { return isSceneSelectionButton(number); }
@@ -1183,7 +1217,13 @@ void PlaySetMode::frameTick()
     }
 }
 
-void PlaySetMode::encoderPressed() { _transitionDelegate.enterMode(Modes::Home, ModeTransitionNone); }
+void PlaySetMode::encoderPressed()
+{
+    const bool cleared = _setListStore.clearActiveSetList(_selectedPlaylist);
+    Serial.printf("[PlaySetDiag] encoder home unload playlist=%u result=%u\n",
+                  static_cast<unsigned int>(_selectedPlaylist), cleared ? 1U : 0U);
+    _transitionDelegate.enterMode(Modes::Home, ModeTransitionNone);
+}
 
 void PlaySetMode::executeAction(const FunctionAction& action)
 {
@@ -1325,6 +1365,19 @@ bool PlaySetMode::advanceSelectedSetSong(bool allowWrap)
     _hasSelectedSetSong = true;
     _hasSelectedSong = false;
     resolveSelectedSetSong();
+    setupFunctions();
+    _buttonOverrideStore.applyOverrides(_selectedPlaylist, _selectedPreset, _functions,
+                                        TouchButtonManager::BUTTON_COUNT, &_patchDisplayConfig);
+    configurePatchButton();
+    if (_isPlaySetMode)
+    {
+        configurePlaySetButtons();
+    }
+    else
+    {
+        configureSetButton();
+    }
+    updateVisuals();
     if (_hasSelectedPreset)
     {
         _midiProvider.recallPreset(_selectedPreset);

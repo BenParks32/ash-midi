@@ -242,21 +242,27 @@ std::vector<uint8_t> buildProject7SongsCatalogue()
     appendU16(songTable, 0);
     appendU16(songTable, 1);
     appendU16(songTable, 2);
+    appendU16(songTable, 0);
+    songTable.push_back(0);
     songTable.push_back(11);
     appendU16(songTable, 3);
     appendU16(songTable, 4);
     appendU16(songTable, 5);
+    appendU16(songTable, 0);
+    songTable.push_back(0);
     songTable.push_back(22);
 
     std::vector<uint8_t> output;
-    const uint32_t stringTableOffset = 16U;
+    const uint32_t stringTableOffset = static_cast<uint32_t>(sizeof(MCFG_SongFileHeader));
     const uint32_t songTableOffset = stringTableOffset + static_cast<uint32_t>(stringTable.size());
+    const uint32_t notesTableOffset = songTableOffset + static_cast<uint32_t>(songTable.size());
 
     appendU32(output, 0x4D534E47U);
-    appendU16(output, 1);
+    appendU16(output, 2);
     appendU16(output, 2);
     appendU32(output, stringTableOffset);
     appendU32(output, songTableOffset);
+    appendU32(output, notesTableOffset);
     output.insert(output.end(), stringTable.begin(), stringTable.end());
     output.insert(output.end(), songTable.begin(), songTable.end());
 

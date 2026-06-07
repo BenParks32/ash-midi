@@ -121,6 +121,7 @@ class PlaySetMode : public FunctionModeBase
     bool _toggleStates[TouchButtonManager::BUTTON_COUNT];
     PatchDisplayConfig _patchDisplayConfig;
     char _selectedSongDisplayName[PatchDisplayConfig::NameCapacity];
+    SongNotes _selectedSongNotes;
     TrackedTextLabel _songNameLabel;
     TrackedTextLabel _patchNameLabel;
     TrackedTextLabel _snapshotLabel;
